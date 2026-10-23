@@ -29,7 +29,7 @@ Android car is a wide 2:1 card).
 
 ## Roadmap (after the Car slice)
 
-1. **Alarm** widget — the two-tone security card (state word + door lock row + arm/disarm).
+1. **Alarm** widget — ✅ **DONE & verified** (v1.4.26 design: blue "Disarmed" rail + shield glyph + "Disarmed at 7:00 AM", Front Door lock row, arm/disarm buttons; 15 tests). Picker in the gallery toggles Car/Alarm.
 2. **Thermostat** — heat/cool setpoints + sensors.
 3. **ChargePoint** — the waitlist/charging card (the big one; its session logic is intricate).
 4. Shared: the Beacon design system (tones, surfaces, card styles) as reusable SwiftUI.
