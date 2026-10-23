@@ -1,0 +1,41 @@
+import Foundation
+
+public struct ThermostatSensor: Sendable, Equatable {
+    public var name: String
+    public var value: String
+    public init(name: String, value: String) { self.name = name; self.value = value }
+}
+
+/// Everything the Thermostat Beacon view renders, already formatted (mirrors CarSnapshot/AlarmSnapshot).
+public struct ThermostatSnapshot: Sendable, Equatable {
+    public var name: String            // "Thermostat"
+    public var checkedAt: String       // "9:41 AM"
+    public var roomTemp: String        // "71°"
+    public var roomSub: String         // "In the room"
+    public var humidity: String?       // "52% humidity"
+    public var status: String          // the climateViewFor headline: "Cooling to 70°" / "Holding 64–70°"
+    public var tone: BeaconTone
+    public var heatSetpoint: String?   // "64°" (nil when the mode has no heat target)
+    public var coolSetpoint: String?   // "70°"
+    public var mode: String            // "Heat" / "Cool" / "Auto" / "Off" / "Fan" / "Dry"
+    public var fan: String?            // "Auto" / "On"
+    public var canResume: Bool
+    public var sensors: [ThermostatSensor]
+
+    public init(name: String, checkedAt: String, roomTemp: String, roomSub: String, humidity: String?,
+                status: String, tone: BeaconTone, heatSetpoint: String?, coolSetpoint: String?,
+                mode: String, fan: String?, canResume: Bool, sensors: [ThermostatSensor]) {
+        self.name = name; self.checkedAt = checkedAt; self.roomTemp = roomTemp; self.roomSub = roomSub
+        self.humidity = humidity; self.status = status; self.tone = tone; self.heatSetpoint = heatSetpoint
+        self.coolSetpoint = coolSetpoint; self.mode = mode; self.fan = fan; self.canResume = canResume
+        self.sensors = sensors
+    }
+
+    public static let sample = ThermostatSnapshot(
+        name: "Thermostat", checkedAt: "9:41 AM", roomTemp: "71°", roomSub: "In the room",
+        humidity: "52% humidity", status: "Holding 64–70°", tone: .violet,
+        heatSetpoint: "64°", coolSetpoint: "70°", mode: "Auto", fan: "Auto", canResume: true,
+        sensors: [ThermostatSensor(name: "Outside", value: "44°"),
+                  ThermostatSensor(name: "Bedroom", value: "72°"),
+                  ThermostatSensor(name: "Thermo", value: "72°")])
+}

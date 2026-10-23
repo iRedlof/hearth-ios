@@ -7,6 +7,7 @@ struct HearthWidgetBundle: WidgetBundle {
     var body: some Widget {
         CarWidget()
         AlarmWidget()
+        ThermostatWidget()
     }
 }
 
@@ -68,6 +69,37 @@ struct AlarmWidget: Widget {
         }
         .configurationDisplayName("Home Alarm")
         .description("Your alarm state and front door at a glance.")
+        .supportedFamilies([.systemMedium])
+        .contentMarginsDisabled()
+    }
+}
+
+// MARK: - Thermostat
+
+struct ThermostatEntry: TimelineEntry {
+    let date: Date
+    let snap: ThermostatSnapshot
+}
+
+struct ThermostatProvider: TimelineProvider {
+    func placeholder(in context: Context) -> ThermostatEntry { ThermostatEntry(date: .now, snap: .sample) }
+    func getSnapshot(in context: Context, completion: @escaping (ThermostatEntry) -> Void) {
+        completion(ThermostatEntry(date: .now, snap: .sample))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<ThermostatEntry>) -> Void) {
+        completion(Timeline(entries: [ThermostatEntry(date: .now, snap: .sample)],
+                            policy: .after(Date().addingTimeInterval(15 * 60))))
+    }
+}
+
+struct ThermostatWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.rohit.hearth.thermostat", provider: ThermostatProvider()) { entry in
+            ThermostatBeaconView(entry.snap)
+                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        }
+        .configurationDisplayName("Thermostat")
+        .description("Your thermostat's temperature and setpoints at a glance.")
         .supportedFamilies([.systemMedium])
         .contentMarginsDisabled()
     }

@@ -20,13 +20,14 @@ struct WidgetGalleryView: View {
             Picker("Widget", selection: $kind) {
                 Text("Car").tag("car")
                 Text("Alarm").tag("alarm")
+                Text("Thermostat").tag("thermostat")
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
 
             ScrollView {
                 VStack(spacing: 20) {
-                    Text("Hearth · \(kind == "alarm" ? "Alarm" : "Car") Beacon")
+                    Text("Hearth · \(kind == "alarm" ? "Alarm" : kind == "thermostat" ? "Thermostat" : "Car") Beacon")
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(sizes, id: \.label) { size in
@@ -49,7 +50,11 @@ struct WidgetGalleryView: View {
     }
 
     @ViewBuilder private var widget: some View {
-        if kind == "alarm" { AlarmBeaconView(.sample) } else { CarBeaconView(.sample) }
+        switch kind {
+        case "alarm": AlarmBeaconView(.sample)
+        case "thermostat": ThermostatBeaconView(.sample)
+        default: CarBeaconView(.sample)
+        }
     }
 }
 
