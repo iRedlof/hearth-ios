@@ -99,12 +99,18 @@ public struct CpBeaconView: View {
     private var keyRow: some View {
         HStack(spacing: 6) {
             ForEach(snap.keys, id: \.command) { key in
-                Button(intent: CpCommandIntent(key.command)) {
-                    Text(key.label).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(white: 0.12))
-                        .frame(maxWidth: .infinity).frame(height: 36)
-                        .background(fill, in: RoundedRectangle(cornerRadius: 11))
-                }.buttonStyle(.plain)
+                if key.command == "snooze" {   // snooze asks a length (10/30/60) via the app
+                    Button(intent: CpSnoozeIntent()) { keyLabel(key.label) }.buttonStyle(.plain)
+                } else {
+                    Button(intent: CpCommandIntent(key.command)) { keyLabel(key.label) }.buttonStyle(.plain)
+                }
             }
         }
+    }
+
+    private func keyLabel(_ text: String) -> some View {
+        Text(text).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(white: 0.12))
+            .frame(maxWidth: .infinity).frame(height: 36)
+            .background(fill, in: RoundedRectangle(cornerRadius: 11))
     }
 }

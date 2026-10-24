@@ -19,6 +19,7 @@ struct ContentView: View {
     @ObservedObject private var climateGate = ClimateGate.shared
     @ObservedObject private var garageGate = GarageGate.shared
     @ObservedObject private var joinGate = CpJoinGate.shared
+    @ObservedObject private var snoozeGate = CpSnoozeGate.shared
 
     var body: some View {
         TabView(selection: $selection) {
@@ -62,6 +63,15 @@ struct ContentView: View {
             Button("Join & auto-run") { joinGate.join(auto: true) }
             Button("Just join") { joinGate.join(auto: false) }
             Button("Cancel", role: .cancel) { joinGate.cancel() }
+        }
+        .confirmationDialog("Snooze for…", isPresented: Binding(
+            get: { snoozeGate.asking },
+            set: { if !$0 { snoozeGate.cancel() } }
+        ), titleVisibility: .visible) {
+            Button("10 minutes") { snoozeGate.snooze(minutes: 10) }
+            Button("30 minutes") { snoozeGate.snooze(minutes: 30) }
+            Button("60 minutes") { snoozeGate.snooze(minutes: 60) }
+            Button("Cancel", role: .cancel) { snoozeGate.cancel() }
         }
     }
 
