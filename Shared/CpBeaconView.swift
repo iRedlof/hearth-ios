@@ -50,6 +50,11 @@ public struct CpBeaconView: View {
                 Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
                     .lineLimit(1).minimumScaleFactor(0.8).padding(.top, snap.unit.isEmpty ? 2 : 0)
             }
+            if let deadline = snap.deadline {
+                Text(timerInterval: Date()...deadline, countsDown: true)
+                    .font(.system(size: 14, weight: .bold)).monospacedDigit().foregroundStyle(ink)
+                    .lineLimit(1).padding(.top, 1)
+            }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 13).padding(.vertical, 12)

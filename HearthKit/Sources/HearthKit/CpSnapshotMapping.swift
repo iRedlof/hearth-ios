@@ -25,5 +25,6 @@ public func cpSnapshot(_ state: CpState, email: String?, checkedAt: String) -> C
         autoOn: state.autoOn,
         actionLabel: ans.action,
         keys: cpManualKeys(state),
+        deadline: cpDeadline(state),
         tone: .orange)
 }

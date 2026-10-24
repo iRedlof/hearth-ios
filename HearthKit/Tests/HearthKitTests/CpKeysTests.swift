@@ -24,4 +24,13 @@ final class CpKeysTests: XCTestCase {
                                   miles: nil, seconds: nil, vehicle: nil, charger: nil)
         XCTAssertEqual(cpManualKeys(state(.notQueued, charging: charging)).map(\.command), ["stop"])
     }
+
+    func testDeadlineFromOffer() {
+        let until: Int64 = 1_700_000_900_000
+        let offer = CpOffer(deviceId: 1, port: 1, charger: "C", untilMs: until)
+        let s = state(.inLine(place: nil, state: "ACCEPT_PENDING", stations: 0, offer: offer, auto: false))
+        XCTAssertEqual(cpDeadline(s), Date(timeIntervalSince1970: Double(until) / 1000))
+        XCTAssertNil(cpDeadline(state(.inLine(place: nil, state: "WAITING", stations: 0, offer: offer, auto: false))))
+        XCTAssertNil(cpDeadline(state(.notQueued)))
+    }
 }

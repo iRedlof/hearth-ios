@@ -77,6 +77,14 @@ public struct CpKey: Sendable, Equatable {
     public init(command: String, label: String) { self.command = command; self.label = label }
 }
 
+/// The deadline to count down to, for timed states that carry an offer/hold/snooze clock.
+public func cpDeadline(_ s: CpState) -> Date? {
+    guard case let .inLine(_, state, _, offer?, _) = s.waitlist,
+          ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"].contains(state),
+          offer.untilMs > 0 else { return nil }
+    return Date(timeIntervalSince1970: Double(offer.untilMs) / 1000)
+}
+
 public func cpManualKeys(_ s: CpState) -> [CpKey] {
     if s.signedOut || s.account.needsReauth { return [] }
     if s.charging != nil { return [CpKey(command: "stop", label: "Stop")] }
