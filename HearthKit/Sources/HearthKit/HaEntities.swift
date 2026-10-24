@@ -32,6 +32,14 @@ public func entitiesInDomain(_ entities: [HaEntity], _ domain: String) -> [HaEnt
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 }
 
+/// Entities in any of several domains (e.g. ["sensor","binary_sensor"]), sorted by display name.
+public func entitiesInDomains(_ entities: [HaEntity], _ domains: [String]) -> [HaEntity] {
+    let set = Set(domains)
+    return entities
+        .filter { set.contains($0.domain) }
+        .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+}
+
 /// `friendly_name` from a single `GET /api/states/<entity>` body (nil if absent/garbage).
 func friendlyName(ofStateJson json: String) -> String? {
     guard let data = json.data(using: .utf8),

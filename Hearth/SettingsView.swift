@@ -2,13 +2,10 @@ import SwiftUI
 import WidgetKit
 import HearthKit
 
-/// App settings — the single shared `HaConfig` every widget reads (matching Android's one
-/// global config). Slice 1 ports the **Alarm** entity picker; door / climate / confirm-mode /
-/// room-sensors follow in later slices.
-///
-/// Every change builds a *new* `HaConfig` (value-type copy — never mutate the live one),
-/// persists it to the App-Group store, and reloads all widget timelines so the home-screen
-/// widgets immediately pick up the change.
+/// App settings — the single shared `HaConfig` every widget reads (matching Android's one global
+/// config). Covers the Alarm (panel, front-door lock, confirm mode) and the Thermostat (climate,
+/// resume button, room sensors). Every change builds a *new* `HaConfig` (value-type copy — never
+/// mutate the live one), persists it to the App-Group store, and reloads all widget timelines.
 struct SettingsView: View {
     @State private var config: HaConfig
     let onChange: (HaConfig) -> Void
@@ -25,34 +22,55 @@ struct SettingsView: View {
                     LabeledContent("Server", value: prettyHost(config.baseUrl))
                     LabeledContent("Account", value: config.isSignedIn ? "Signed in" : "Long-lived token")
                 }
+
                 Section {
-                    pickerRow(title: "Alarm panel", domain: "alarm_control_panel",
-                              allowNone: false, selection: config.entityId) { picked in
-                        apply { $0.entityId = picked }
+                    entityRow("Alarm panel", domain: "alarm_control_panel", allowNone: false,
+                              selection: config.entityId) { e in apply { $0.entityId = e.id } }
+                    entityRow("Front door", domain: "lock", allowNone: true,
+                              selection: config.lockId) { e in
+                        apply { $0.lockId = e.id; $0.lockName = e.id.isEmpty ? "" : e.name }
+                    }
+                    Picker("Disarm & unlock", selection: confirmBinding) {
+                        Text("Face ID / passcode").tag(CONFIRM_BIOMETRIC)
+                        Text("Confirm dialog").tag(CONFIRM_DIALOG)
                     }
                 } header: {
                     Text("Alarm")
                 } footer: {
-                    Text("The alarm_control_panel the Alarm widget arms, disarms and shows.")
+                    Text("The panel the Alarm arms/disarms, an optional front-door lock, and how Disarm/Unlock are confirmed.")
                 }
+
                 Section {
-                    pickerRow(title: "Thermostat", domain: "climate",
-                              allowNone: true, selection: config.climateId) { picked in
-                        apply { $0.climateId = picked }
+                    entityRow("Thermostat", domain: "climate", allowNone: true,
+                              selection: config.climateId) { e in apply { $0.climateId = e.id } }
+                    entityRow("Resume button", domain: "button", allowNone: true,
+                              selection: config.resumeId) { e in apply { $0.resumeId = e.id } }
+                    NavigationLink {
+                        MultiEntityPickerView(config: config, domains: ["sensor", "binary_sensor"],
+                                              title: "Room sensors", selected: config.sensorIds) { ids in
+                            apply { $0.sensorsJson = encodeIds(ids) }
+                        }
+                    } label: {
+                        LabeledContent("Room sensors",
+                                       value: config.sensorIds.isEmpty ? "None" : "\(config.sensorIds.count) selected")
                     }
                 } header: {
                     Text("Thermostat")
                 } footer: {
-                    Text("The climate entity the Thermostat widget shows and controls.")
+                    Text("The climate entity the Thermostat controls, an optional Resume button, and room sensors to show.")
                 }
             }
             .navigationTitle("Settings")
         }
     }
 
+    private var confirmBinding: Binding<String> {
+        Binding(get: { config.confirmWith }, set: { v in apply { $0.confirmWith = v } })
+    }
+
     @ViewBuilder
-    private func pickerRow(title: String, domain: String, allowNone: Bool,
-                           selection: String, onPick: @escaping (String) -> Void) -> some View {
+    private func entityRow(_ title: String, domain: String, allowNone: Bool,
+                           selection: String, onPick: @escaping (HaEntity) -> Void) -> some View {
         NavigationLink {
             EntityPickerView(config: config, domain: domain, title: title,
                              allowNone: allowNone, selected: selection, onPick: onPick)
@@ -69,6 +87,12 @@ struct SettingsView: View {
         HaConfigStore.save(next)
         WidgetCenter.shared.reloadAllTimelines()
         onChange(next)
+    }
+
+    private func encodeIds(_ ids: [String]) -> String {
+        guard let data = try? JSONSerialization.data(withJSONObject: ids),
+              let s = String(data: data, encoding: .utf8) else { return "[]" }
+        return s
     }
 
     private func prettyHost(_ url: String) -> String { URL(string: url)?.host ?? url }

@@ -27,15 +27,18 @@ enum GatedAlarmAction: String, Sendable {
     @Published var confirming: GatedAlarmAction?
 
     /// Entry point from `AlarmGatedIntent.perform()` (running in-app after `openAppWhenRun`).
+    /// Honours the configured confirm mode: biometric (Face ID / passcode) or a confirm dialog —
+    /// and falls back to the dialog where no biometric/passcode is enrolled (bare Simulator).
     func request(_ action: GatedAlarmAction) {
+        let useBiometric = HaConfigStore.load()?.confirmWithBiometric ?? true
         let ctx = LAContext()
         var error: NSError?
-        if ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
+        if useBiometric, ctx.canEvaluatePolicy(.deviceOwnerAuthentication, error: &error) {
             ctx.evaluatePolicy(.deviceOwnerAuthentication, localizedReason: action.reason) { [weak self] ok, _ in
                 Task { @MainActor in if ok { await self?.perform(action) } }
             }
         } else {
-            confirming = action   // bare Simulator / no passcode → dialog fallback
+            confirming = action   // dialog mode, or no biometric available
         }
     }
 

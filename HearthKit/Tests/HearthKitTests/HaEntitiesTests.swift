@@ -35,6 +35,12 @@ final class HaEntitiesTests: XCTestCase {
         XCTAssertEqual(panels.map(\.id), ["alarm_control_panel.garage", "alarm_control_panel.home"])
     }
 
+    func testEntitiesInDomainsCombinesDomains() {
+        // "Front Door" sorts before "Living Room", regardless of domain.
+        let picked = entitiesInDomains(parseEntities(statesJson), ["lock", "climate"])
+        XCTAssertEqual(picked.map(\.id), ["lock.front_door", "climate.living_room"])
+    }
+
     func testGarbageYieldsNoEntities() {
         XCTAssertEqual(parseEntities("<html>502</html>").count, 0)
         XCTAssertEqual(parseEntities(#"{"message":"Entity not found."}"#).count, 0)

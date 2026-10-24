@@ -13,7 +13,7 @@ struct EntityPickerView: View {
     let title: String
     let allowNone: Bool
     let selected: String
-    let onPick: (String) -> Void
+    let onPick: (HaEntity) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var entities: [HaEntity] = []
@@ -48,7 +48,7 @@ struct EntityPickerView: View {
 
     @ViewBuilder private func row(id: String, name: String) -> some View {
         Button {
-            onPick(id)
+            onPick(HaEntity(id: id, name: name))
             dismiss()
         } label: {
             HStack {

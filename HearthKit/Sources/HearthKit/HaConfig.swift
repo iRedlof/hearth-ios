@@ -47,6 +47,7 @@ public struct HaConfig: Sendable, Equatable, Codable {
     public var doorIds: [String] { Self.parseArray(doorIdsJson) }
     public var scriptIds: [String] { Self.parseArray(scriptIdsJson) }
     public var favouriteIds: [String] { Self.parseArray(favouriteIdsJson) }
+    public var sensorIds: [String] { Self.parseArray(sensorsJson) }
     public var lightPins: Set<String> { Set(Self.parseArray(lightPinsJson)) }
 
     private static func parseArray(_ json: String) -> [String] {
