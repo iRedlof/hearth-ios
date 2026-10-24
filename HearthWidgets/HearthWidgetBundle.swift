@@ -157,8 +157,19 @@ struct CpProvider: TimelineProvider {
         completion(CpEntry(date: .now, snap: .sample))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<CpEntry>) -> Void) {
-        completion(Timeline(entries: [CpEntry(date: .now, snap: .sample)],
-                            policy: .after(Date().addingTimeInterval(5 * 60))))
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await CpProvider.fetch()
+            completion(Timeline(entries: [CpEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
+    }
+
+    private static func fetch() async -> CpSnapshot {
+        let session = CpSessionStore.load()
+        guard !session.token.isEmpty else { return .sample }   // never signed in → representative preview
+        let run = CpSessionStore.loadRun()
+        return await fetchCpSnapshot(session, onToken: { CpSessionStore.saveToken($0) }, autoOn: run.armed)
     }
 }
 

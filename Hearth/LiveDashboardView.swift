@@ -13,6 +13,9 @@ struct LiveDashboardView: View {
     @State private var car: CarSnapshot?
     @State private var alarm: AlarmSnapshot?
     @State private var thermostat: ThermostatSnapshot?
+    @State private var cp: CpSnapshot?
+    @State private var cpSignedIn = CpSessionStore.load().isSignedIn
+    @State private var showCpSignIn = false
     @State private var loading = true
 
     var body: some View {
@@ -29,6 +32,14 @@ struct LiveDashboardView: View {
                     sectionTitle("Thermostat")
                     card { if let thermostat { ThermostatBeaconView(thermostat) } else { placeholder } }
                 }
+                sectionTitle("ChargePoint")
+                card { if let cp { CpBeaconView(cp) } else { placeholder } }
+                if !cpSignedIn {
+                    Button { showCpSignIn = true } label: {
+                        Label("Connect ChargePoint", systemImage: "bolt.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent).tint(.orange)
+                }
                 controls
             }
             .padding(20)
@@ -36,6 +47,15 @@ struct LiveDashboardView: View {
         .background(Color(white: 0.08).ignoresSafeArea())
         .preferredColorScheme(.dark)
         .task { await load() }
+        .sheet(isPresented: $showCpSignIn) {
+            NavigationStack {
+                CpSignInView(onSignedIn: {
+                    showCpSignIn = false
+                    cpSignedIn = CpSessionStore.load().isSignedIn
+                    Task { await load() }
+                })
+            }
+        }
     }
 
     private var header: some View {
@@ -81,15 +101,23 @@ struct LiveDashboardView: View {
         async let carSnap = fetchCar(now)
         async let alarmSnap = fetchAlarmMaybe(now)
         async let thermoSnap = fetchThermostatMaybe(now)
+        async let cpSnap = fetchCpMaybe(now)
         car = await carSnap
         alarm = await alarmSnap
         thermostat = await thermoSnap
+        cp = await cpSnap
         loading = false
     }
 
     private func fetchThermostatMaybe(_ now: Date) async -> ThermostatSnapshot? {
         guard config.hasClimate else { return nil }
         return await fetchThermostatSnapshot(config, now: now)
+    }
+
+    private func fetchCpMaybe(_ now: Date) async -> CpSnapshot {
+        let session = CpSessionStore.load()
+        let run = CpSessionStore.loadRun()
+        return await fetchCpSnapshot(session, onToken: { CpSessionStore.saveToken($0) }, autoOn: run.armed, now: now)
     }
 
     private func fetchCar(_ now: Date) async -> CarSnapshot? {

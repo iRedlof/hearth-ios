@@ -1,4 +1,5 @@
 import SwiftUI
+import AppIntents
 import HearthKit
 
 /// The ChargePoint Beacon card, ported from the Android `ChargePointWidget`. Unlike the other widgets,
@@ -25,14 +26,18 @@ public struct CpBeaconView: View {
             HStack(spacing: 4) {
                 Image(systemName: "bolt.fill").font(.system(size: 15, weight: .bold)).foregroundStyle(ink)
                 Spacer(minLength: 2)
-                if snap.autoOn {
+                // Always-visible toggle for the auto-waitlist engine: filled dot = armed, hollow = off.
+                Button(intent: CpControlIntent("autoToggle")) {
                     HStack(spacing: 4) {
                         Text("Auto").font(.system(size: 10, weight: .semibold))
-                        Circle().fill(ink).frame(width: 7, height: 7)
+                        Circle().fill(snap.autoOn ? ink : .clear)
+                            .overlay(Circle().strokeBorder(ink, lineWidth: 1))
+                            .frame(width: 7, height: 7)
                     }
                     .padding(.horizontal, 7).padding(.vertical, 3)
-                    .background(ink.opacity(0.14), in: Capsule()).foregroundStyle(ink)
+                    .background(ink.opacity(snap.autoOn ? 0.14 : 0.06), in: Capsule()).foregroundStyle(ink)
                 }
+                .buttonStyle(.plain)
             }
             Spacer(minLength: 2)
             Text(snap.bigAnswer)
@@ -67,13 +72,24 @@ public struct CpBeaconView: View {
                 }
             }
             Spacer(minLength: 6)
-            Text(snap.actionLabel)
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(white: 0.12))
-                .frame(maxWidth: .infinity).frame(height: 36)
-                .background(fill, in: RoundedRectangle(cornerRadius: 11))
+            actionButton
         }
         .padding(.horizontal, 13).padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
+    }
+
+    /// "Open" deep-links to the ChargePoint app; "Sign in"/"Join" are plain (the card's default tap
+    /// opens Hearth, where sign-in / join live).
+    @ViewBuilder private var actionButton: some View {
+        let label = Text(snap.actionLabel)
+            .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(white: 0.12))
+            .frame(maxWidth: .infinity).frame(height: 36)
+            .background(fill, in: RoundedRectangle(cornerRadius: 11))
+        if snap.actionLabel == "Open" {
+            Link(destination: URL(string: "chargepoint://")!) { label }
+        } else {
+            label
+        }
     }
 }

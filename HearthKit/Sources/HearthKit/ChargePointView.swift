@@ -38,9 +38,6 @@ public func cpAnswer(_ s: CpState) -> CpAnswer {
         let sub = s.account.text.contains("Signed out") ? "Session expired" : "Use its own sign-in page"
         return CpAnswer(big: "Sign in", unit: "", sub: sub, action: "Sign in")
     }
-    if s.location == nil {
-        return CpAnswer(big: "Set up", unit: "", sub: "Address, building or ZIP", action: "Open")
-    }
     // Charging → the hero is the live session.
     if let c = s.charging {
         let sub = c.powerKw.map { "\(fmt1($0)) kW" } ?? "Reading pending"
@@ -63,7 +60,10 @@ public func cpAnswer(_ s: CpState) -> CpAnswer {
                             sub: "\(chargers) charger\(chargers == 1 ? "" : "s")", action: "Open")
         }
     }
-    // Signed in, idle → the hero is the free-plug count; the action is Join.
+    // Signed in, idle. Without a chosen location we can't show plug counts → prompt to set one.
+    if s.location == nil {
+        return CpAnswer(big: "Set up", unit: "", sub: "Choose a location", action: "Open")
+    }
     let free = s.now?.free ?? 0
     return CpAnswer(big: "\(free)", unit: "plugs free", sub: "\(s.now?.stations ?? 0) chargers", action: "Join")
 }
