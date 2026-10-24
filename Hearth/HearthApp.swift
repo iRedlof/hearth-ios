@@ -14,14 +14,27 @@ struct HearthApp: App {
 /// original verification gallery that renders every Beacon at the medium-widget size.
 struct ContentView: View {
     @State private var config: HaConfig? = HaConfigStore.load()
+    @State private var selection = ContentView.initialTab()
 
     var body: some View {
-        TabView {
+        TabView(selection: $selection) {
             liveTab
                 .tabItem { Label("Live", systemImage: "car.fill") }
+                .tag(0)
+            settingsTab
+                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+                .tag(1)
             WidgetGalleryView()
                 .tabItem { Label("Preview", systemImage: "square.grid.2x2.fill") }
+                .tag(2)
         }
+    }
+
+    /// Initial tab from a launch arg (`-tab live|settings|preview`), for screenshots and testing.
+    private static func initialTab() -> Int {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count else { return 0 }
+        switch args[i + 1] { case "settings": return 1; case "preview": return 2; default: return 0 }
     }
 
     @ViewBuilder private var liveTab: some View {
@@ -29,6 +42,15 @@ struct ContentView: View {
             LiveCarView(config: config, onSignOut: signOut)
         } else {
             SignInView(onSignedIn: { config = HaConfigStore.load() })
+        }
+    }
+
+    @ViewBuilder private var settingsTab: some View {
+        if let c = config, c.hasAuth {
+            SettingsView(config: c, onChange: { config = $0 })
+        } else {
+            ContentUnavailableView("Sign in first", systemImage: "gearshape",
+                description: Text("Connect to Home Assistant on the Live tab to configure widgets."))
         }
     }
 
