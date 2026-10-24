@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State private var cpAuto = CpSessionStore.loadRun().armed
     @State private var cpLocation = CpSessionStore.loadLocation()
     @State private var cpAlerts = CpSessionStore.loadAlertPrefs()
+    @State private var entityNames: [String: String] = [:]   // entity_id → friendly name, for display
     let onChange: (HaConfig) -> Void
 
     init(config: HaConfig, onChange: @escaping (HaConfig) -> Void) {
@@ -182,6 +183,7 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .task { await loadNames() }
         }
     }
 
@@ -196,8 +198,16 @@ struct SettingsView: View {
             EntityPickerView(config: config, domain: domain, title: title,
                              allowNone: allowNone, selected: selection, onPick: onPick)
         } label: {
-            LabeledContent(title, value: selection.isEmpty ? "Not set" : selection)
+            LabeledContent(title, value: selection.isEmpty ? "Not set" : (entityNames[selection] ?? selection))
         }
+    }
+
+    /// Resolve entity_id → friendly name once (from `/api/states`), so the single-entity rows show
+    /// human-readable names instead of raw ids. Falls back to the id when unknown or offline.
+    private func loadNames() async {
+        guard config.isSignedIn, entityNames.isEmpty,
+              let json = try? await HaClient(config).allStatesJson() else { return }
+        entityNames = Dictionary(parseEntities(json).map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
     }
 
     /// Immutable update: copy the config, set the field on the copy, persist, reload widgets.
