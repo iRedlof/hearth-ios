@@ -63,7 +63,7 @@ public struct ThermostatBeaconView: View {
                 VStack(alignment: .trailing, spacing: -1) {
                     Text("Checked").font(.system(size: 10))
                     Text(snap.checkedAt).font(.system(size: 10))
-                }.foregroundStyle(surfaceInk.opacity(0.78))
+                }.foregroundStyle(surfaceInk.opacity(0.78)).invalidatableContent()
             }
             Spacer(minLength: 5)
             if let heat = snap.heatSetpoint { setpointRow("Heat to", heat, 0xFFF6D58A, side: .heat) }

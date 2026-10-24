@@ -19,7 +19,7 @@ public struct FavouritesView: View {
                 Button(intent: WidgetRefreshIntent("com.rohit.hearth.favourites")) {
                     Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold)).foregroundStyle(ink.opacity(0.7))
                 }.buttonStyle(.plain)
-                Text(snap.checkedAt).font(.system(size: 10)).foregroundStyle(ink.opacity(0.7)).padding(.leading, 6)
+                Text(snap.checkedAt).font(.system(size: 10)).foregroundStyle(ink.opacity(0.7)).padding(.leading, 6).invalidatableContent()
             }
             if snap.items.isEmpty {
                 Text("No favourites chosen").font(.system(size: 13)).foregroundStyle(ink.opacity(0.6)).padding(.top, 4)

@@ -53,7 +53,7 @@ public struct AlarmBeaconView: View {
                 VStack(alignment: .trailing, spacing: -1) {
                     Text("Checked").font(.system(size: 10))
                     Text(snap.checkedAt).font(.system(size: 10))
-                }.foregroundStyle(surfaceInk.opacity(0.78))
+                }.foregroundStyle(surfaceInk.opacity(0.78)).invalidatableContent()
             }
             Spacer(minLength: 6)
             doorRow

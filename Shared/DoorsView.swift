@@ -36,7 +36,7 @@ public struct DoorsView: View {
             Button(intent: WidgetRefreshIntent("com.rohit.hearth.doors")) {
                 Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold)).foregroundStyle(ink.opacity(0.7))
             }.buttonStyle(.plain)
-            Text(snap.checkedAt).font(.system(size: 10)).foregroundStyle(ink.opacity(0.7))
+            Text(snap.checkedAt).font(.system(size: 10)).foregroundStyle(ink.opacity(0.7)).invalidatableContent()
         }
     }
 

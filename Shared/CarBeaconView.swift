@@ -69,7 +69,7 @@ public struct CarBeaconView: View {
                 VStack(alignment: .trailing, spacing: -1) {
                     Text("Checked").font(.system(size: 10))
                     Text(snap.checkedAt).font(.system(size: 10))
-                }.foregroundStyle(surfaceInk)
+                }.foregroundStyle(surfaceInk).invalidatableContent()
             }
             Text(snap.place).font(.system(size: 12.5)).foregroundStyle(surfaceInk)
                 .lineLimit(1).minimumScaleFactor(0.72).padding(.top, 3)

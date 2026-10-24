@@ -40,7 +40,7 @@ public struct BatteryView: View {
             }.buttonStyle(.plain)
             VStack(alignment: .trailing, spacing: -1) {
                 Text("Checked").font(.system(size: 9)); Text(snap.checkedAt).font(.system(size: 9))
-            }.foregroundStyle(ink.opacity(0.7))
+            }.foregroundStyle(ink.opacity(0.7)).invalidatableContent()
         }
     }
 
