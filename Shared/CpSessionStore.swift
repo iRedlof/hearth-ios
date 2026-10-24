@@ -25,6 +25,17 @@ enum CpSessionStore {
     static func clear() {
         defaults.removeObject(forKey: key)
         defaults.removeObject(forKey: runKey)
+        defaults.removeObject(forKey: locKey)
+    }
+
+    private static let locKey = "cpLocation"
+    static func loadLocation() -> CpLocation? {
+        guard let data = defaults.data(forKey: locKey) else { return nil }
+        return try? JSONDecoder().decode(CpLocation.self, from: data)
+    }
+    static func saveLocation(_ loc: CpLocation?) {
+        if let loc, let data = try? JSONEncoder().encode(loc) { defaults.set(data, forKey: locKey) }
+        else { defaults.removeObject(forKey: locKey) }
     }
 
     static func loadRun() -> CpRun { cpRunFromWire(defaults.string(forKey: runKey) ?? "") }

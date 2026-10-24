@@ -405,7 +405,8 @@ struct CpProvider: TimelineProvider {
                 if result.alert == .driveNow { CpNotify.driveNow() }
             }
         }
-        return await fetchCpSnapshot(session, onToken: { CpSessionStore.saveToken($0) }, autoOn: run.armed)
+        return await fetchCpSnapshot(session, location: CpSessionStore.loadLocation(),
+                                     onToken: { CpSessionStore.saveToken($0) }, autoOn: run.armed)
     }
 }
 

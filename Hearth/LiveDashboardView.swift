@@ -119,7 +119,8 @@ struct LiveDashboardView: View {
     private func fetchCpMaybe(_ now: Date) async -> CpSnapshot {
         let session = CpSessionStore.load()
         let run = CpSessionStore.loadRun()
-        return await fetchCpSnapshot(session, onToken: { CpSessionStore.saveToken($0) }, autoOn: run.armed, now: now)
+        return await fetchCpSnapshot(session, location: CpSessionStore.loadLocation(),
+                                     onToken: { CpSessionStore.saveToken($0) }, autoOn: run.armed, now: now)
     }
 
     private func fetchCar(_ now: Date) async -> CarSnapshot? {

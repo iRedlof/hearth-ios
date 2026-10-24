@@ -34,7 +34,7 @@ private func optBool(_ d: [String: Any]?, _ k: String) -> Bool { (d?[k] as? NSNu
 
 // MARK: - Model (ChargePointState.kt)
 
-public struct CpBounds: Sendable, Equatable {
+public struct CpBounds: Sendable, Equatable, Codable {
     public let swLat, swLon, neLat, neLon: Double
 }
 
@@ -51,7 +51,7 @@ public struct CpStation: Sendable, Equatable {
 }
 
 /// A location: every station at one address, its area + name (the site code like "SEA41", else the address).
-public struct CpLocation: Sendable, Equatable {
+public struct CpLocation: Sendable, Equatable, Codable {
     public let name: String
     public let address: String
     public let deviceIds: [Int64]

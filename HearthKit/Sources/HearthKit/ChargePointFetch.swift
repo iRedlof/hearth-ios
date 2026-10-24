@@ -4,7 +4,7 @@ import Foundation
 /// charging state (userStatus, refined by inlineStatus for the place and chargingDetail for the live
 /// session). Plug counts and joining from the widget need a chosen location (see
 /// docs/CHARGEPOINT-IOS.md); until one is set, an idle signed-in user shows "Set up".
-public func fetchCpSnapshot(_ session: CpSession,
+public func fetchCpSnapshot(_ session: CpSession, location: CpLocation? = nil,
                             onToken: @escaping @Sendable (String) -> Void = { _ in },
                             autoOn: Bool = false, now: Date = Date()) async -> CpSnapshot {
     let checked = cpClockString(now)
@@ -22,9 +22,13 @@ public func fetchCpSnapshot(_ session: CpSession,
         if let sessionId = cpSessionId(statusJson) {
             charging = cpChargingFrom(try? await client.chargingDetail(sessionId: sessionId))
         }
+        var cpNow: CpNow?
+        if let location, let stationsJson = try? await client.stations(location.bounds) {
+            cpNow = cpLocationNow(location, cpStationsFrom(stationsJson))
+        }
         let state = CpState(signedOut: false,
                             account: cpAccount(hasSession: true, expired: false, joinExpired: session.joinExpired),
-                            location: nil, now: nil, waitlist: waitlist, charging: charging, autoOn: autoOn)
+                            location: location, now: cpNow, waitlist: waitlist, charging: charging, autoOn: autoOn)
         return cpSnapshot(state, email: session.email, checkedAt: checked)
     } catch let e as HaError where e.code == 401 {
         var expired = session; expired.expired = true
