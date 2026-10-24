@@ -22,6 +22,8 @@ public enum AlarmAction: String, Sendable, CaseIterable {
     public var service: String { switch self { case .armHome: "alarm_arm_home"; case .armAway: "alarm_arm_away"; case .disarm: "alarm_disarm" } }
     public var label: String { switch self { case .armHome: "Arm home"; case .armAway: "Arm away"; case .disarm: "Disarm" } }
     public var target: String { switch self { case .armHome: "armed_home"; case .armAway: "armed_away"; case .disarm: "disarmed" } }
+    /// Android gates Disarm behind biometric/dialog confirmation; arming fires directly.
+    public var needsConfirm: Bool { self == .disarm }
 }
 
 /// How the status row reads and looks for a state.
@@ -41,7 +43,9 @@ public enum AlarmGlyph: String, Sendable { case off, home, lock, alert }
 public enum LockAction: String, Sendable { case lock, unlock
     public var service: String { self == .lock ? "lock" : "unlock" }
     public var label: String { self == .lock ? "Lock" : "Unlock" }
-    public var target: String { self == .lock ? "locked" : "unlocked" } }
+    public var target: String { self == .lock ? "locked" : "unlocked" }
+    /// Android gates Unlock behind biometric/dialog confirmation; locking fires directly.
+    public var needsConfirm: Bool { self == .unlock } }
 
 public struct LockView: Sendable, Equatable { public let title: String; public let secure: Bool?
     public init(_ title: String, _ secure: Bool?) { self.title = title; self.secure = secure } }

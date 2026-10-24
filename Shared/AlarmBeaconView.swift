@@ -1,4 +1,5 @@
 import SwiftUI
+import AppIntents
 import HearthKit
 
 /// The Alarm Beacon card, ported from the Android `AlarmWidget` (v1.4.26): a tone-coloured left rail
@@ -56,7 +57,20 @@ public struct AlarmBeaconView: View {
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }
 
-    private var doorRow: some View {
+    /// The door row doubles as the Lock/Unlock button when a lock is configured (tap toggles it).
+    @ViewBuilder private var doorRow: some View {
+        if let locked = snap.doorLocked {
+            if locked {   // Unlock → Face ID gate (opens app)
+                Button(intent: AlarmGatedIntent(.unlock)) { doorRowContent }.buttonStyle(.plain)
+            } else {       // Lock → in place
+                Button(intent: AlarmControlIntent(LockAction.lock.rawValue)) { doorRowContent }.buttonStyle(.plain)
+            }
+        } else {
+            doorRowContent
+        }
+    }
+
+    private var doorRowContent: some View {
         HStack(spacing: 8) {
             Image(systemName: (snap.doorLocked ?? true) ? "lock.fill" : "lock.open.fill")
                 .font(.system(size: 17)).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
@@ -75,15 +89,26 @@ public struct AlarmBeaconView: View {
     private var actionsRow: some View {
         HStack(spacing: 7) {
             ForEach(snap.actions, id: \.self) { action in
-                let primary = (action == .disarm)
-                Text(action.label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(primary ? Color(white: 0.12) : surfaceInk)
-                    .frame(maxWidth: .infinity).frame(height: 34)
-                    .background(primary ? Color(white: 0.94) : Color.white.opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 10))
+                if action.needsConfirm {   // Disarm → Face ID gate (opens app)
+                    Button(intent: AlarmGatedIntent(.disarm)) { actionLabel(action) }
+                        .buttonStyle(.plain)
+                } else {                    // Arm home / Arm away → in place
+                    Button(intent: AlarmControlIntent(action.rawValue)) { actionLabel(action) }
+                        .buttonStyle(.plain)
+                }
             }
         }
+    }
+
+    /// A pill styled like the Android action button; Disarm is the bright "primary" pill.
+    private func actionLabel(_ action: AlarmAction) -> some View {
+        let primary = (action == .disarm)
+        return Text(action.label)
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(primary ? Color(white: 0.12) : surfaceInk)
+            .frame(maxWidth: .infinity).frame(height: 34)
+            .background(primary ? Color(white: 0.94) : Color.white.opacity(0.12),
+                        in: RoundedRectangle(cornerRadius: 10))
     }
 
     private var glyphSymbol: String {

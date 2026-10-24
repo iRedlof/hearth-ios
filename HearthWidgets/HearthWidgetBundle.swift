@@ -76,8 +76,18 @@ struct AlarmProvider: TimelineProvider {
         completion(AlarmEntry(date: .now, snap: .sample))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<AlarmEntry>) -> Void) {
-        completion(Timeline(entries: [AlarmEntry(date: .now, snap: .sample)],
-                            policy: .after(Date().addingTimeInterval(15 * 60))))
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await AlarmProvider.fetch()
+            completion(Timeline(entries: [AlarmEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
+    }
+
+    /// Live alarm + door when configured; `.sample` otherwise (an error also falls back to sample).
+    private static func fetch() async -> AlarmSnapshot {
+        guard let cfg = HaConfigStore.load(), cfg.isComplete else { return .sample }
+        return await fetchAlarmSnapshot(cfg)
     }
 }
 

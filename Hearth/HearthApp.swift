@@ -15,6 +15,7 @@ struct HearthApp: App {
 struct ContentView: View {
     @State private var config: HaConfig? = HaConfigStore.load()
     @State private var selection = ContentView.initialTab()
+    @ObservedObject private var gate = AlarmGate.shared
 
     var body: some View {
         TabView(selection: $selection) {
@@ -28,6 +29,13 @@ struct ContentView: View {
                 .tabItem { Label("Preview", systemImage: "square.grid.2x2.fill") }
                 .tag(2)
         }
+        .alert("Confirm", isPresented: Binding(
+            get: { gate.confirming != nil },
+            set: { if !$0 { gate.cancel() } }
+        ), presenting: gate.confirming) { action in
+            Button(action.verb, role: .destructive) { gate.confirm(action) }
+            Button("Cancel", role: .cancel) { gate.cancel() }
+        } message: { action in Text(action.title) }
     }
 
     /// Initial tab from a launch arg (`-tab live|settings|preview`), for screenshots and testing.
@@ -39,7 +47,7 @@ struct ContentView: View {
 
     @ViewBuilder private var liveTab: some View {
         if let config, config.carReady {
-            LiveCarView(config: config, onSignOut: signOut)
+            LiveDashboardView(config: config, onSignOut: signOut)
         } else {
             SignInView(onSignedIn: { config = HaConfigStore.load() })
         }
