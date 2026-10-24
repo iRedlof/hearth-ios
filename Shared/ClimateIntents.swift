@@ -35,25 +35,30 @@ struct ClimateSetpointIntent: AppIntent {
     }
 }
 
-/// Mode / Fan — a choice, so (like Android's picker) `openAppWhenRun` brings Hearth forward and
-/// `ClimateGate` shows the options; picking one calls `set_hvac_mode` / `set_fan_mode`.
+/// Mode / Fan — cycles to the next option **in place** on each tap (no app launch). Reads the live
+/// options, advances past the current one, and calls `set_hvac_mode` / `set_fan_mode`.
 struct ClimatePickerIntent: AppIntent {
-    static var title: LocalizedStringResource { "Choose thermostat option" }
+    static var title: LocalizedStringResource { "Cycle thermostat option" }
     static var isDiscoverable: Bool { false }
-    static var openAppWhenRun: Bool { true }
 
     @Parameter(title: "Kind") var kind: String   // mode | fan
     init() {}
     init(_ kind: String) { self.kind = kind }
 
-    @MainActor
     func perform() async throws -> some IntentResult {
         guard let config = HaConfigStore.load(), config.hasClimate,
               let json = try? await HaClient(config).stateJson(config.climateId),
               let state = ClimateState.fromJson(json) else { return .result() }
         let options = kind == "fan" ? state.fanModes : state.modes
         let current = kind == "fan" ? state.fanMode : state.mode
-        ClimateGate.shared.present(kind: kind, options: options, current: current)
+        guard !options.isEmpty else { return .result() }
+        let idx = current.flatMap { options.firstIndex(of: $0) } ?? -1
+        let next = options[(idx + 1) % options.count]
+        let service = kind == "fan" ? "set_fan_mode" : "set_hvac_mode"
+        let key = kind == "fan" ? "fan_mode" : "hvac_mode"
+        try await HaClient(config).callService(domain: "climate", service: service,
+                                               entityId: config.climateId, data: [key: next])
+        WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
 }

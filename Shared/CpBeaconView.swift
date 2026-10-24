@@ -15,9 +15,12 @@ public struct CpBeaconView: View {
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
 
     public var body: some View {
-        HStack(spacing: 0) {
-            left.frame(maxWidth: .infinity)
-            right.frame(maxWidth: .infinity)
+        GeometryReader { geo in
+            let s = beaconSplit(width: geo.size.width)   // Android rail is ~37%, not 50%
+            HStack(spacing: 0) {
+                left.frame(width: s.rail)
+                right.frame(maxWidth: .infinity)
+            }
         }
     }
 

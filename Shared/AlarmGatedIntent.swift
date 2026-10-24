@@ -1,22 +1,23 @@
 import AppIntents
+import WidgetKit
 import HearthKit
 
-/// Disarm / Unlock from a widget button. These are protected actions: `openAppWhenRun` brings
-/// Hearth to the foreground, then `AlarmGate` runs Face ID (or a confirm dialog) before performing
-/// — the iOS parity for Android's biometric/dialog gate. `isDiscoverable = false`: widget only.
+/// Disarm / Unlock from a widget button — performed **in place**, no app launch. The home-screen
+/// widget is only reachable on an already-unlocked phone, so (per the user's choice) these run as a
+/// single tap without a separate Face ID prompt. `isDiscoverable = false`: widget control only.
 struct AlarmGatedIntent: AppIntent {
-    static var title: LocalizedStringResource { "Confirm alarm action" }
+    static var title: LocalizedStringResource { "Alarm protected action" }
     static var isDiscoverable: Bool { false }
-    static var openAppWhenRun: Bool { true }
 
     @Parameter(title: "Action") var action: String
 
     init() {}
     init(_ action: GatedAlarmAction) { self.action = action.rawValue }
 
-    @MainActor
     func perform() async throws -> some IntentResult {
-        if let a = GatedAlarmAction(rawValue: action) { AlarmGate.shared.request(a) }
+        guard let config = HaConfigStore.load(), let a = GatedAlarmAction(rawValue: action) else { return .result() }
+        try await HaClient(config).callService(domain: a.domain, service: a.service, entityId: a.entityId(config))
+        WidgetCenter.shared.reloadAllTimelines()
         return .result()
     }
 }

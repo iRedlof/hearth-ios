@@ -1,21 +1,22 @@
 import AppIntents
+import WidgetKit
 import HearthKit
 
-/// Garage **Open** from the Doors widget: `openAppWhenRun` brings Hearth forward, then `GarageGate`
-/// runs Face ID (or a confirm dialog) before `cover.open_cover`. `isDiscoverable = false`.
+/// Garage **Open** from the Doors widget — performed **in place**, no app launch (one tap, per the
+/// user's choice; the widget is only reachable on an unlocked phone). `isDiscoverable = false`.
 struct DoorOpenIntent: AppIntent {
     static var title: LocalizedStringResource { "Open garage" }
     static var isDiscoverable: Bool { false }
-    static var openAppWhenRun: Bool { true }
 
     @Parameter(title: "Entity") var id: String
 
     init() {}
     init(_ id: String) { self.id = id }
 
-    @MainActor
     func perform() async throws -> some IntentResult {
-        GarageGate.shared.request(id)
+        guard let config = HaConfigStore.load() else { return .result() }
+        try await HaClient(config).callService(domain: "cover", service: "open_cover", entityId: id)
+        WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.doors")
         return .result()
     }
 }

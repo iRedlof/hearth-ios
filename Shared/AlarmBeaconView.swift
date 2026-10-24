@@ -14,9 +14,12 @@ public struct AlarmBeaconView: View {
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) } // bright text on graphite
 
     public var body: some View {
-        HStack(spacing: 0) {
-            rail.frame(maxWidth: .infinity)
-            surface.frame(maxWidth: .infinity)
+        GeometryReader { geo in
+            let s = beaconSplit(width: geo.size.width)   // Android rail is ~37%, not 50%
+            HStack(spacing: 0) {
+                rail.frame(width: s.rail)
+                surface.frame(maxWidth: .infinity)
+            }
         }
     }
 
