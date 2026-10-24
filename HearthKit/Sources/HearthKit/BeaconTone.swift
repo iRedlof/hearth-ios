@@ -4,7 +4,7 @@ import Foundation
 /// A tone carries a `fill` (the light rail/left-panel colour) and an `ink` (readable on that fill).
 /// Colours are ARGB hex; the SwiftUI layer converts to `Color`.
 public enum BeaconTone: String, Sendable, CaseIterable {
-    case mint, blue, red, yellow, offline, triggered, violet, slate
+    case mint, blue, red, yellow, offline, triggered, violet, slate, orange
 
     public var fillARGB: UInt32 {
         switch self {
@@ -16,6 +16,7 @@ public enum BeaconTone: String, Sendable, CaseIterable {
         case .triggered: return 0xFFF49283   // the alarm's distinct "triggered" red (BeaconMetrics.kt)
         case .violet:    return 0xFFC5C3F3   // climate auto / heat_cool
         case .slate:     return 0xFFC6C5BD   // climate off / fan_only / dry
+        case .orange:    return 0xFFF68A2B   // ChargePoint's fixed brand rail (CpRail)
         }
     }
 
@@ -29,6 +30,7 @@ public enum BeaconTone: String, Sendable, CaseIterable {
         case .triggered: return 0xFF491D21
         case .violet:    return 0xFF343251
         case .slate:     return 0xFF363A35
+        case .orange:    return 0xFF2C210F
         }
     }
 }

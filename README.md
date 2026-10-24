@@ -28,8 +28,18 @@ cd HearthKit && swift test  # run the ported-logic unit tests on macOS
 
 ## Status
 
-First vertical slice: the **Car** widget (the one most recently polished on Android, through v1.4.28).
-See `docs/PLAN.md` for what's done and the roadmap for the other widgets.
+**All four Beacon widgets** are ported and **verified in the iOS Simulator across 14 Pro Max, 16/17 Pro Max,
+and the smaller 17 Pro**: **Car** (v1.4.28), **Alarm** (v1.4.26), **Thermostat**, and **ChargePoint** (core
+states). All HearthKit logic is unit-tested on macOS — **62 tests** (`swift test`). See `docs/PLAN.md` for
+scope and `docs/HA-WIRING.md` for the live-data step (needs your HA URL + token).
+
+## Screenshots
+
+Rendered in the Simulator (the in-app gallery shows each widget at every device's medium-widget size):
+
+| Car | Alarm | Thermostat | ChargePoint |
+|-----|-------|------------|-------------|
+| ![Car](docs/screenshots/car-beacon.png) | ![Alarm](docs/screenshots/alarm-beacon.png) | ![Thermostat](docs/screenshots/thermostat-beacon.png) | ![ChargePoint](docs/screenshots/chargepoint-beacon.png) |
 
 ## What you'll need to do (needs your hands)
 

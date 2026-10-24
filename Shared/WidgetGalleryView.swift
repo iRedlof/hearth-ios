@@ -21,13 +21,14 @@ struct WidgetGalleryView: View {
                 Text("Car").tag("car")
                 Text("Alarm").tag("alarm")
                 Text("Thermostat").tag("thermostat")
+                Text("ChargePoint").tag("chargepoint")
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
 
             ScrollView {
                 VStack(spacing: 20) {
-                    Text("Hearth · \(kind == "alarm" ? "Alarm" : kind == "thermostat" ? "Thermostat" : "Car") Beacon")
+                    Text("Hearth · \(galleryTitle) Beacon")
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(sizes, id: \.label) { size in
@@ -53,7 +54,17 @@ struct WidgetGalleryView: View {
         switch kind {
         case "alarm": AlarmBeaconView(.sample)
         case "thermostat": ThermostatBeaconView(.sample)
+        case "chargepoint": CpBeaconView(.sample)
         default: CarBeaconView(.sample)
+        }
+    }
+
+    private var galleryTitle: String {
+        switch kind {
+        case "alarm": "Alarm"
+        case "thermostat": "Thermostat"
+        case "chargepoint": "ChargePoint"
+        default: "Car"
         }
     }
 }

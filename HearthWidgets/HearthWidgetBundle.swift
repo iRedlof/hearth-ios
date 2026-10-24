@@ -8,6 +8,7 @@ struct HearthWidgetBundle: WidgetBundle {
         CarWidget()
         AlarmWidget()
         ThermostatWidget()
+        ChargePointWidget()
     }
 }
 
@@ -100,6 +101,37 @@ struct ThermostatWidget: Widget {
         }
         .configurationDisplayName("Thermostat")
         .description("Your thermostat's temperature and setpoints at a glance.")
+        .supportedFamilies([.systemMedium])
+        .contentMarginsDisabled()
+    }
+}
+
+// MARK: - ChargePoint
+
+struct CpEntry: TimelineEntry {
+    let date: Date
+    let snap: CpSnapshot
+}
+
+struct CpProvider: TimelineProvider {
+    func placeholder(in context: Context) -> CpEntry { CpEntry(date: .now, snap: .sample) }
+    func getSnapshot(in context: Context, completion: @escaping (CpEntry) -> Void) {
+        completion(CpEntry(date: .now, snap: .sample))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<CpEntry>) -> Void) {
+        completion(Timeline(entries: [CpEntry(date: .now, snap: .sample)],
+                            policy: .after(Date().addingTimeInterval(5 * 60))))
+    }
+}
+
+struct ChargePointWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.rohit.hearth.chargepoint", provider: CpProvider()) { entry in
+            CpBeaconView(entry.snap)
+                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        }
+        .configurationDisplayName("ChargePoint")
+        .description("Your ChargePoint site, waitlist, and charging at a glance.")
         .supportedFamilies([.systemMedium])
         .contentMarginsDisabled()
     }
