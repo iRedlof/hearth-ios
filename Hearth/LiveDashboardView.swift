@@ -17,6 +17,7 @@ struct LiveDashboardView: View {
     @State private var cpSignedIn = CpSessionStore.load().isSignedIn
     @State private var showCpSignIn = false
     @State private var loading = true
+    @ObservedObject private var refreshSignal = RefreshSignal.shared
 
     var body: some View {
         ScrollView {
@@ -47,6 +48,7 @@ struct LiveDashboardView: View {
         .background(Color(white: 0.08).ignoresSafeArea())
         .preferredColorScheme(.dark)
         .task { await load() }
+        .onChange(of: refreshSignal.tick) { Task { await load() } }
         .sheet(isPresented: $showCpSignIn) {
             NavigationStack {
                 CpSignInView(onSignedIn: {

@@ -13,12 +13,14 @@ struct WidgetRefreshIntent: AppIntent {
     init() {}
     init(_ kind: String) { self.kind = kind }
 
+    @MainActor
     func perform() async throws -> some IntentResult {
         if kind.isEmpty {
             WidgetCenter.shared.reloadAllTimelines()
         } else {
             WidgetCenter.shared.reloadTimelines(ofKind: kind)
         }
+        RefreshSignal.shared.bump()   // so the in-app Live view re-fetches when the glyph is tapped there
         return .result()
     }
 }
