@@ -30,6 +30,11 @@ targets:
     dependencies:
       - package: HearthKit
       - target: HearthWidgets
+    entitlements:
+      path: Hearth/Hearth.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.rohit.hearth
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rohit.hearth
@@ -51,6 +56,11 @@ targets:
         CFBundleDisplayName: Hearth
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    entitlements:
+      path: HearthWidgets/HearthWidgets.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.rohit.hearth
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.rohit.hearth.widgets

@@ -13,6 +13,19 @@ public actor HaAuth {
     public static let redirect = "hearth://auth-callback"
     public static func clientId(_ baseUrl: String) -> String { baseUrl.trimmedTrailingSlash + "/dashboard/" }
 
+    /// The Home Assistant browser sign-in URL (same params as the Android app). Open this in an
+    /// `ASWebAuthenticationSession`; HA redirects to `redirect` with `?code=...&state=...`.
+    public static func authorizeURL(_ baseUrl: String, state: String) -> URL? {
+        var c = URLComponents(string: baseUrl.trimmedTrailingSlash + "/auth/authorize")
+        c?.queryItems = [
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "client_id", value: clientId(baseUrl)),
+            URLQueryItem(name: "redirect_uri", value: redirect),
+            URLQueryItem(name: "state", value: state),
+        ]
+        return c?.url
+    }
+
     private var cached: (refresh: String, tokens: HaTokens)?
 
     public func accessToken(_ config: HaConfig) async throws -> String {

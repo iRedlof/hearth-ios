@@ -25,9 +25,28 @@ struct CarProvider: TimelineProvider {
         completion(CarEntry(date: .now, snap: .sample))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<CarEntry>) -> Void) {
-        // TODO: fetch via HaClient (POST /api/template) once App-Group config is wired; sample for now.
-        completion(Timeline(entries: [CarEntry(date: .now, snap: .sample)],
-                            policy: .after(Date().addingTimeInterval(15 * 60))))
+        // WidgetKit's completion predates Swift concurrency (not `@Sendable`) and is invoked exactly
+        // once; `nonisolated(unsafe)` is the sanctioned bridge for carrying it into the async `Task`.
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await CarProvider.fetch()
+            completion(Timeline(entries: [CarEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
+    }
+
+    /// Reads the App-Group `HaConfig`; when signed in, renders the car via `POST /api/template`.
+    /// Not signed in → `.sample` (shows a representative preview). A fetch error also falls back to
+    /// `.sample` for now. TODO: surface a real offline/error state on the widget face.
+    private static func fetch() async -> CarSnapshot {
+        guard let cfg = HaConfigStore.load(), cfg.carReady else { return .sample }
+        do {
+            let json = try await HaClient(cfg).template(CAR_TEMPLATE)
+            let now = Date()
+            return carSnapshot(carFromTemplate(json), now: now, stale: false, checkedAt: now)
+        } catch {
+            return .sample
+        }
     }
 }
 

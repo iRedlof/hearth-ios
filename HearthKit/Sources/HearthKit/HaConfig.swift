@@ -5,7 +5,7 @@ public let CONFIRM_DIALOG = "dialog"
 
 /// Persisted Home Assistant settings. Ported from Android `HaConfig.kt`. On iOS this is stored in the
 /// Keychain / an App-Group-shared store so the widget extension can read it.
-public struct HaConfig: Sendable, Equatable {
+public struct HaConfig: Sendable, Equatable, Codable {
     public var baseUrl: String
     public var token: String
     public var entityId: String

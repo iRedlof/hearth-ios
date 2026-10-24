@@ -1,4 +1,6 @@
 import SwiftUI
+import WidgetKit
+import HearthKit
 
 @main
 struct HearthApp: App {
@@ -7,11 +9,33 @@ struct HearthApp: App {
     }
 }
 
-/// For now the app is a verification gallery: it renders the Car Beacon widget view at the
-/// medium-widget size across device widths, so the design can be checked in the Simulator
-/// without adding a real home-screen widget (that needs signing + manual placement).
+/// Two tabs: **Live** reads the signed-in `HaConfig` (shared with the widget via the App Group) and
+/// shows the real car — or the Home Assistant sign-in when not yet connected. **Preview** is the
+/// original verification gallery that renders every Beacon at the medium-widget size.
 struct ContentView: View {
+    @State private var config: HaConfig? = HaConfigStore.load()
+
     var body: some View {
-        WidgetGalleryView()
+        TabView {
+            liveTab
+                .tabItem { Label("Live", systemImage: "car.fill") }
+            WidgetGalleryView()
+                .tabItem { Label("Preview", systemImage: "square.grid.2x2.fill") }
+        }
+    }
+
+    @ViewBuilder private var liveTab: some View {
+        if let config, config.carReady {
+            LiveCarView(config: config, onSignOut: signOut)
+        } else {
+            SignInView(onSignedIn: { config = HaConfigStore.load() })
+        }
+    }
+
+    private func signOut() {
+        HaConfigStore.clear()
+        Task { await HaAuth.shared.forget() }
+        WidgetCenter.shared.reloadAllTimelines()
+        config = nil
     }
 }
