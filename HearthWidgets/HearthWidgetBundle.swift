@@ -12,6 +12,7 @@ struct HearthWidgetBundle: WidgetBundle {
         BatteryWidget()
         ActivityWidget()
         LightsWidget()
+        QuickWidget()
     }
 }
 
@@ -119,6 +120,42 @@ struct LightsWidget: Widget {
         .configurationDisplayName("Lights")
         .description("Lights that are on, plus your always-show favourites.")
         .supportedFamilies([.systemLarge])
+        .contentMarginsDisabled()
+    }
+}
+
+// MARK: - Quick
+
+struct QuickEntry: TimelineEntry { let date: Date; let snap: QuickSnapshot }
+
+struct QuickProvider: TimelineProvider {
+    func placeholder(in context: Context) -> QuickEntry { QuickEntry(date: .now, snap: .sample) }
+    func getSnapshot(in context: Context, completion: @escaping (QuickEntry) -> Void) {
+        completion(QuickEntry(date: .now, snap: .sample))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<QuickEntry>) -> Void) {
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await QuickProvider.fetch()
+            completion(Timeline(entries: [QuickEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(60 * 60))))
+        }
+    }
+    private static func fetch() async -> QuickSnapshot {
+        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
+        return await fetchQuickSnapshot(cfg)
+    }
+}
+
+struct QuickWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.rohit.hearth.quick", provider: QuickProvider()) { entry in
+            QuickView(entry.snap)
+                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        }
+        .configurationDisplayName("Quick")
+        .description("Run your scripts and scenes.")
+        .supportedFamilies([.systemMedium])
         .contentMarginsDisabled()
     }
 }

@@ -103,6 +103,20 @@ struct SettingsView: View {
                 } footer: {
                     Text("Lights to always show on the Lights widget, so you can switch them on even when they're off.")
                 }
+                Section {
+                    NavigationLink {
+                        MultiEntityPickerView(config: config, domains: ["script"], title: "Scripts",
+                                              selected: config.scriptIds) { ids in
+                            apply { $0.scriptIdsJson = encodeIds(Array(ids.prefix(6))) }
+                        }
+                    } label: {
+                        LabeledContent("Scripts", value: config.scriptIds.isEmpty ? "None" : "\(config.scriptIds.count) selected")
+                    }
+                } header: {
+                    Text("Quick")
+                } footer: {
+                    Text("Up to 6 scripts or scenes to run from the Quick widget.")
+                }
             }
             .navigationTitle("Settings")
         }
