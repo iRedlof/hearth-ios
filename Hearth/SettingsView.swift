@@ -117,6 +117,21 @@ struct SettingsView: View {
                 } footer: {
                     Text("Up to 6 scripts or scenes to run from the Quick widget.")
                 }
+                Section {
+                    NavigationLink {
+                        MultiEntityPickerView(config: config,
+                                              domains: ["switch", "light", "fan", "input_boolean", "script"],
+                                              title: "Tiles", selected: config.favouriteIds) { ids in
+                            apply { $0.favouriteIdsJson = encodeIds(Array(ids.prefix(12))) }
+                        }
+                    } label: {
+                        LabeledContent("Tiles", value: config.favouriteIds.isEmpty ? "None" : "\(config.favouriteIds.count) selected")
+                    }
+                } header: {
+                    Text("Favourites")
+                } footer: {
+                    Text("Up to 12 switches, lights, fans or scripts for the Favourites widget.")
+                }
             }
             .navigationTitle("Settings")
         }

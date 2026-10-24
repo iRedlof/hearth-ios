@@ -13,6 +13,7 @@ struct HearthWidgetBundle: WidgetBundle {
         ActivityWidget()
         LightsWidget()
         QuickWidget()
+        FavouritesWidget()
     }
 }
 
@@ -156,6 +157,42 @@ struct QuickWidget: Widget {
         .configurationDisplayName("Quick")
         .description("Run your scripts and scenes.")
         .supportedFamilies([.systemMedium])
+        .contentMarginsDisabled()
+    }
+}
+
+// MARK: - Favourites
+
+struct FavouritesEntry: TimelineEntry { let date: Date; let snap: FavSnapshot }
+
+struct FavouritesProvider: TimelineProvider {
+    func placeholder(in context: Context) -> FavouritesEntry { FavouritesEntry(date: .now, snap: .sample) }
+    func getSnapshot(in context: Context, completion: @escaping (FavouritesEntry) -> Void) {
+        completion(FavouritesEntry(date: .now, snap: .sample))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<FavouritesEntry>) -> Void) {
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await FavouritesProvider.fetch()
+            completion(Timeline(entries: [FavouritesEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
+    }
+    private static func fetch() async -> FavSnapshot {
+        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
+        return await fetchFavouritesSnapshot(cfg)
+    }
+}
+
+struct FavouritesWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.rohit.hearth.favourites", provider: FavouritesProvider()) { entry in
+            FavouritesView(entry.snap)
+                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        }
+        .configurationDisplayName("Favourites")
+        .description("Your pinned switches, lights, fans and scripts.")
+        .supportedFamilies([.systemLarge])
         .contentMarginsDisabled()
     }
 }

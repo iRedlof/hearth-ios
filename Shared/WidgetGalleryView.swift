@@ -33,6 +33,7 @@ struct WidgetGalleryView: View {
                 Text("Activity").tag("activity")
                 Text("Lights").tag("lights")
                 Text("Quick").tag("quick")
+                Text("Favourites").tag("favourites")
             }
             .pickerStyle(.menu)
             .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
@@ -70,6 +71,7 @@ struct WidgetGalleryView: View {
         case "activity": ActivityView(.sample)
         case "lights": LightTileView(.sample)
         case "quick": QuickView(.sample)
+        case "favourites": FavouritesView(.sample)
         default: CarBeaconView(.sample)
         }
     }
@@ -83,6 +85,7 @@ struct WidgetGalleryView: View {
         case "activity": "Activity"
         case "lights": "Lights"
         case "quick": "Quick"
+        case "favourites": "Favourites"
         default: "Car Beacon"
         }
     }
