@@ -41,6 +41,13 @@ enum CpSessionStore {
     static func loadRun() -> CpRun { cpRunFromWire(defaults.string(forKey: runKey) ?? "") }
     static func saveRun(_ run: CpRun) { defaults.set(cpRunToWire(run), forKey: runKey) }
 
+    /// Which auto-waitlist alerts to post (Android `note_*` prefs — each defaults ON when unset).
+    private static func note(_ key: String) -> Bool { defaults.object(forKey: "note_" + key) as? Bool ?? true }
+    static func loadAlertPrefs() -> CpAlertPrefs {
+        CpAlertPrefs(offer: note("offer"), accepted: note("accepted"), snoozed: note("snoozed"), second: note("second"))
+    }
+    static func setAlert(_ key: String, _ on: Bool) { defaults.set(on, forKey: "note_" + key) }
+
     /// A stable device id for start/stop session calls (generated once, kept).
     static func udid() -> String {
         if let u = defaults.string(forKey: "cpUdid"), !u.isEmpty { return u }

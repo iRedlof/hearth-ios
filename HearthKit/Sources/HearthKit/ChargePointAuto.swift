@@ -15,7 +15,10 @@ public enum CpCommand: Sendable, Equatable {
 }
 
 /// What the engine decides to do this tick.
-public enum CpAlert: Sendable, Equatable { case driveNow, signedOut }
+public enum CpAlert: Sendable, Equatable {
+    case offer, secondOffer, accepted, snoozed   // user-gated (CpAlertPrefs)
+    case driveNow, failed, signedOut, done        // operational — always sent
+}
 public enum CpAutoStep: Sendable, Equatable {
     case accept(CpRun)
     case snooze(CpRun)

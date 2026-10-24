@@ -402,7 +402,11 @@ struct CpProvider: TimelineProvider {
                                                  now: Int64(Date().timeIntervalSince1970 * 1000))
                 run = result.run
                 CpSessionStore.saveRun(run)
-                if result.alert == .driveNow { CpNotify.driveNow() }
+                if let alert = result.alert, cpAlertAllowed(alert, prefs: CpSessionStore.loadAlertPrefs()) {
+                    let subj = cpAlertSubjects(statusJson)
+                    let c = cpAlertContent(alert, who: subj.who, by: subj.by)
+                    CpNotify.post(title: c.title, body: c.body, id: c.id)
+                }
             }
         }
         return await fetchCpSnapshot(session, location: CpSessionStore.loadLocation(),

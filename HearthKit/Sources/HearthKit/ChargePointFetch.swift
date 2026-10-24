@@ -46,7 +46,7 @@ private func cpSignedOutState(_ session: CpSession, autoOn: Bool) -> CpState {
             location: nil, now: nil, waitlist: .notQueued, charging: nil, autoOn: autoOn)
 }
 
-private func cpClockString(_ date: Date) -> String {
+func cpClockString(_ date: Date) -> String {
     let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
 }
 
@@ -69,11 +69,14 @@ public func cpSnoozesFrom(_ json: String?) -> Int? {
 public func cpAdvanceAuto(_ run: CpRun, client: CpClient, statusJson: String,
                           now: Int64) async -> (run: CpRun, alert: CpAlert?) {
     guard run.armed else { return (run, nil) }
+    var run = run
     let waitlist = cpWaitlistFrom(statusJson, nil)
     let charging = cpSessionId(statusJson) != nil
     var state = ""
     var untilMs: Int64?
     if case let .inLine(_, s, _, offer, _) = waitlist { state = s; untilMs = offer?.untilMs }
+    // A fresh offer episode re-arms the one-shot "your turn" notification (Android resets per offer).
+    if state != "ACCEPT_PENDING" { run.offerPushed = false }
     var snoozesLeft: Int?
     if CP_HELD.contains(state), let token = cpOfferToken(statusJson) {
         snoozesLeft = cpSnoozesFrom(try? await client.snoozeDetail(offerToken: token))
@@ -82,16 +85,23 @@ public func cpAdvanceAuto(_ run: CpRun, client: CpClient, statusJson: String,
                             charging: charging, now: now)
     switch step {
     case .accept:
-        do { try await client.accept(); return (cpAfterAct(run, step, true), nil) }
-        catch { return (cpRecordAutoFailure(run, state, untilMs, friendlyError(error)), nil) }
+        do { try await client.accept(); return (cpAfterAct(run, step, true), .accepted) }
+        catch { return (cpRecordAutoFailure(run, state, untilMs, friendlyError(error)), .failed) }
     case .snooze:
-        do { try await client.snooze(seconds: CP_AUTO_SNOOZE_SECONDS); return (cpAfterAct(run, step, true), nil) }
-        catch { return (cpRecordAutoFailure(run, state, untilMs, friendlyError(error)), nil) }
+        do { try await client.snooze(seconds: CP_AUTO_SNOOZE_SECONDS); return (cpAfterAct(run, step, true), .snoozed) }
+        catch { return (cpRecordAutoFailure(run, state, untilMs, friendlyError(error)), .failed) }
     case .alert(let kind, let updated):
         return (updated, kind)
     case .done:
-        var r = run; r.armed = false; return (r, nil)
-    case .wakeAt, .idle:
+        run.armed = false; return (run, .done)
+    case .wakeAt:
+        // Android posts the offer once, when it first schedules the pre-deadline accept.
+        if state == "ACCEPT_PENDING" && !run.offerPushed {
+            run.offerPushed = true
+            return (run, run.snoozeUsed ? .secondOffer : .offer)
+        }
+        return (run, nil)
+    case .idle:
         return (run, nil)
     }
 }
