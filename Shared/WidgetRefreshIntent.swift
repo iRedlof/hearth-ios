@@ -1,0 +1,24 @@
+import AppIntents
+import WidgetKit
+
+/// The header "Check again" button — re-reads the widget from Home Assistant now, like Android's
+/// refresh glyph. Reloading the timeline re-runs the provider's live fetch; the "Checked <time>"
+/// stamp updates when the fresh read returns. `isDiscoverable = false`: a widget control, not a Shortcut.
+struct WidgetRefreshIntent: AppIntent {
+    static var title: LocalizedStringResource { "Refresh" }
+    static var isDiscoverable: Bool { false }
+
+    @Parameter(title: "Widget kind") var kind: String
+
+    init() {}
+    init(_ kind: String) { self.kind = kind }
+
+    func perform() async throws -> some IntentResult {
+        if kind.isEmpty {
+            WidgetCenter.shared.reloadAllTimelines()
+        } else {
+            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+        }
+        return .result()
+    }
+}

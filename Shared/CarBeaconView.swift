@@ -1,4 +1,5 @@
 import SwiftUI
+import AppIntents
 import HearthKit
 
 /// The Car Beacon card, ported from the Android `CarWidget` (v1.4.28): a two-tone card — a light
@@ -57,6 +58,11 @@ public struct CarBeaconView: View {
             HStack(alignment: .top, spacing: 6) {
                 Text(snap.name).font(.system(size: 18, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
+                Button(intent: WidgetRefreshIntent("com.rohit.hearth.car")) {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(surfaceInk.opacity(0.7))
+                }
+                .buttonStyle(.plain).padding(.trailing, 5)
                 VStack(alignment: .trailing, spacing: -1) {
                     Text("Checked").font(.system(size: 10))
                     Text(snap.checkedAt).font(.system(size: 10))
