@@ -8,12 +8,19 @@ struct WidgetGalleryView: View {
     @State private var kind: String = UserDefaults.standard.string(forKey: "widget") ?? "car"
 
     // systemMedium point sizes (approx) across the devices Rohit named + the smallest, for responsiveness.
-    private let sizes: [(label: String, w: CGFloat, h: CGFloat)] = [
+    private let mediumSizes: [(label: String, w: CGFloat, h: CGFloat)] = [
         ("iPhone 14 Pro Max · medium", 364, 170),
         ("iPhone 16 / 17 Pro Max · medium", 374, 174),
         ("iPhone 17 Pro (smaller) · medium", 360, 169),
         ("Smallest iPhone · medium", 329, 155),
     ]
+    // systemLarge for the tall non-Beacon widgets.
+    private let largeSizes: [(label: String, w: CGFloat, h: CGFloat)] = [
+        ("iPhone 14 Pro Max · large", 364, 382),
+        ("Smallest iPhone · large", 329, 345),
+    ]
+    private let tallKinds: Set<String> = ["battery", "activity", "lights", "favourites", "doors"]
+    private var sizes: [(label: String, w: CGFloat, h: CGFloat)] { tallKinds.contains(kind) ? largeSizes : mediumSizes }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -22,13 +29,14 @@ struct WidgetGalleryView: View {
                 Text("Alarm").tag("alarm")
                 Text("Thermostat").tag("thermostat")
                 Text("ChargePoint").tag("chargepoint")
+                Text("Batteries").tag("battery")
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
             .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
 
             ScrollView {
                 VStack(spacing: 20) {
-                    Text("Hearth · \(galleryTitle) Beacon")
+                    Text("Hearth · \(galleryTitle)")
                         .font(.title3.weight(.semibold))
                         .frame(maxWidth: .infinity, alignment: .leading)
                     ForEach(sizes, id: \.label) { size in
@@ -55,16 +63,18 @@ struct WidgetGalleryView: View {
         case "alarm": AlarmBeaconView(.sample)
         case "thermostat": ThermostatBeaconView(.sample)
         case "chargepoint": CpBeaconView(.sample)
+        case "battery": BatteryView(.sample)
         default: CarBeaconView(.sample)
         }
     }
 
     private var galleryTitle: String {
         switch kind {
-        case "alarm": "Alarm"
-        case "thermostat": "Thermostat"
-        case "chargepoint": "ChargePoint"
-        default: "Car"
+        case "alarm": "Alarm Beacon"
+        case "thermostat": "Thermostat Beacon"
+        case "chargepoint": "ChargePoint Beacon"
+        case "battery": "Batteries"
+        default: "Car Beacon"
         }
     }
 }

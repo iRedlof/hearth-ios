@@ -56,7 +56,7 @@ public struct Car: Sendable, Equatable {
 
 /// The card's colour: all shut (green), something open (amber), a door open >= 30 min (red), not reporting (grey).
 /// Shared with the Doors widget on Android (`DoorsState.kt`).
-public enum DoorsTone: Sendable { case calm, warn, alert, unknown }
+public enum DoorsTone: Sendable, Equatable { case calm, warn, alert, unknown }
 
 public enum CarFactKind: Sendable { case lock, closed, place, tires, sentry, inside }
 

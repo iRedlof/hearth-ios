@@ -9,6 +9,43 @@ struct HearthWidgetBundle: WidgetBundle {
         AlarmWidget()
         ThermostatWidget()
         ChargePointWidget()
+        BatteryWidget()
+    }
+}
+
+// MARK: - Batteries
+
+struct BatteryEntry: TimelineEntry { let date: Date; let snap: BatterySnapshot }
+
+struct BatteryProvider: TimelineProvider {
+    func placeholder(in context: Context) -> BatteryEntry { BatteryEntry(date: .now, snap: .sample) }
+    func getSnapshot(in context: Context, completion: @escaping (BatteryEntry) -> Void) {
+        completion(BatteryEntry(date: .now, snap: .sample))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<BatteryEntry>) -> Void) {
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await BatteryProvider.fetch()
+            completion(Timeline(entries: [BatteryEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(60 * 60))))   // batteries move slowly → hourly
+        }
+    }
+    private static func fetch() async -> BatterySnapshot {
+        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
+        return await fetchBatterySnapshot(cfg)
+    }
+}
+
+struct BatteryWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.rohit.hearth.battery", provider: BatteryProvider()) { entry in
+            BatteryView(entry.snap)
+                .containerBackground(for: .widget) { Color(argb: entry.snap.summary.tone.fillARGB) }
+        }
+        .configurationDisplayName("Batteries")
+        .description("Every battery you replace, lowest first.")
+        .supportedFamilies([.systemLarge, .systemMedium])
+        .contentMarginsDisabled()
     }
 }
 
