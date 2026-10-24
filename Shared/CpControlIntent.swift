@@ -18,10 +18,12 @@ struct CpControlIntent: AppIntent {
     func perform() async throws -> some IntentResult {
         if action == "autoToggle" {
             let run = CpSessionStore.loadRun()
-            let next = run.armed
-                ? cpPauseRun(run)
-                : cpResumeRun(run, nil, Int64(Date().timeIntervalSince1970 * 1000))
+            let arming = !run.armed
+            let next = arming
+                ? cpResumeRun(run, nil, Int64(Date().timeIntervalSince1970 * 1000))
+                : cpPauseRun(run)
             CpSessionStore.saveRun(next)
+            if arming { CpNotify.requestPermission() }   // ask only when the auto-engine is turned on
         }
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.chargepoint")
         return .result()

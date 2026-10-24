@@ -30,6 +30,7 @@ struct WidgetGalleryView: View {
                 Text("Thermostat").tag("thermostat")
                 Text("ChargePoint").tag("chargepoint")
                 Text("Batteries").tag("battery")
+                Text("Activity").tag("activity")
             }
             .pickerStyle(.menu)
             .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
@@ -64,6 +65,7 @@ struct WidgetGalleryView: View {
         case "thermostat": ThermostatBeaconView(.sample)
         case "chargepoint": CpBeaconView(.sample)
         case "battery": BatteryView(.sample)
+        case "activity": ActivityView(.sample)
         default: CarBeaconView(.sample)
         }
     }
@@ -74,6 +76,7 @@ struct WidgetGalleryView: View {
         case "thermostat": "Thermostat Beacon"
         case "chargepoint": "ChargePoint Beacon"
         case "battery": "Batteries"
+        case "activity": "Activity"
         default: "Car Beacon"
         }
     }

@@ -10,6 +10,7 @@ struct HearthWidgetBundle: WidgetBundle {
         ThermostatWidget()
         ChargePointWidget()
         BatteryWidget()
+        ActivityWidget()
     }
 }
 
@@ -45,6 +46,42 @@ struct BatteryWidget: Widget {
         .configurationDisplayName("Batteries")
         .description("Every battery you replace, lowest first.")
         .supportedFamilies([.systemLarge, .systemMedium])
+        .contentMarginsDisabled()
+    }
+}
+
+// MARK: - Activity
+
+struct ActivityEntry: TimelineEntry { let date: Date; let snap: ActivitySnapshot }
+
+struct ActivityProvider: TimelineProvider {
+    func placeholder(in context: Context) -> ActivityEntry { ActivityEntry(date: .now, snap: .sample) }
+    func getSnapshot(in context: Context, completion: @escaping (ActivityEntry) -> Void) {
+        completion(ActivityEntry(date: .now, snap: .sample))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<ActivityEntry>) -> Void) {
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await ActivityProvider.fetch()
+            completion(Timeline(entries: [ActivityEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
+    }
+    private static func fetch() async -> ActivitySnapshot {
+        guard let cfg = HaConfigStore.load() else { return .sample }
+        return await fetchActivitySnapshot(cfg)
+    }
+}
+
+struct ActivityWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.rohit.hearth.activity", provider: ActivityProvider()) { entry in
+            ActivityView(entry.snap)
+                .containerBackground(for: .widget) { Color(argb: DoorsTone.unknown.fillARGB) }
+        }
+        .configurationDisplayName("Activity")
+        .description("Recent home events — doors, locks, alarm.")
+        .supportedFamilies([.systemLarge])
         .contentMarginsDisabled()
     }
 }

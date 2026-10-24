@@ -96,6 +96,13 @@ public struct HaClient: Sendable {
     public func allStatesJson() async throws -> String { try await request("GET", "/api/states", nil) }
     public func stateJson(_ entityId: String) async throws -> String { try await request("GET", "/api/states/\(entityId)", nil) }
 
+    /// Home Assistant's logbook since `since` for `ids` (a JSON array of entries) — used by Activity.
+    public func logbookJson(since: Date, ids: [String]) async throws -> String {
+        let iso = ISO8601DateFormatter().string(from: since)
+        let csv = ids.joined(separator: ",").urlFormEncoded
+        return try await request("GET", "/api/logbook/\(iso)?entity=\(csv)", nil)
+    }
+
     private func bearer() async throws -> String {
         config.token.isEmpty ? try await HaAuth.shared.accessToken(config) : config.token
     }
