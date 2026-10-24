@@ -72,7 +72,7 @@ public struct CpBeaconView: View {
                 }
             }
             Spacer(minLength: 6)
-            actionButton
+            if snap.keys.isEmpty { actionButton } else { keyRow }
         }
         .padding(.horizontal, 13).padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -90,6 +90,19 @@ public struct CpBeaconView: View {
             Link(destination: URL(string: "chargepoint://")!) { label }
         } else {
             label
+        }
+    }
+
+    /// State-specific manual commands (Accept / Snooze / Leave / Rejoin) when the waitlist offers them.
+    private var keyRow: some View {
+        HStack(spacing: 6) {
+            ForEach(snap.keys, id: \.command) { key in
+                Button(intent: CpCommandIntent(key.command)) {
+                    Text(key.label).font(.system(size: 12, weight: .semibold)).foregroundStyle(Color(white: 0.12))
+                        .frame(maxWidth: .infinity).frame(height: 36)
+                        .background(fill, in: RoundedRectangle(cornerRadius: 11))
+                }.buttonStyle(.plain)
+            }
         }
     }
 }

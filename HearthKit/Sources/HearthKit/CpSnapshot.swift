@@ -11,15 +11,20 @@ public struct CpSnapshot: Sendable, Equatable {
     public var plugsFree: String?    // "12 of 86 free" (shown when idle)
     public var autoOn: Bool          // the Auto-waitlist pill
     public var actionLabel: String   // "Sign in" / "Join" / "Open"
-    public var tone: BeaconTone       // always .orange
+    public var keys: [CpKey]         // state-specific manual commands (Accept / Snooze / Leave / Rejoin)
+    public var tone: BeaconTone      // always .orange
 
     public init(site: String, account: String, bigAnswer: String, unit: String, sub: String,
-                plugsFree: String?, autoOn: Bool, actionLabel: String, tone: BeaconTone = .orange) {
+                plugsFree: String?, autoOn: Bool, actionLabel: String, keys: [CpKey] = [],
+                tone: BeaconTone = .orange) {
         self.site = site; self.account = account; self.bigAnswer = bigAnswer; self.unit = unit
-        self.sub = sub; self.plugsFree = plugsFree; self.autoOn = autoOn; self.actionLabel = actionLabel; self.tone = tone
+        self.sub = sub; self.plugsFree = plugsFree; self.autoOn = autoOn; self.actionLabel = actionLabel
+        self.keys = keys; self.tone = tone
     }
 
+    /// Sample previews an offered state so the manual keys are visible.
     public static let sample = CpSnapshot(
-        site: "SEA41", account: "typhoon.2010", bigAnswer: "12", unit: "plugs free",
-        sub: "32 chargers", plugsFree: "12 of 86 free", autoOn: true, actionLabel: "Join")
+        site: "SEA41", account: "typhoon.2010", bigAnswer: "Your turn", unit: "",
+        sub: "Respond now", plugsFree: nil, autoOn: true, actionLabel: "Open",
+        keys: [CpKey(command: "accept", label: "Accept"), CpKey(command: "snooze", label: "Snooze")])
 }

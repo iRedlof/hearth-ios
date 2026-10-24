@@ -67,3 +67,23 @@ public func cpAnswer(_ s: CpState) -> CpAnswer {
     let free = s.now?.free ?? 0
     return CpAnswer(big: "\(free)", unit: "plugs free", sub: "\(s.now?.stations ?? 0) chargers", action: "Join")
 }
+
+/// A state-specific manual command button on the ChargePoint card (the iOS take on Android's key
+/// row). Only the no-argument commands are surfaced; Start/Stop (which need session/device ids) are
+/// left to "Open" in the ChargePoint app, and the auto engine handles automated accept/snooze.
+public struct CpKey: Sendable, Equatable {
+    public let command: String   // accept | snooze | leave | unsnooze
+    public let label: String
+    public init(command: String, label: String) { self.command = command; self.label = label }
+}
+
+public func cpManualKeys(_ s: CpState) -> [CpKey] {
+    if s.signedOut || s.account.needsReauth || s.charging != nil { return [] }
+    guard case let .inLine(_, state, _, _, _) = s.waitlist else { return [] }
+    switch state {
+    case "ACCEPT_PENDING": return [CpKey(command: "accept", label: "Accept"), CpKey(command: "snooze", label: "Snooze")]
+    case "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN": return [CpKey(command: "snooze", label: "Snooze")]
+    case "PASS": return [CpKey(command: "unsnooze", label: "Rejoin")]
+    default: return [CpKey(command: "leave", label: "Leave")]
+    }
+}
