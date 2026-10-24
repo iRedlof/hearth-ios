@@ -9,7 +9,7 @@ public func fetchAlarmSnapshot(_ config: HaConfig, now: Date = Date()) async -> 
     do {
         let alarmJson = try await client.stateJson(config.entityId)
         let alarm = AlarmState.fromJson(alarmJson)
-        let name = friendlyName(alarmJson) ?? "Home"
+        let name = friendlyName(ofStateJson: alarmJson) ?? "Home"
 
         var lockState: String?
         var lockChanged: Date?
@@ -25,13 +25,4 @@ public func fetchAlarmSnapshot(_ config: HaConfig, now: Date = Date()) async -> 
         return alarmSnapshot(alarm: nil, lockState: nil, lockChanged: nil, name: "Home",
                              error: friendlyError(error), checkedAt: now, now: now)
     }
-}
-
-/// `friendly_name` from a single `GET /api/states/<entity>` body.
-private func friendlyName(_ json: String) -> String? {
-    guard let data = json.data(using: .utf8),
-          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let attrs = obj["attributes"] as? [String: Any],
-          let name = attrs["friendly_name"] as? String, !name.isEmpty else { return nil }
-    return name
 }

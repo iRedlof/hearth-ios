@@ -86,8 +86,10 @@ public struct HaClient: Sendable {
 
     /// Call a Home Assistant service: `POST /api/services/{domain}/{service}` with `{entity_id}`.
     /// Every widget action (arm/disarm, lock/unlock, climate set, button.press) goes through here.
-    public func callService(domain: String, service: String, entityId: String) async throws {
-        let body = try JSONSerialization.data(withJSONObject: ["entity_id": entityId])
+    public func callService(domain: String, service: String, entityId: String, data: [String: Any] = [:]) async throws {
+        var payload = data
+        payload["entity_id"] = entityId
+        let body = try JSONSerialization.data(withJSONObject: payload)
         _ = try await request("POST", "/api/services/\(domain)/\(service)", body)
     }
 

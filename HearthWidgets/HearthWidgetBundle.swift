@@ -117,8 +117,17 @@ struct ThermostatProvider: TimelineProvider {
         completion(ThermostatEntry(date: .now, snap: .sample))
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ThermostatEntry>) -> Void) {
-        completion(Timeline(entries: [ThermostatEntry(date: .now, snap: .sample)],
-                            policy: .after(Date().addingTimeInterval(15 * 60))))
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await ThermostatProvider.fetch()
+            completion(Timeline(entries: [ThermostatEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
+    }
+
+    private static func fetch() async -> ThermostatSnapshot {
+        guard let cfg = HaConfigStore.load(), cfg.hasClimate else { return .sample }
+        return await fetchThermostatSnapshot(cfg)
     }
 }
 

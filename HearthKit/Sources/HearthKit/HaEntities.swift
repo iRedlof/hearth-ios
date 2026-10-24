@@ -31,3 +31,12 @@ public func entitiesInDomain(_ entities: [HaEntity], _ domain: String) -> [HaEnt
         .filter { $0.domain == domain }
         .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
 }
+
+/// `friendly_name` from a single `GET /api/states/<entity>` body (nil if absent/garbage).
+func friendlyName(ofStateJson json: String) -> String? {
+    guard let data = json.data(using: .utf8),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let attrs = obj["attributes"] as? [String: Any],
+          let name = attrs["friendly_name"] as? String, !name.isEmpty else { return nil }
+    return name
+}

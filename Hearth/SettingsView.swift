@@ -35,6 +35,16 @@ struct SettingsView: View {
                 } footer: {
                     Text("The alarm_control_panel the Alarm widget arms, disarms and shows.")
                 }
+                Section {
+                    pickerRow(title: "Thermostat", domain: "climate",
+                              allowNone: true, selection: config.climateId) { picked in
+                        apply { $0.climateId = picked }
+                    }
+                } header: {
+                    Text("Thermostat")
+                } footer: {
+                    Text("The climate entity the Thermostat widget shows and controls.")
+                }
             }
             .navigationTitle("Settings")
         }

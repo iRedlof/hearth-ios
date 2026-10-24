@@ -16,6 +16,7 @@ struct ContentView: View {
     @State private var config: HaConfig? = HaConfigStore.load()
     @State private var selection = ContentView.initialTab()
     @ObservedObject private var gate = AlarmGate.shared
+    @ObservedObject private var climateGate = ClimateGate.shared
 
     var body: some View {
         TabView(selection: $selection) {
@@ -36,6 +37,15 @@ struct ContentView: View {
             Button(action.verb, role: .destructive) { gate.confirm(action) }
             Button("Cancel", role: .cancel) { gate.cancel() }
         } message: { action in Text(action.title) }
+        .confirmationDialog(climateGate.pick?.title ?? "", isPresented: Binding(
+            get: { climateGate.pick != nil },
+            set: { if !$0 { climateGate.dismiss() } }
+        ), titleVisibility: .visible, presenting: climateGate.pick) { pick in
+            ForEach(pick.options, id: \.self) { opt in
+                Button(opt.capitalized) { climateGate.choose(pick.kind, opt) }
+            }
+            Button("Cancel", role: .cancel) { climateGate.dismiss() }
+        }
     }
 
     /// Initial tab from a launch arg (`-tab live|settings|preview`), for screenshots and testing.

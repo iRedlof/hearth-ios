@@ -12,6 +12,7 @@ struct LiveDashboardView: View {
 
     @State private var car: CarSnapshot?
     @State private var alarm: AlarmSnapshot?
+    @State private var thermostat: ThermostatSnapshot?
     @State private var loading = true
 
     var body: some View {
@@ -23,6 +24,10 @@ struct LiveDashboardView: View {
                 if config.isComplete {
                     sectionTitle("Alarm")
                     card { if let alarm { AlarmBeaconView(alarm) } else { placeholder } }
+                }
+                if config.hasClimate {
+                    sectionTitle("Thermostat")
+                    card { if let thermostat { ThermostatBeaconView(thermostat) } else { placeholder } }
                 }
                 controls
             }
@@ -75,9 +80,16 @@ struct LiveDashboardView: View {
         let now = Date()
         async let carSnap = fetchCar(now)
         async let alarmSnap = fetchAlarmMaybe(now)
+        async let thermoSnap = fetchThermostatMaybe(now)
         car = await carSnap
         alarm = await alarmSnap
+        thermostat = await thermoSnap
         loading = false
+    }
+
+    private func fetchThermostatMaybe(_ now: Date) async -> ThermostatSnapshot? {
+        guard config.hasClimate else { return nil }
+        return await fetchThermostatSnapshot(config, now: now)
     }
 
     private func fetchCar(_ now: Date) async -> CarSnapshot? {

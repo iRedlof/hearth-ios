@@ -1,4 +1,5 @@
 import SwiftUI
+import AppIntents
 import HearthKit
 
 /// The Thermostat Beacon card, ported from the Android `ClimateWidget`: a tone-coloured left panel
@@ -57,15 +58,19 @@ public struct ThermostatBeaconView: View {
                 }.foregroundStyle(surfaceInk.opacity(0.78))
             }
             Spacer(minLength: 5)
-            if let heat = snap.heatSetpoint { setpointRow("Heat to", heat, 0xFFF6D58A) }
+            if let heat = snap.heatSetpoint { setpointRow("Heat to", heat, 0xFFF6D58A, side: .heat) }
             if let cool = snap.coolSetpoint {
-                setpointRow("Cool to", cool, 0xFFA6D5FF).padding(.top, snap.heatSetpoint == nil ? 0 : 5)
+                setpointRow("Cool to", cool, 0xFFA6D5FF, side: .cool).padding(.top, snap.heatSetpoint == nil ? 0 : 5)
             }
             Spacer(minLength: 6)
             HStack(spacing: 6) {
-                chip("Mode", snap.mode)
-                if let fan = snap.fan { chip("Fan", fan) }
-                if snap.canResume { chip(nil, "Resume") }
+                Button(intent: ClimatePickerIntent("mode")) { chip("Mode", snap.mode) }.buttonStyle(.plain)
+                if let fan = snap.fan {
+                    Button(intent: ClimatePickerIntent("fan")) { chip("Fan", fan) }.buttonStyle(.plain)
+                }
+                if snap.canResume {
+                    Button(intent: ClimateSetpointIntent("resume")) { chip(nil, "Resume") }.buttonStyle(.plain)
+                }
             }
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
@@ -73,14 +78,18 @@ public struct ThermostatBeaconView: View {
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }
 
-    private func setpointRow(_ label: String, _ value: String, _ valueColor: UInt32) -> some View {
+    private func setpointRow(_ label: String, _ value: String, _ valueColor: UInt32, side: ClimateSide) -> some View {
         HStack(spacing: 5) {
             Text(label).font(.system(size: 12)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 2)
-            Image(systemName: "minus.circle.fill").font(.system(size: 20)).foregroundStyle(surfaceInk.opacity(0.85))
+            Button(intent: ClimateSetpointIntent("\(side.rawValue)Down")) {
+                Image(systemName: "minus.circle.fill").font(.system(size: 20)).foregroundStyle(surfaceInk.opacity(0.85))
+            }.buttonStyle(.plain)
             Text(value).font(.system(size: 18, weight: .semibold)).foregroundStyle(Color(argb: valueColor))
                 .lineLimit(1).frame(minWidth: 36)
-            Image(systemName: "plus.circle.fill").font(.system(size: 20)).foregroundStyle(surfaceInk.opacity(0.85))
+            Button(intent: ClimateSetpointIntent("\(side.rawValue)Up")) {
+                Image(systemName: "plus.circle.fill").font(.system(size: 20)).foregroundStyle(surfaceInk.opacity(0.85))
+            }.buttonStyle(.plain)
         }
     }
 
