@@ -99,12 +99,17 @@ public struct CarBeaconView: View {
     }
 
     private var openTesla: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
-            Text("Open Tesla").font(.system(size: 13, weight: .semibold))
+        // Deep-links to the Tesla app. iOS (unlike Android's package launch) can't detect whether
+        // Tesla is installed, so there's no "Tesla unavailable" disabled state — if it's absent the
+        // tap is a no-op. The whole card otherwise opens Hearth.
+        Link(destination: URL(string: "tesla://")!) {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
+                Text("Open Tesla").font(.system(size: 13, weight: .semibold))
+            }
+            .foregroundStyle(surfaceInk)
+            .frame(maxWidth: .infinity).frame(height: 36)
+            .background(Color.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 11))
         }
-        .foregroundStyle(surfaceInk)
-        .frame(maxWidth: .infinity).frame(height: 36)
-        .background(Color.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 11))
     }
 }
