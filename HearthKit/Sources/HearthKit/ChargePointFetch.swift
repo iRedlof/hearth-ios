@@ -45,3 +45,49 @@ private func cpSignedOutState(_ session: CpSession, autoOn: Bool) -> CpState {
 private func cpClockString(_ date: Date) -> String {
     let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
 }
+
+/// `response.remainingSnoozeCount` from a `get_notification_detail` body (spec R4).
+public func cpSnoozesFrom(_ json: String?) -> Int? {
+    guard let json, let data = json.data(using: .utf8),
+          let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+          let response = obj["response"] as? [String: Any] else { return nil }
+    if let i = response["remainingSnoozeCount"] as? Int { return i }
+    if let i = response["remainingSnoozeCount"] as? Int64 { return Int(i) }
+    return nil
+}
+
+/// The auto-waitlist RUNTIME: run the (tested) `cpAutoDecide` against the live status and act on its
+/// decision — auto-accept the offer, auto-snooze once, raise a drive-now alert, or disarm when
+/// charging. Returns the updated `CpRun` (persist it) and any alert to surface. iOS can only call
+/// this when the widget/app actually refreshes — there is no guaranteed background cadence or exact
+/// pre-deadline wake, so unattended accept/snooze is best-effort (see docs/CHARGEPOINT-IOS.md). The
+/// decision itself is exact; only *when iOS lets it run* differs from Android.
+public func cpAdvanceAuto(_ run: CpRun, client: CpClient, statusJson: String,
+                          now: Int64) async -> (run: CpRun, alert: CpAlert?) {
+    guard run.armed else { return (run, nil) }
+    let waitlist = cpWaitlistFrom(statusJson, nil)
+    let charging = cpSessionId(statusJson) != nil
+    var state = ""
+    var untilMs: Int64?
+    if case let .inLine(_, s, _, offer, _) = waitlist { state = s; untilMs = offer?.untilMs }
+    var snoozesLeft: Int?
+    if CP_HELD.contains(state), let token = cpOfferToken(statusJson) {
+        snoozesLeft = cpSnoozesFrom(try? await client.snoozeDetail(offerToken: token))
+    }
+    let step = cpAutoDecide(run, state: state, untilMs: untilMs, snoozesLeft: snoozesLeft,
+                            charging: charging, now: now)
+    switch step {
+    case .accept:
+        do { try await client.accept(); return (cpAfterAct(run, step, true), nil) }
+        catch { return (cpRecordAutoFailure(run, state, untilMs, friendlyError(error)), nil) }
+    case .snooze:
+        do { try await client.snooze(seconds: CP_AUTO_SNOOZE_SECONDS); return (cpAfterAct(run, step, true), nil) }
+        catch { return (cpRecordAutoFailure(run, state, untilMs, friendlyError(error)), nil) }
+    case .alert(let kind, let updated):
+        return (updated, kind)
+    case .done:
+        var r = run; r.armed = false; return (r, nil)
+    case .wakeAt, .idle:
+        return (run, nil)
+    }
+}

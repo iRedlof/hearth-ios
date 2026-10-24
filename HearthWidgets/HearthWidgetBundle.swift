@@ -168,7 +168,21 @@ struct CpProvider: TimelineProvider {
     private static func fetch() async -> CpSnapshot {
         let session = CpSessionStore.load()
         guard !session.token.isEmpty else { return .sample }   // never signed in → representative preview
-        let run = CpSessionStore.loadRun()
+        var run = CpSessionStore.loadRun()
+        // Best-effort auto-waitlist: advance the tested engine on this refresh. iOS has no guaranteed
+        // background cadence or exact pre-deadline wake (docs/CHARGEPOINT-IOS.md), so this runs when
+        // the widget/app happens to refresh.
+        if run.armed {
+            let client = CpClient(token: session.token, userId: session.userId,
+                                  onToken: { CpSessionStore.saveToken($0) })
+            if let statusJson = try? await client.userStatus() {
+                let result = await cpAdvanceAuto(run, client: client, statusJson: statusJson,
+                                                 now: Int64(Date().timeIntervalSince1970 * 1000))
+                run = result.run
+                CpSessionStore.saveRun(run)
+                if result.alert == .driveNow { CpNotify.driveNow() }
+            }
+        }
         return await fetchCpSnapshot(session, onToken: { CpSessionStore.saveToken($0) }, autoOn: run.armed)
     }
 }

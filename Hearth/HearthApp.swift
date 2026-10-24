@@ -46,6 +46,7 @@ struct ContentView: View {
             }
             Button("Cancel", role: .cancel) { climateGate.dismiss() }
         }
+        .task { CpNotify.requestPermission() }
     }
 
     /// Initial tab from a launch arg (`-tab live|settings|preview`), for screenshots and testing.

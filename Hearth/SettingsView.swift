@@ -8,6 +8,8 @@ import HearthKit
 /// mutate the live one), persists it to the App-Group store, and reloads all widget timelines.
 struct SettingsView: View {
     @State private var config: HaConfig
+    @State private var cpSignedIn = CpSessionStore.load().isSignedIn
+    @State private var cpAuto = CpSessionStore.loadRun().armed
     let onChange: (HaConfig) -> Void
 
     init(config: HaConfig, onChange: @escaping (HaConfig) -> Void) {
@@ -59,6 +61,33 @@ struct SettingsView: View {
                 } footer: {
                     Text("The climate entity the Thermostat controls, an optional Resume button, and room sensors to show.")
                 }
+                Section {
+                    if cpSignedIn {
+                        LabeledContent("Account", value: cpAccountName())
+                        Toggle("Auto-waitlist", isOn: Binding(
+                            get: { cpAuto },
+                            set: { on in
+                                let run = CpSessionStore.loadRun()
+                                let next = on ? cpResumeRun(run, nil, Int64(Date().timeIntervalSince1970 * 1000))
+                                              : cpPauseRun(run)
+                                CpSessionStore.saveRun(next); cpAuto = on
+                                if on { CpNotify.requestPermission() }
+                                WidgetCenter.shared.reloadAllTimelines()
+                            }))
+                        Button("Sign out of ChargePoint", role: .destructive) {
+                            CpSessionStore.clear(); cpSignedIn = false; cpAuto = false
+                            WidgetCenter.shared.reloadAllTimelines()
+                        }
+                    } else {
+                        NavigationLink("Sign in to ChargePoint") {
+                            CpSignInView(onSignedIn: { cpSignedIn = CpSessionStore.load().isSignedIn })
+                        }
+                    }
+                } header: {
+                    Text("ChargePoint")
+                } footer: {
+                    Text("A separate account (not Home Assistant). Auto-waitlist arms the auto-accept/snooze engine; iOS runs it best-effort on refresh (see docs/CHARGEPOINT-IOS.md).")
+                }
             }
             .navigationTitle("Settings")
         }
@@ -96,4 +125,9 @@ struct SettingsView: View {
     }
 
     private func prettyHost(_ url: String) -> String { URL(string: url)?.host ?? url }
+
+    private func cpAccountName() -> String {
+        let local = CpSessionStore.load().email.split(separator: "@").first.map(String.init) ?? ""
+        return local.isEmpty ? "Signed in" : local
+    }
 }
