@@ -12,11 +12,14 @@ final class CpKeysTests: XCTestCase {
             cpManualKeys(state(.inLine(place: nil, state: s, stations: 0, offer: nil, auto: auto))).map(\.command)
         }
         XCTAssertEqual(keys("ACCEPT_PENDING"), ["accept", "snooze"])
-        XCTAssertEqual(keys("PENDING_PLUG_IN"), ["snooze"])
-        XCTAssertEqual(keys("DIB_PENDING_PLUG_IN"), ["snooze"])
+        XCTAssertEqual(keys("PENDING_PLUG_IN"), ["start", "snooze"])
+        XCTAssertEqual(keys("DIB_PENDING_PLUG_IN"), ["start", "snooze"])
         XCTAssertEqual(keys("PASS", true), ["unsnooze"])
         XCTAssertEqual(keys("WAITING"), ["leave"])
         XCTAssertTrue(cpManualKeys(state(.notQueued)).isEmpty)                 // idle → no manual keys
         XCTAssertTrue(cpManualKeys(state(.notQueued, signedOut: true)).isEmpty) // signed out → none
+        let charging = CpCharging(sessionId: 1, powerKw: nil, energyKwh: nil, minutes: nil, canStop: true,
+                                  miles: nil, seconds: nil, vehicle: nil, charger: nil)
+        XCTAssertEqual(cpManualKeys(state(.notQueued, charging: charging)).map(\.command), ["stop"])
     }
 }

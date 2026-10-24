@@ -29,4 +29,12 @@ enum CpSessionStore {
 
     static func loadRun() -> CpRun { cpRunFromWire(defaults.string(forKey: runKey) ?? "") }
     static func saveRun(_ run: CpRun) { defaults.set(cpRunToWire(run), forKey: runKey) }
+
+    /// A stable device id for start/stop session calls (generated once, kept).
+    static func udid() -> String {
+        if let u = defaults.string(forKey: "cpUdid"), !u.isEmpty { return u }
+        let u = UUID().uuidString
+        defaults.set(u, forKey: "cpUdid")
+        return u
+    }
 }

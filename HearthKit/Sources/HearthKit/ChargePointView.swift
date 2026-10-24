@@ -78,11 +78,12 @@ public struct CpKey: Sendable, Equatable {
 }
 
 public func cpManualKeys(_ s: CpState) -> [CpKey] {
-    if s.signedOut || s.account.needsReauth || s.charging != nil { return [] }
+    if s.signedOut || s.account.needsReauth { return [] }
+    if s.charging != nil { return [CpKey(command: "stop", label: "Stop")] }
     guard case let .inLine(_, state, _, _, _) = s.waitlist else { return [] }
     switch state {
     case "ACCEPT_PENDING": return [CpKey(command: "accept", label: "Accept"), CpKey(command: "snooze", label: "Snooze")]
-    case "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN": return [CpKey(command: "snooze", label: "Snooze")]
+    case "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN": return [CpKey(command: "start", label: "Start"), CpKey(command: "snooze", label: "Snooze")]
     case "PASS": return [CpKey(command: "unsnooze", label: "Rejoin")]
     default: return [CpKey(command: "leave", label: "Leave")]
     }

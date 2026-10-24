@@ -25,6 +25,17 @@ struct CpCommandIntent: AppIntent {
         case "snooze": try await client.snooze(seconds: CP_AUTO_SNOOZE_SECONDS)
         case "leave": try await client.leave()
         case "unsnooze": try await client.unsnooze()
+        case "stop":
+            let status = try await client.userStatus()
+            if let sessionId = cpSessionId(status) {
+                try await client.stop(sessionId: sessionId, deviceId: nil, port: nil, udid: CpSessionStore.udid())
+            }
+        case "start":
+            let status = try await client.userStatus()
+            if case let .inLine(_, _, _, offer?, _) = cpWaitlistFrom(status, nil) {
+                try await client.start(deviceId: offer.deviceId,
+                                       connectorId: offer.port > 0 ? offer.port : nil, udid: CpSessionStore.udid())
+            }
         default: break
         }
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.chargepoint")
