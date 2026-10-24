@@ -14,6 +14,7 @@ struct HearthWidgetBundle: WidgetBundle {
         LightsWidget()
         QuickWidget()
         FavouritesWidget()
+        DoorsWidget()
     }
 }
 
@@ -192,6 +193,42 @@ struct FavouritesWidget: Widget {
         }
         .configurationDisplayName("Favourites")
         .description("Your pinned switches, lights, fans and scripts.")
+        .supportedFamilies([.systemLarge])
+        .contentMarginsDisabled()
+    }
+}
+
+// MARK: - Doors
+
+struct DoorsEntry: TimelineEntry { let date: Date; let snap: DoorsSnapshot }
+
+struct DoorsProvider: TimelineProvider {
+    func placeholder(in context: Context) -> DoorsEntry { DoorsEntry(date: .now, snap: .sample) }
+    func getSnapshot(in context: Context, completion: @escaping (DoorsEntry) -> Void) {
+        completion(DoorsEntry(date: .now, snap: .sample))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<DoorsEntry>) -> Void) {
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await DoorsProvider.fetch()
+            completion(Timeline(entries: [DoorsEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(10 * 60))))
+        }
+    }
+    private static func fetch() async -> DoorsSnapshot {
+        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
+        return await fetchDoorsSnapshot(cfg)
+    }
+}
+
+struct DoorsWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.rohit.hearth.doors", provider: DoorsProvider()) { entry in
+            DoorsView(entry.snap)
+                .containerBackground(for: .widget) { Color(argb: entry.snap.summary.tone.fillARGB) }
+        }
+        .configurationDisplayName("Doors")
+        .description("Doors, garages and the front-door lock.")
         .supportedFamilies([.systemLarge])
         .contentMarginsDisabled()
     }

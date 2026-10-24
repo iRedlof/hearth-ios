@@ -132,6 +132,20 @@ struct SettingsView: View {
                 } footer: {
                     Text("Up to 12 switches, lights, fans or scripts for the Favourites widget.")
                 }
+                Section {
+                    NavigationLink {
+                        MultiEntityPickerView(config: config, domains: ["cover", "binary_sensor", "lock"],
+                                              title: "Doors", selected: config.doorIds) { ids in
+                            apply { $0.doorIdsJson = encodeIds(ids) }
+                        }
+                    } label: {
+                        LabeledContent("Doors", value: config.doorIds.isEmpty ? "None" : "\(config.doorIds.count) selected")
+                    }
+                } header: {
+                    Text("Doors")
+                } footer: {
+                    Text("Doors, garages and window sensors for the Doors widget. Opening the garage asks for Face ID.")
+                }
             }
             .navigationTitle("Settings")
         }

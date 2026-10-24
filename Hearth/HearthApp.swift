@@ -17,6 +17,7 @@ struct ContentView: View {
     @State private var selection = ContentView.initialTab()
     @ObservedObject private var gate = AlarmGate.shared
     @ObservedObject private var climateGate = ClimateGate.shared
+    @ObservedObject private var garageGate = GarageGate.shared
 
     var body: some View {
         TabView(selection: $selection) {
@@ -45,6 +46,13 @@ struct ContentView: View {
                 Button(opt.capitalized) { climateGate.choose(pick.kind, opt) }
             }
             Button("Cancel", role: .cancel) { climateGate.dismiss() }
+        }
+        .alert("Open the garage?", isPresented: Binding(
+            get: { garageGate.confirming != nil },
+            set: { if !$0 { garageGate.cancel() } }
+        ), presenting: garageGate.confirming) { id in
+            Button("Open", role: .destructive) { garageGate.confirm(id) }
+            Button("Cancel", role: .cancel) { garageGate.cancel() }
         }
     }
 
