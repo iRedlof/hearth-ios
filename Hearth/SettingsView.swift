@@ -10,6 +10,7 @@ struct SettingsView: View {
     @State private var config: HaConfig
     @State private var cpSignedIn = CpSessionStore.load().isSignedIn
     @State private var cpAuto = CpSessionStore.loadRun().armed
+    @State private var cpLocation = CpSessionStore.loadLocation()
     let onChange: (HaConfig) -> Void
 
     init(config: HaConfig, onChange: @escaping (HaConfig) -> Void) {
@@ -64,6 +65,22 @@ struct SettingsView: View {
                 Section {
                     if cpSignedIn {
                         LabeledContent("Account", value: cpAccountName())
+                        NavigationLink {
+                            CpLocationSearchView(onPicked: { cpLocation = CpSessionStore.loadLocation() })
+                        } label: {
+                            LabeledContent("Location",
+                                           value: cpLocation.map { "\($0.title) · \($0.deviceIds.count) chargers" } ?? "Not set")
+                        }
+                        if cpLocation != nil {
+                            TextField("Name (optional)", text: Binding(
+                                get: { cpLocation?.label ?? "" },
+                                set: { newLabel in
+                                    guard let loc = cpLocation else { return }
+                                    let updated = CpLocation(name: loc.name, address: loc.address, deviceIds: loc.deviceIds,
+                                                             bounds: loc.bounds, city: loc.city, state: loc.state, label: newLabel)
+                                    CpSessionStore.saveLocation(updated); cpLocation = updated
+                                }))
+                        }
                         Toggle("Auto-waitlist", isOn: Binding(
                             get: { cpAuto },
                             set: { on in
