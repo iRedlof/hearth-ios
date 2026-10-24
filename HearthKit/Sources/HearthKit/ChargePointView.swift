@@ -85,6 +85,7 @@ public func cpManualKeys(_ s: CpState) -> [CpKey] {
     case "ACCEPT_PENDING": return [CpKey(command: "accept", label: "Accept"), CpKey(command: "snooze", label: "Snooze")]
     case "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN": return [CpKey(command: "start", label: "Start"), CpKey(command: "snooze", label: "Snooze")]
     case "PASS": return [CpKey(command: "unsnooze", label: "Rejoin")]
+    case "CHARGING_FAULT", "DIB_PLUG_OUT": return [CpKey(command: "still", label: "Keep charging"), CpKey(command: "done", label: "I'm done")]
     default: return [CpKey(command: "leave", label: "Leave")]
     }
 }

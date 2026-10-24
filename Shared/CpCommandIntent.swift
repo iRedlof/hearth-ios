@@ -36,6 +36,13 @@ struct CpCommandIntent: AppIntent {
                 try await client.start(deviceId: offer.deviceId,
                                        connectorId: offer.port > 0 ? offer.port : nil, udid: CpSessionStore.udid())
             }
+        case "still", "done":
+            let status = try await client.userStatus()
+            if let token = cpOfferToken(status) {
+                var fault = false
+                if case let .inLine(_, state, _, _, _) = cpWaitlistFrom(status, nil) { fault = (state == "CHARGING_FAULT") }
+                try await client.answerStill(yes: command == "still", token: token, fault: fault)
+            }
         default: break
         }
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.chargepoint")

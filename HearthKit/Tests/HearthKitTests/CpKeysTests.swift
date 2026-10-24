@@ -16,6 +16,8 @@ final class CpKeysTests: XCTestCase {
         XCTAssertEqual(keys("DIB_PENDING_PLUG_IN"), ["start", "snooze"])
         XCTAssertEqual(keys("PASS", true), ["unsnooze"])
         XCTAssertEqual(keys("WAITING"), ["leave"])
+        XCTAssertEqual(keys("CHARGING_FAULT"), ["still", "done"])
+        XCTAssertEqual(keys("DIB_PLUG_OUT"), ["still", "done"])
         XCTAssertTrue(cpManualKeys(state(.notQueued)).isEmpty)                 // idle → no manual keys
         XCTAssertTrue(cpManualKeys(state(.notQueued, signedOut: true)).isEmpty) // signed out → none
         let charging = CpCharging(sessionId: 1, powerKw: nil, energyKwh: nil, minutes: nil, canStop: true,

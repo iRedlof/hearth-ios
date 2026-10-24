@@ -113,6 +113,13 @@ public struct CpClient: Sendable {
         try await ackLoop(ackId: ackId(ack), action: "stop_session")
     }
 
+    /// Answer ChargePoint's "still charging?" (CHARGING_FAULT) / "unplugged?" (DIB_PLUG_OUT) prompt —
+    /// `yes` keeps the hold. Routes to `fr` for a fault, else `process_rehold`. Ported from Android still/done.
+    public func answerStill(yes: Bool, token: String, fault: Bool) async throws {
+        let path = fault ? "fr/\(yes ? 1 : 0)/\(token)" : "community/process_rehold/\(yes ? 1 : 0)/\(token)"
+        _ = try await send("POST", Self.PORTAL + path, form: "")
+    }
+
     /// Poll the ack endpoint up to 75× every 750ms until ChargePoint confirms (non-2xx until then).
     private func ackLoop(ackId: Int64, action: String) async throws {
         for _ in 0..<75 {
