@@ -31,6 +31,7 @@ struct WidgetGalleryView: View {
                 Text("ChargePoint").tag("chargepoint")
                 Text("Batteries").tag("battery")
                 Text("Activity").tag("activity")
+                Text("Lights").tag("lights")
             }
             .pickerStyle(.menu)
             .padding(.horizontal, 20).padding(.top, 12).padding(.bottom, 4)
@@ -66,6 +67,7 @@ struct WidgetGalleryView: View {
         case "chargepoint": CpBeaconView(.sample)
         case "battery": BatteryView(.sample)
         case "activity": ActivityView(.sample)
+        case "lights": LightTileView(.sample)
         default: CarBeaconView(.sample)
         }
     }
@@ -77,6 +79,7 @@ struct WidgetGalleryView: View {
         case "chargepoint": "ChargePoint Beacon"
         case "battery": "Batteries"
         case "activity": "Activity"
+        case "lights": "Lights"
         default: "Car Beacon"
         }
     }

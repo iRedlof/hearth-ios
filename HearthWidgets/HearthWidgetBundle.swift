@@ -11,6 +11,7 @@ struct HearthWidgetBundle: WidgetBundle {
         ChargePointWidget()
         BatteryWidget()
         ActivityWidget()
+        LightsWidget()
     }
 }
 
@@ -81,6 +82,42 @@ struct ActivityWidget: Widget {
         }
         .configurationDisplayName("Activity")
         .description("Recent home events — doors, locks, alarm.")
+        .supportedFamilies([.systemLarge])
+        .contentMarginsDisabled()
+    }
+}
+
+// MARK: - Lights
+
+struct LightsEntry: TimelineEntry { let date: Date; let snap: LightsSnapshot }
+
+struct LightsProvider: TimelineProvider {
+    func placeholder(in context: Context) -> LightsEntry { LightsEntry(date: .now, snap: .sample) }
+    func getSnapshot(in context: Context, completion: @escaping (LightsEntry) -> Void) {
+        completion(LightsEntry(date: .now, snap: .sample))
+    }
+    func getTimeline(in context: Context, completion: @escaping (Timeline<LightsEntry>) -> Void) {
+        nonisolated(unsafe) let completion = completion
+        Task {
+            let snap = await LightsProvider.fetch()
+            completion(Timeline(entries: [LightsEntry(date: .now, snap: snap)],
+                                policy: .after(Date().addingTimeInterval(15 * 60))))
+        }
+    }
+    private static func fetch() async -> LightsSnapshot {
+        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
+        return await fetchLightsSnapshot(cfg)
+    }
+}
+
+struct LightsWidget: Widget {
+    var body: some WidgetConfiguration {
+        StaticConfiguration(kind: "com.rohit.hearth.lights", provider: LightsProvider()) { entry in
+            LightTileView(entry.snap)
+                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        }
+        .configurationDisplayName("Lights")
+        .description("Lights that are on, plus your always-show favourites.")
         .supportedFamilies([.systemLarge])
         .contentMarginsDisabled()
     }

@@ -88,6 +88,21 @@ struct SettingsView: View {
                 } footer: {
                     Text("A separate account (not Home Assistant). Auto-waitlist arms the auto-accept/snooze engine; iOS runs it best-effort on refresh (see docs/CHARGEPOINT-IOS.md).")
                 }
+                Section {
+                    NavigationLink {
+                        MultiEntityPickerView(config: config, domains: ["light"], title: "Always show",
+                                              selected: config.lightPins.sorted()) { ids in
+                            apply { $0.lightPinsJson = encodeIds(ids) }
+                        }
+                    } label: {
+                        LabeledContent("Always show",
+                                       value: config.lightPins.isEmpty ? "None" : "\(config.lightPins.count) selected")
+                    }
+                } header: {
+                    Text("Lights")
+                } footer: {
+                    Text("Lights to always show on the Lights widget, so you can switch them on even when they're off.")
+                }
             }
             .navigationTitle("Settings")
         }
