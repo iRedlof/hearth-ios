@@ -18,6 +18,7 @@ struct ContentView: View {
     @ObservedObject private var gate = AlarmGate.shared
     @ObservedObject private var climateGate = ClimateGate.shared
     @ObservedObject private var garageGate = GarageGate.shared
+    @ObservedObject private var joinGate = CpJoinGate.shared
 
     var body: some View {
         TabView(selection: $selection) {
@@ -53,6 +54,14 @@ struct ContentView: View {
         ), presenting: garageGate.confirming) { id in
             Button("Open", role: .destructive) { garageGate.confirm(id) }
             Button("Cancel", role: .cancel) { garageGate.cancel() }
+        }
+        .confirmationDialog("Join the ChargePoint waitlist?", isPresented: Binding(
+            get: { joinGate.asking },
+            set: { if !$0 { joinGate.cancel() } }
+        ), titleVisibility: .visible) {
+            Button("Join & auto-run") { joinGate.join(auto: true) }
+            Button("Just join") { joinGate.join(auto: false) }
+            Button("Cancel", role: .cancel) { joinGate.cancel() }
         }
     }
 

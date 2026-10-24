@@ -88,6 +88,8 @@ public struct CpBeaconView: View {
             .background(fill, in: RoundedRectangle(cornerRadius: 11))
         if snap.actionLabel == "Open" {
             Link(destination: URL(string: "chargepoint://")!) { label }
+        } else if snap.actionLabel == "Join" {
+            Button(intent: CpJoinIntent()) { label }.buttonStyle(.plain)
         } else {
             label
         }
