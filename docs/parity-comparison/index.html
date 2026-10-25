@@ -38,12 +38,12 @@
 <div class="sub">Every core state of all four Beacon widgets, rendered on <b>both</b> platforms from the same sample data. Left: <b>Android</b> (<code>BeaconPreviewActivity</code> fixtures, 360×222dp, cropped to the card). Right: <b>iOS</b> (<code>HearthRenderTests</code> ImageRenderer, systemMedium 374×174pt). The shapes differ by platform on purpose: Android 4×2 ≈ 1.62:1, iOS <code>systemMedium</code> ≈ 2.15:1 — a fixed family size, not a choice. 38 states across 4 widgets.</div>
 <div class="legend"><span><b>✓</b> at parity</span><span><b>~</b> minor (copy/styling)</span><span><b>✗</b> real gap</span></div></header>
 <section>
-<div class="whead"><h2>Thermostat</h2><span class="badge b-parity">near parity</span><span class="count">9 states</span></div>
+<div class="whead"><h2>Thermostat</h2><span class="badge b-parity">at parity</span><span class="count">9 states</span></div>
 <div class="verdict"><ul>
-<li class="ok">Rail split, room temp + “In the room” + humidity + “Holding …°”, left sensor rows, and the Heat-to / Cool-to rows with value + steppers all match.</li>
-<li class="ok">The ± steppers are light-grey circles on both platforms (Android’s were dark squares until this release).</li>
+<li class="ok">Setpoint rows now match iOS: the label sits left with a compact <b>[−] value [+]</b> group on the right (was label-above / steppers-spread), the ± are light circles, and the value carries the mode colour.</li>
+<li class="ok">Mode / Fan / Resume are flat iOS-style chips (ported from iOS — Android’s were raised surfaces).</li>
 <li class="gap"><b>Set up</b>: Android shows a dedicated “Set up thermostat” card; iOS has no climate-setup state and falls back to Unavailable.</li>
-<li class="min">Freshness-stamp wording and the third action’s label (“Back to Schedule” vs “Resume”) are copy-level.</li>
+<li class="min">Android keeps an “Off · choose a mode” prompt in the body for the off state; iOS leaves it empty.</li>
 </ul></div>
 <div class="states">
 <div class="state">
@@ -104,9 +104,9 @@
 <section>
 <div class="whead"><h2>Alarm</h2><span class="badge b-parity">at parity</span><span class="count">10 states</span></div>
 <div class="verdict"><ul>
-<li class="ok">Rail, shield glyph, big state word + “…at <time>”, “Home” title, the Front Door well <b>with the Unlock button</b>, and the arm buttons <b>with house/shield icons</b> — all match now (these were the previous gaps).</li>
-<li class="ok">The green “Locked” pill + lock icon renders on both.</li>
-<li class="min">The unconfigured <code>setup</code> card differs in copy: Android “Connect your alarm”, iOS “Set up the alarm in Settings”.</li>
+<li class="ok">Buttons ported from iOS: flat chips — a bright “Disarm” primary pill and dark Arm home / Arm away chips. Arm away now uses a <b>plain shield</b> (no inner lock), matching iOS.</li>
+<li class="ok">The Front Door row is now a flat row (icon + name / status / since on their own lines) — iOS’s clean look, and the “since …” no longer clips on iOS.</li>
+<li class="min">The unconfigured <code>setup</code> card differs in copy: Android “Set up the alarm in Settings”, iOS same.</li>
 </ul></div>
 <div class="states">
 <div class="state">
@@ -171,10 +171,10 @@
 </div></div>
 </div></section>
 <section>
-<div class="whead"><h2>Car</h2><span class="badge b-gaps">arrangement gaps</span><span class="count">9 states</span></div>
+<div class="whead"><h2>Car</h2><span class="badge b-parity">at parity</span><span class="count">9 states</span></div>
 <div class="verdict"><ul>
-<li class="ok">Rail, big battery %, range, car photo, charge line + bar, Sentry chip, Open Tesla, and the facts (lock / doors / cabin / outside / tires) are all present on both.</li>
-<li class="gap"><b>Lock / Doors placement</b>: Android groups them as fact chips in the right panel; iOS lists them as left-hero rows.</li>
+<li class="ok"><b>Sentry moved onto the charge line</b> (right-aligned, next to Unplugged / charge ETA) on both, freeing the top row so the car photo is larger — matching iOS.</li>
+<li class="ok">Rail, big battery %, range, charge bar, and the facts (lock / doors / cabin / outside / tires) line up on both.</li>
 <li class="min">The Android emulator renders “Tesla unavailable” (no Tesla app installed on it); a real device shows “Open Tesla”, as iOS does.</li>
 </ul></div>
 <div class="states">
@@ -236,9 +236,9 @@
 <section>
 <div class="whead"><h2>ChargePoint</h2><span class="badge b-near">near parity</span><span class="count">10 states</span></div>
 <div class="verdict"><ul>
-<li class="ok">Fixed orange brand rail, Auto pill, account, and the state-specific keys (Accept / Snooze / Start / Leave / Rejoin) all match.</li>
-<li class="ok">iOS now leads timed states with the <b>countdown clock</b> as the hero and shows “go to level” + per-level floor stats — the biggest previous gaps, now closed.</li>
-<li class="min">iOS lists up to <b>4</b> floor levels; Android shows up to 5–6. The aggregate “N in use / N offline” line is richer on Android.</li>
+<li class="ok">iOS now matches Android’s idle card: the big plug-count hero + “of 86 plugs / N in use / N offline”, the refresh + “Checked” stamp, all five floor levels (P2–P6), and <b>Join + Open</b> buttons — all ported from Android.</li>
+<li class="ok">Timed states lead with the countdown-clock hero + “go to level”; the Accept / Snooze / Start / Leave / Rejoin keys match.</li>
+<li class="min">Floor availability bars are green on Android, brand-orange on iOS.</li>
 </ul></div>
 <div class="states">
 <div class="state">

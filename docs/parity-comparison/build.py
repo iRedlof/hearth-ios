@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 # (state_id, caption) per widget — state_id matches both and/ and ios/ filenames.
 WIDGETS = [
-    ("Thermostat", "thermostat", "near parity", "b-parity", [
+    ("Thermostat", "thermostat", "at parity", "b-parity", [
         ("auto", "Auto — violet rail, “Holding 64–69°”, dual ± setpoints (light circles, matched this release)"),
         ("heating", "Heating — heat mode actively heating, yellow, “Heating to 68°”"),
         ("cooling", "Cooling — cool mode, blue, “Cooling to 70°”"),
@@ -38,7 +38,7 @@ WIDGETS = [
         ("offline", "Offline — last-known state greyed, “Can’t reach Home Assistant”"),
         ("setup", "Set up — not yet connected"),
     ]),
-    ("Car", "car", "arrangement gaps", "b-gaps", [
+    ("Car", "car", "at parity", "b-parity", [
         ("parked", "Parked — mint rail, Unplugged, sentry chip"),
         ("charging", "Charging — blue rail, “Full by …” ETA + charge bar"),
         ("complete", "Charged — charge complete at 80%"),
@@ -66,25 +66,25 @@ WIDGETS = [
 # Per-widget verdict bullets: (css-class, html). Kept from the audit; refined for this build.
 VERDICTS = {
     "Thermostat": [
-        ("ok", "Rail split, room temp + “In the room” + humidity + “Holding …°”, left sensor rows, and the Heat-to / Cool-to rows with value + steppers all match."),
-        ("ok", "The ± steppers are light-grey circles on both platforms (Android’s were dark squares until this release)."),
+        ("ok", "Setpoint rows now match iOS: the label sits left with a compact <b>[−] value [+]</b> group on the right (was label-above / steppers-spread), the ± are light circles, and the value carries the mode colour."),
+        ("ok", "Mode / Fan / Resume are flat iOS-style chips (ported from iOS — Android’s were raised surfaces)."),
         ("gap", "<b>Set up</b>: Android shows a dedicated “Set up thermostat” card; iOS has no climate-setup state and falls back to Unavailable."),
-        ("min", "Freshness-stamp wording and the third action’s label (“Back to Schedule” vs “Resume”) are copy-level."),
+        ("min", "Android keeps an “Off · choose a mode” prompt in the body for the off state; iOS leaves it empty."),
     ],
     "Alarm": [
-        ("ok", "Rail, shield glyph, big state word + “…at <time>”, “Home” title, the Front Door well <b>with the Unlock button</b>, and the arm buttons <b>with house/shield icons</b> — all match now (these were the previous gaps)."),
-        ("ok", "The green “Locked” pill + lock icon renders on both."),
-        ("min", "The unconfigured <code>setup</code> card differs in copy: Android “Connect your alarm”, iOS “Set up the alarm in Settings”."),
+        ("ok", "Buttons ported from iOS: flat chips — a bright “Disarm” primary pill and dark Arm home / Arm away chips. Arm away now uses a <b>plain shield</b> (no inner lock), matching iOS."),
+        ("ok", "The Front Door row is now a flat row (icon + name / status / since on their own lines) — iOS’s clean look, and the “since …” no longer clips on iOS."),
+        ("min", "The unconfigured <code>setup</code> card differs in copy: Android “Set up the alarm in Settings”, iOS same."),
     ],
     "Car": [
-        ("ok", "Rail, big battery %, range, car photo, charge line + bar, Sentry chip, Open Tesla, and the facts (lock / doors / cabin / outside / tires) are all present on both."),
-        ("gap", "<b>Lock / Doors placement</b>: Android groups them as fact chips in the right panel; iOS lists them as left-hero rows."),
+        ("ok", "<b>Sentry moved onto the charge line</b> (right-aligned, next to Unplugged / charge ETA) on both, freeing the top row so the car photo is larger — matching iOS."),
+        ("ok", "Rail, big battery %, range, charge bar, and the facts (lock / doors / cabin / outside / tires) line up on both."),
         ("min", "The Android emulator renders “Tesla unavailable” (no Tesla app installed on it); a real device shows “Open Tesla”, as iOS does."),
     ],
     "ChargePoint": [
-        ("ok", "Fixed orange brand rail, Auto pill, account, and the state-specific keys (Accept / Snooze / Start / Leave / Rejoin) all match."),
-        ("ok", "iOS now leads timed states with the <b>countdown clock</b> as the hero and shows “go to level” + per-level floor stats — the biggest previous gaps, now closed."),
-        ("min", "iOS lists up to <b>4</b> floor levels; Android shows up to 5–6. The aggregate “N in use / N offline” line is richer on Android."),
+        ("ok", "iOS now matches Android’s idle card: the big plug-count hero + “of 86 plugs / N in use / N offline”, the refresh + “Checked” stamp, all five floor levels (P2–P6), and <b>Join + Open</b> buttons — all ported from Android."),
+        ("ok", "Timed states lead with the countdown-clock hero + “go to level”; the Accept / Snooze / Start / Leave / Rejoin keys match."),
+        ("min", "Floor availability bars are green on Android, brand-orange on iOS."),
     ],
 }
 

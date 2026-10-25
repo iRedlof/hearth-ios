@@ -56,11 +56,15 @@ public struct CpBeaconView: View {
                         .lineLimit(1).minimumScaleFactor(0.8)
                 }
             } else {
+                // Android parity: a large plug-count hero + the "of 86 plugs / 7 in use / 1 offline" detail.
                 Text(snap.bigAnswer)
-                    .font(.system(size: snap.bigAnswer.count > 6 ? 26 : 34, weight: .heavy)).tracking(-0.5)
-                    .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.6)
+                    .font(.system(size: snap.bigAnswer.count > 6 ? 30 : 48, weight: .heavy)).tracking(-1)
+                    .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.5)
                 if !snap.unit.isEmpty {
-                    Text(snap.unit).font(.system(size: 12, weight: .medium)).foregroundStyle(ink.opacity(0.9)).lineLimit(1)
+                    Text(snap.unit).font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.8)
+                }
+                ForEach(snap.freeDetail, id: \.self) { line in
+                    Text(line).font(.system(size: 11)).foregroundStyle(ink.opacity(0.78)).lineLimit(1).minimumScaleFactor(0.8)
                 }
                 if !snap.sub.isEmpty {
                     Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
@@ -76,19 +80,39 @@ public struct CpBeaconView: View {
 
     private var right: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(snap.site).font(.system(size: 18, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
-            HStack(spacing: 4) {
-                Image(systemName: "person.fill").font(.system(size: 10)).foregroundStyle(surfaceInk.opacity(0.7))
-                Text(snap.account).font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
-            }.padding(.top, 2)
+            // Android parity: site + account on the left, the refresh + "Checked" stamp on the right.
+            HStack(alignment: .top, spacing: 6) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(snap.site).font(.system(size: 18, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
+                    HStack(spacing: 4) {
+                        Image(systemName: "person.fill").font(.system(size: 10)).foregroundStyle(surfaceInk.opacity(0.7))
+                        Text(snap.account).font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
+                    }
+                }
+                Spacer(minLength: 2)
+                if !snap.checkedAt.isEmpty {
+                    BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.chargepoint", ink: surfaceInk)
+                }
+            }
             Spacer(minLength: 4)
             detail
             Spacer(minLength: 6)
-            if snap.keys.isEmpty { actionButton } else { keyRow }
+            if snap.keys.isEmpty {
+                if snap.showOpen { HStack(spacing: 6) { actionButton; openKey } } else { actionButton }
+            } else { keyRow }
         }
         .padding(.horizontal, 13).padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
+    }
+
+    /// A narrow "Open" key beside the primary action, deep-linking to ChargePoint (Android idle parity).
+    private var openKey: some View {
+        Link(destination: URL(string: "chargepoint://")!) {
+            Text("Open").font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk)
+                .padding(.horizontal, 16).frame(height: 36)
+                .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 11))
+        }
     }
 
     /// The middle detail: "Go to <charger>" when offered/held, else per-level floor stats when idle,
@@ -101,8 +125,8 @@ public struct CpBeaconView: View {
                     .lineLimit(1).minimumScaleFactor(0.8)
             }
         } else if !snap.floors.isEmpty {
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(snap.floors.prefix(4), id: \.level) { f in floorRow(f) }
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(snap.floors.prefix(5), id: \.level) { f in floorRow(f) }
             }
         } else if let plugs = snap.plugsFree {
             HStack(spacing: 5) {

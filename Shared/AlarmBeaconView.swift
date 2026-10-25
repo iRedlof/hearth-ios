@@ -65,8 +65,11 @@ public struct AlarmBeaconView: View {
                 .font(.system(size: 17)).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(snap.doorName).font(.system(size: 12.5, weight: .medium)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.7)
-                Text([snap.doorState, snap.doorSince].compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 10.5)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1).minimumScaleFactor(0.8)
+                // Status and "since …" on their own lines so neither clips (was one line, cut off as "Locked · sinc…").
+                Text(snap.doorState).font(.system(size: 10.5)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1).minimumScaleFactor(0.8)
+                if let since = snap.doorSince {
+                    Text(since).font(.system(size: 10.5)).foregroundStyle(surfaceInk.opacity(0.6)).lineLimit(1).minimumScaleFactor(0.8)
+                }
             }
             Spacer(minLength: 4)
             if let locked = snap.doorLocked { doorButton(locked) }

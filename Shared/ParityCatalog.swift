@@ -104,11 +104,13 @@ enum ParityCatalog {
     // MARK: ChargePoint
     private static func cpCard(_ big: String, unit: String = "", sub: String = "", plugsFree: String? = nil,
                                action: String = "Open", keys: [CpKey] = [], deadlineIn: TimeInterval? = nil,
-                               goTo: String? = nil, floors: [CpFloor] = [], site: String = "Amazon Day 1",
+                               goTo: String? = nil, floors: [CpFloor] = [], freeDetail: [String] = [],
+                               showOpen: Bool = false, site: String = "Amazon Day 1",
                                account: String = "iredlof") -> AnyView {
         AnyView(CpBeaconView(CpSnapshot(site: site, account: account, bigAnswer: big, unit: unit, sub: sub,
             plugsFree: plugsFree, autoOn: true, actionLabel: action, keys: keys,
-            deadline: deadlineIn.map { Date().addingTimeInterval($0) }, goTo: goTo, floors: floors)))
+            deadline: deadlineIn.map { Date().addingTimeInterval($0) }, goTo: goTo, floors: floors,
+            checkedAt: "9:41 AM", freeDetail: freeDetail, showOpen: showOpen)))
     }
     private static func chargePoint() -> [(String, AnyView)] {
         let full = [CpFloor(level: "P2", free: 8, total: 14), CpFloor(level: "P3", free: 17, total: 18),
@@ -117,7 +119,8 @@ enum ParityCatalog {
         let busy = [CpFloor(level: "P2", free: 0, total: 14), CpFloor(level: "P3", free: 0, total: 18),
                     CpFloor(level: "P4", free: 0, total: 22), CpFloor(level: "P5", free: 0, total: 22),
                     CpFloor(level: "P6", free: 0, total: 10)]
-        return [("chargepoint-available", cpCard("78", unit: "plugs free", action: "Join", floors: full)),
+        return [("chargepoint-available", cpCard("78", unit: "plugs free", action: "Join", floors: full,
+            freeDetail: ["of 86 plugs", "7 in use", "1 offline"], showOpen: true)),
          ("chargepoint-waiting", cpCard("#3", unit: "in line", sub: "43 chargers",
             keys: [CpKey(command: "leave", label: "Leave")], floors: busy)),
          ("chargepoint-offer", cpCard("Your turn", sub: "Respond by 10:13 AM",
