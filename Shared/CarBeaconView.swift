@@ -61,30 +61,26 @@ public struct CarBeaconView: View {
             HStack(alignment: .top, spacing: 6) {
                 Text(snap.name).font(.system(size: 18, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
-                Button(intent: WidgetRefreshIntent("com.rohit.hearth.car")) {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(surfaceInk.opacity(0.7))
-                }
-                .buttonStyle(.plain).padding(.trailing, 5)
-                VStack(alignment: .trailing, spacing: -1) {
-                    Text("Checked").font(.system(size: 10))
-                    Text(snap.checkedAt).font(.system(size: 10))
-                }.foregroundStyle(surfaceInk).invalidatableContent()
+                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.car", ink: surfaceInk)
             }
             Text(snap.place).font(.system(size: 12.5)).foregroundStyle(surfaceInk)
                 .lineLimit(1).minimumScaleFactor(0.72).padding(.top, 3)
-            HStack(spacing: 4) {
-                Image(systemName: "lock.shield.fill").font(.system(size: 11))
-                Text(sentryText).font(.system(size: 12, weight: .medium))
-            }.foregroundStyle(sentryInk).padding(.top, 2)
-            Spacer(minLength: 2)
-            Image("CarPremium").resizable().scaledToFit().frame(maxWidth: .infinity)
-            Spacer(minLength: 2)
+            // Car photo — enlarged to fill the space freed by moving Sentry onto the charge line.
+            Image("CarPremium").resizable().scaledToFit()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.horizontal, -4).padding(.vertical, 3)
             chargeBar.frame(height: 7)
-            Text(snap.chargeLine).font(.system(size: 12)).foregroundStyle(surfaceInk)
-                .lineLimit(1).minimumScaleFactor(0.8).padding(.top, 3)
-            Spacer(minLength: 4)
-            openTesla
+            // Unplugged (left) + Sentry on/off (right-aligned) share one line — frees a row for the photo.
+            HStack(spacing: 6) {
+                Text(snap.chargeLine).font(.system(size: 12)).foregroundStyle(surfaceInk)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                Spacer(minLength: 4)
+                HStack(spacing: 4) {
+                    Image(systemName: "lock.shield.fill").font(.system(size: 10.5))
+                    Text(sentryText).font(.system(size: 12, weight: .medium))
+                }.foregroundStyle(sentryInk).lineLimit(1).minimumScaleFactor(0.85).fixedSize()
+            }.padding(.top, 3)
+            openTesla.padding(.top, 6)
         }
         .padding(.horizontal, 13).padding(.vertical, 11)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
