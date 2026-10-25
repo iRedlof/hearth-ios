@@ -26,18 +26,22 @@ Status key: `✅ parity` · `⚠️ partial` · `❌ gap` · `🔍 auditing` · 
 
 ## B. Per-widget (layout · states · interactions · copy)
 
-| Widget | Layout | States | Interactions | Copy/strings | Overall |
-|--------|--------|--------|--------------|--------------|---------|
-| ChargePoint | 🔍 | 🔍 | ✅ (in place) | 🔍 | ⚠️ |
-| Car | 🔍 | 🔍 | 🔍 | 🔍 | 🔍 |
-| Alarm | 🔍 | 🔍 | ✅ (in place) | 🔍 | 🔍 |
-| Thermostat | 🔍 | 🔍 | ✅ (cycle in place) | 🔍 | 🔍 |
-| Battery | 🔍 | 🔍 | n/a (read-only) | 🔍 | 🔍 |
-| Activity | 🔍 | 🔍 | n/a (read-only) | 🔍 | 🔍 |
-| Lights | 🔍 | 🔍 | 🔍 | 🔍 | 🔍 |
-| Quick | 🔍 | 🔍 | 🔍 | 🔍 | 🔍 |
-| Favourites | 🔍 | 🔍 | 🔍 | 🔍 | 🔍 |
-| Doors | 🔍 | 🔍 | ✅ (garage in place) | 🔍 | 🔍 |
+Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-comparison/index.html`**.
+
+| Widget | Layout | Interactions | Overall | Concrete gaps found (vs Android design render) |
+|--------|--------|--------------|---------|-----------------------------------------------|
+| Thermostat | ✅ | ✅ | ✅ near parity | ~ "Resume" vs Android "Back to Schedule"; "Checked" vs "Last check" |
+| Alarm | ⚠️ | ✅ | ⚠️ gaps | ❌ no "Unlock" button in the Front Door well; ❌ Arm buttons lack house/shield icons; ~ "Locked" is plain text not a green pill |
+| Car | ❌ | ✅ | ⚠️ arrangement gaps | ❌ Lock/Doors should be fact chips in the RIGHT panel (Android), not hero rows; ❌ missing "Not plugged in / Charge limit 80%" line; ~ Open-Tesla full-width vs half-width beside chips |
+| ChargePoint | ❌ | ✅ | ❌ biggest gaps | ❌ hero should lead with the big countdown clock + "to accept" (iOS leads with "Your turn"); ❌ right body should show "go to level P3 / SEA41-29"; ❌ no floor-level stats (P2–P6 counts); ❌ missing per-state body variants |
+| Battery | 🔍 | n/a (read-only) | 🔍 | not yet diffed |
+| Activity | 🔍 | n/a (read-only) | 🔍 | not yet diffed |
+| Lights | 🔍 | 🔍 | 🔍 | not yet diffed |
+| Quick | 🔍 | 🔍 | 🔍 | not yet diffed |
+| Favourites | 🔍 | 🔍 | 🔍 | not yet diffed |
+| Doors | 🔍 | ✅ (garage in place) | 🔍 | not yet diffed |
+
+**Cross-cutting copy gap:** Android freshness stamp reads **"Last check"**; iOS reads **"Checked"** (all beacon widgets).
 
 ## C. Settings parity
 | Item | Status |

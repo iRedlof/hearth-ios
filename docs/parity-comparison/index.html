@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hearth — iOS ↔ Android widget parity</title>
+<style>
+  :root { color-scheme: dark; }
+  body { margin:0; background:#0b0b0d; color:#e9e9ec; font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif; }
+  header { padding:28px 24px 8px; }
+  h1 { font-size:24px; margin:0 0 4px; }
+  .sub { color:#9a9aa2; font-size:14px; }
+  .legend { display:flex; gap:16px; flex-wrap:wrap; margin:12px 0 0; font-size:13px; color:#b9b9c0; }
+  .legend b { font-weight:700; }
+  section { padding:20px 24px; border-top:1px solid #1d1d22; }
+  .whead { display:flex; align-items:center; gap:12px; margin:0 0 14px; }
+  .whead h2 { font-size:19px; margin:0; }
+  .badge { font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; }
+  .b-parity { background:#15351f; color:#5fd48a; }
+  .b-near   { background:#36330f; color:#e4cf5a; }
+  .b-gaps   { background:#3a2a12; color:#f2a23c; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
+  .pane { background:#141418; border:1px solid #23232a; border-radius:14px; padding:12px; }
+  .plabel { font-size:12px; font-weight:700; color:#9a9aa2; margin:0 0 8px; letter-spacing:.02em; }
+  .pane img { width:100%; height:auto; border-radius:10px; display:block; background:#000; }
+  .verdict { margin:16px 0 0; }
+  .verdict ul { margin:6px 0 0; padding-left:0; list-style:none; }
+  .verdict li { padding:3px 0 3px 24px; position:relative; }
+  .verdict li.ok::before  { content:"✓"; color:#5fd48a; position:absolute; left:0; font-weight:700; }
+  .verdict li.gap::before { content:"✗"; color:#f2a23c; position:absolute; left:0; font-weight:700; }
+  .verdict li.min::before { content:"~"; color:#e4cf5a; position:absolute; left:0; font-weight:700; }
+  .note { color:#9a9aa2; font-size:13px; margin-top:6px; }
+  footer { padding:22px 24px 40px; color:#7a7a82; font-size:13px; border-top:1px solid #1d1d22; }
+  @media (max-width:720px){ .cols{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Hearth — iOS ↔ Android widget parity</h1>
+  <div class="sub">Left: the approved <b>Android design</b> render (<code>docs/design/beacon-widgets/screenshots</code> / design mock). Right: the current <b>iOS</b> render (Simulator, medium). Both use design sample data so the layout is comparable. Note the shapes differ by platform: Android 4×2 ≈ 1.59:1, iOS <code>systemMedium</code> ≈ 2.1:1 (wider/shorter) — a fixed family size, not a choice.</div>
+  <div class="legend"><span><b>✓</b> at parity</span><span><b>~</b> minor (copy/styling)</span><span><b>✗</b> real gap</span></div>
+</header>
+
+<section>
+  <div class="whead"><h2>Thermostat</h2><span class="badge b-parity">near parity</span></div>
+  <div class="cols">
+    <div class="pane"><div class="plabel">ANDROID (approved)</div><img src="and-thermostat.png" alt="Android thermostat"></div>
+    <div class="pane"><div class="plabel">iOS (current)</div><img src="crop-thermostat.png" alt="iOS thermostat"></div>
+  </div>
+  <div class="verdict"><ul>
+    <li class="ok">~37% rail split, temp + "In the room" + humidity + "Holding …°", left sensor rows (Outside/Bedroom/Thermo)</li>
+    <li class="ok">Right: title + refresh + stamp, Heat-to / Cool-to rows with − value + steppers, Mode / Fan buttons</li>
+    <li class="min">Third action button: Android "Back to Schedule" vs iOS "Resume" (copy)</li>
+    <li class="min">Freshness stamp: Android "Last check" vs iOS "Checked"</li>
+  </ul><div class="note">Closest to 1:1 — layout and controls match.</div></div>
+</section>
+
+<section>
+  <div class="whead"><h2>Alarm</h2><span class="badge b-gaps">gaps</span></div>
+  <div class="cols">
+    <div class="pane"><div class="plabel">ANDROID (approved)</div><img src="and-alarm.png" alt="Android alarm"></div>
+    <div class="pane"><div class="plabel">iOS (current)</div><img src="crop-alarm.png" alt="iOS alarm"></div>
+  </div>
+  <div class="verdict"><ul>
+    <li class="ok">~37% blue rail, shield-slash glyph, big "Disarmed" + "…at 7:00 AM", Front Door well, Arm home / Arm away</li>
+    <li class="gap">Android shows an <b>"Unlock" button</b> inside the Front Door well; iOS shows door status only (no unlock affordance on the card)</li>
+    <li class="gap">Android Arm buttons carry <b>icons</b> (house / shield); iOS buttons are text-only</li>
+    <li class="min">Android door shows a green <b>"Locked" pill</b> badge; iOS renders "Locked" as plain text</li>
+    <li class="min">Stamp "Last check" vs "Checked"</li>
+  </ul></div>
+</section>
+
+<section>
+  <div class="whead"><h2>Car</h2><span class="badge b-gaps">arrangement gaps</span></div>
+  <div class="cols">
+    <div class="pane"><div class="plabel">ANDROID (approved)</div><img src="and-car.png" alt="Android car"></div>
+    <div class="pane"><div class="plabel">iOS (current)</div><img src="crop-car.png" alt="iOS car"></div>
+  </div>
+  <div class="verdict"><ul>
+    <li class="ok">~37% green rail, big battery %, range, car photo, charge bar, Sentry chip, "Open Tesla"</li>
+    <li class="gap"><b>Lock / Doors placement:</b> Android shows them as fact chips in the RIGHT panel (beside Open Tesla); iOS lists them as rows in the LEFT hero instead</li>
+    <li class="gap">Android hero shows <b>"Not plugged in / Charge limit 80%"</b>; iOS omits the charge-limit line (shows "Unplugged" in the right panel)</li>
+    <li class="min">"Open Tesla" is full-width on iOS vs half-width beside the Lock/Doors chips on Android</li>
+    <li class="min">Left hero = 3 rows (Cabin/Outside/Tires) on Android vs 5 rows on iOS; stamp "Last check" vs "Checked"</li>
+  </ul></div>
+</section>
+
+<section>
+  <div class="whead"><h2>ChargePoint</h2><span class="badge b-gaps">biggest gaps</span></div>
+  <div class="cols">
+    <div class="pane"><div class="plabel">ANDROID (approved — offer-state design inspector)</div><img src="and-chargepoint.png" alt="Android chargepoint states"></div>
+    <div class="pane"><div class="plabel">iOS (current — offer state)</div><img src="crop-chargepoint.png" alt="iOS chargepoint"></div>
+  </div>
+  <div class="verdict"><ul>
+    <li class="ok">Fixed orange brand rail ~37%, "Auto" pill, Accept / Snooze keys, account, a live countdown exists</li>
+    <li class="gap"><b>Hero emphasis:</b> Android leads with the big <b>countdown clock</b> ("13:53" + "to accept" + "respond by 6:37 PM"); iOS leads with the word "Your turn" and shows the timer small ("2:44")</li>
+    <li class="gap"><b>Right-panel body:</b> Android shows <b>"go to level P3 / SEA41-29"</b> (which charger/floor to go to); iOS shows the site name + account instead</li>
+    <li class="gap"><b>Floor-level stats:</b> Android lists per-level availability (P2–P6 with counts) in the Snoozed/idle states; iOS has no floor levels at all</li>
+    <li class="gap">Android surfaces more per-state detail (Accepting…, failed-Accept, Snoozed-by-ChargePoint variants) in the body region</li>
+  </ul></div>
+</section>
+
+<footer>
+  Cross-cutting: the <b>~37% rail split now matches on all four</b> (was 50/50). Interactions run in place on iOS (no app launch) except where iOS forbids it. Remaining non-layout walls: the system app-name label under Home-Screen widgets, and no continuous refresh-button animation — both iOS platform limits, documented in <code>docs/PARITY-AUDIT.md</code>.
+</footer>
+</body>
+</html>
