@@ -27,7 +27,8 @@ public struct CpBeaconView: View {
     private var left: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
-                Image(systemName: "bolt.fill").font(.system(size: 15, weight: .bold)).foregroundStyle(ink)
+                Image("CpLogo").renderingMode(.template).resizable().scaledToFit()
+                    .frame(width: 18, height: 18).foregroundStyle(ink)
                 Spacer(minLength: 2)
                 // Always-visible toggle for the auto-waitlist engine: filled dot = armed, hollow = off.
                 Button(intent: CpControlIntent("autoToggle")) {
@@ -43,20 +44,28 @@ public struct CpBeaconView: View {
                 .buttonStyle(.plain)
             }
             Spacer(minLength: 2)
-            Text(snap.bigAnswer)
-                .font(.system(size: snap.bigAnswer.count > 6 ? 26 : 34, weight: .heavy)).tracking(-0.5)
-                .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.6)
-            if !snap.unit.isEmpty {
-                Text(snap.unit).font(.system(size: 12, weight: .medium)).foregroundStyle(ink.opacity(0.9)).lineLimit(1)
-            }
-            if !snap.sub.isEmpty {
-                Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
-                    .lineLimit(1).minimumScaleFactor(0.8).padding(.top, snap.unit.isEmpty ? 2 : 0)
-            }
             if let deadline = snap.deadline {
+                // Timed states (offer / held): the countdown clock IS the hero, matching Android.
                 Text(timerInterval: Date()...deadline, countsDown: true)
-                    .font(.system(size: 14, weight: .bold)).monospacedDigit().foregroundStyle(ink)
-                    .lineLimit(1).padding(.top, 1)
+                    .font(.system(size: 34, weight: .heavy)).monospacedDigit().tracking(-0.5)
+                    .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.5)
+                Text(snap.bigAnswer).font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(ink.opacity(0.9)).lineLimit(1).minimumScaleFactor(0.7)
+                if !snap.sub.isEmpty {
+                    Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
+                        .lineLimit(1).minimumScaleFactor(0.8)
+                }
+            } else {
+                Text(snap.bigAnswer)
+                    .font(.system(size: snap.bigAnswer.count > 6 ? 26 : 34, weight: .heavy)).tracking(-0.5)
+                    .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.6)
+                if !snap.unit.isEmpty {
+                    Text(snap.unit).font(.system(size: 12, weight: .medium)).foregroundStyle(ink.opacity(0.9)).lineLimit(1)
+                }
+                if !snap.sub.isEmpty {
+                    Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
+                        .lineLimit(1).minimumScaleFactor(0.8).padding(.top, snap.unit.isEmpty ? 2 : 0)
+                }
             }
             Spacer(minLength: 0)
         }
