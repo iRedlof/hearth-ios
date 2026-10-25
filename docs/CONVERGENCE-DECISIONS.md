@@ -52,7 +52,19 @@ Rohit loves the iOS Preview tab (each widget rendered at every size). Build the 
 a preview screen showing every widget at all supported sizes (use the existing debug
 BeaconPreviewActivity as the base).
 
-## Battery / Activity / Lights / Quick / Favourites / Doors — (awaiting review)
+## Status — alarm/car/chargepoint goal (DONE)
+- **Alarm** — iOS ✅ (`58feae5`: Unlock button, arm/unlock icons, circular reload right of stamp, "Home"
+  title, compact) · Android ✅ (`2b757ac`: "Home" title; already had Unlock/icons/circular-reload;
+  verified on the emulator via BeaconPreviewActivity).
+- **Car** — iOS ✅ (`43c955d`: Unplugged+Sentry one line, enlarged photo, circular reload).
+- **ChargePoint** — iOS ✅ (`aca57ce`+`ed6a6a9`: CP logo, countdown-clock hero, "Go to <charger>",
+  per-floor stats). 133 HearthKit tests green.
+- Cross-cutting reload (circular, right of a "Checked" stamp): iOS via shared `BeaconFreshness`;
+  Android already matches (and already says "Checked", not "Last check").
+
+## Still open (future passes)
+- Thermostat → Android (iOS compact design + icon); Preview gallery → Android; Battery / Activity /
+  Lights / Quick / Favourites / Doors convergence review.
 
 ---
 ## Accurate current-Android facts (source, HEAD 9cf9a33) — supersedes the stale screenshots
