@@ -1,107 +1,306 @@
-<!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
+<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Hearth — iOS ↔ Android widget parity</title>
+<title>Hearth — iOS ↔ Android widget parity (all states)</title>
 <style>
   :root { color-scheme: dark; }
   body { margin:0; background:#0b0b0d; color:#e9e9ec; font:15px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif; }
   header { padding:28px 24px 8px; }
   h1 { font-size:24px; margin:0 0 4px; }
-  .sub { color:#9a9aa2; font-size:14px; }
+  .sub { color:#9a9aa2; font-size:14px; max-width:900px; }
   .legend { display:flex; gap:16px; flex-wrap:wrap; margin:12px 0 0; font-size:13px; color:#b9b9c0; }
   .legend b { font-weight:700; }
-  section { padding:20px 24px; border-top:1px solid #1d1d22; }
-  .whead { display:flex; align-items:center; gap:12px; margin:0 0 14px; }
-  .whead h2 { font-size:19px; margin:0; }
+  section { padding:18px 24px; border-top:1px solid #1d1d22; }
+  .whead { display:flex; align-items:center; gap:12px; margin:0 0 4px; position:sticky; top:0; background:#0b0b0d; padding:8px 0; z-index:2; }
+  .whead h2 { font-size:20px; margin:0; }
+  .count { color:#6f6f77; font-size:13px; }
   .badge { font-size:12px; font-weight:700; padding:3px 10px; border-radius:999px; }
   .b-parity { background:#15351f; color:#5fd48a; }
   .b-near   { background:#36330f; color:#e4cf5a; }
   .b-gaps   { background:#3a2a12; color:#f2a23c; }
-  .cols { display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start; }
-  .pane { background:#141418; border:1px solid #23232a; border-radius:14px; padding:12px; }
-  .plabel { font-size:12px; font-weight:700; color:#9a9aa2; margin:0 0 8px; letter-spacing:.02em; }
-  .pane img { width:100%; height:auto; border-radius:10px; display:block; background:#000; }
-  .verdict { margin:16px 0 0; }
-  .verdict ul { margin:6px 0 0; padding-left:0; list-style:none; }
-  .verdict li { padding:3px 0 3px 24px; position:relative; }
-  .verdict li.ok::before  { content:"✓"; color:#5fd48a; position:absolute; left:0; font-weight:700; }
-  .verdict li.gap::before { content:"✗"; color:#f2a23c; position:absolute; left:0; font-weight:700; }
+  .verdict ul { margin:4px 0 16px; padding-left:0; list-style:none; }
+  .verdict li { padding:3px 0 3px 24px; position:relative; font-size:13.5px; color:#cdcdd3; }
+  .verdict li.ok::before  { content:"\2713"; color:#5fd48a; position:absolute; left:0; font-weight:700; }
+  .verdict li.gap::before { content:"\2717"; color:#f2a23c; position:absolute; left:0; font-weight:700; }
   .verdict li.min::before { content:"~"; color:#e4cf5a; position:absolute; left:0; font-weight:700; }
-  .note { color:#9a9aa2; font-size:13px; margin-top:6px; }
-  footer { padding:22px 24px 40px; color:#7a7a82; font-size:13px; border-top:1px solid #1d1d22; }
-  @media (max-width:720px){ .cols{ grid-template-columns:1fr; } }
-</style>
-</head>
-<body>
-<header>
-  <h1>Hearth — iOS ↔ Android widget parity</h1>
-  <div class="sub">Left: the approved <b>Android design</b> render (<code>docs/design/beacon-widgets/screenshots</code> / design mock). Right: the current <b>iOS</b> render (Simulator, medium). Both use design sample data so the layout is comparable. Note the shapes differ by platform: Android 4×2 ≈ 1.59:1, iOS <code>systemMedium</code> ≈ 2.1:1 (wider/shorter) — a fixed family size, not a choice.</div>
-  <div class="legend"><span><b>✓</b> at parity</span><span><b>~</b> minor (copy/styling)</span><span><b>✗</b> real gap</span></div>
-</header>
-
+  .states { display:flex; flex-direction:column; gap:20px; }
+  .state { }
+  .slabel { font-size:14px; margin:0 0 8px; color:#d7d7dd; }
+  .slabel .sid { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12.5px; color:#8fb7ff; background:#131a28; padding:1px 7px; border-radius:6px; margin-right:8px; }
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  .pane { background:#141418; border:1px solid #23232a; border-radius:14px; padding:10px; }
+  .plabel { font-size:11px; font-weight:700; color:#9a9aa2; margin:0 0 7px; letter-spacing:.04em; }
+  .pane img { width:100%; height:auto; border-radius:10px; display:block; background:#000; }
+  .pane.miss { display:flex; align-items:center; justify-content:center; min-height:120px; color:#6f6f77; font-size:13px; text-align:center; }
+  footer { padding:22px 24px 48px; color:#7a7a82; font-size:13px; border-top:1px solid #1d1d22; }
+  @media (max-width:760px){ .cols{ grid-template-columns:1fr; } }
+</style></head><body>
+<header><h1>Hearth — iOS ↔ Android widget parity</h1>
+<div class="sub">Every core state of all four Beacon widgets, rendered on <b>both</b> platforms from the same sample data. Left: <b>Android</b> (<code>BeaconPreviewActivity</code> fixtures, 360×222dp, cropped to the card). Right: <b>iOS</b> (<code>HearthRenderTests</code> ImageRenderer, systemMedium 374×174pt). The shapes differ by platform on purpose: Android 4×2 ≈ 1.62:1, iOS <code>systemMedium</code> ≈ 2.15:1 — a fixed family size, not a choice. 38 states across 4 widgets.</div>
+<div class="legend"><span><b>✓</b> at parity</span><span><b>~</b> minor (copy/styling)</span><span><b>✗</b> real gap</span></div></header>
 <section>
-  <div class="whead"><h2>Thermostat</h2><span class="badge b-parity">near parity</span></div>
-  <div class="cols">
-    <div class="pane"><div class="plabel">ANDROID (approved)</div><img src="and-thermostat.png" alt="Android thermostat"></div>
-    <div class="pane"><div class="plabel">iOS (current)</div><img src="crop-thermostat.png" alt="iOS thermostat"></div>
-  </div>
-  <div class="verdict"><ul>
-    <li class="ok">~37% rail split, temp + "In the room" + humidity + "Holding …°", left sensor rows (Outside/Bedroom/Thermo)</li>
-    <li class="ok">Right: title + refresh + stamp, Heat-to / Cool-to rows with − value + steppers, Mode / Fan buttons</li>
-    <li class="min">Third action button: Android "Back to Schedule" vs iOS "Resume" (copy)</li>
-    <li class="min">Freshness stamp: Android "Last check" vs iOS "Checked"</li>
-  </ul><div class="note">Closest to 1:1 — layout and controls match.</div></div>
-</section>
-
+<div class="whead"><h2>Thermostat</h2><span class="badge b-parity">near parity</span><span class="count">9 states</span></div>
+<div class="verdict"><ul>
+<li class="ok">Rail split, room temp + “In the room” + humidity + “Holding …°”, left sensor rows, and the Heat-to / Cool-to rows with value + steppers all match.</li>
+<li class="ok">The ± steppers are light-grey circles on both platforms (Android’s were dark squares until this release).</li>
+<li class="gap"><b>Set up</b>: Android shows a dedicated “Set up thermostat” card; iOS has no climate-setup state and falls back to Unavailable.</li>
+<li class="min">Freshness-stamp wording and the third action’s label (“Back to Schedule” vs “Resume”) are copy-level.</li>
+</ul></div>
+<div class="states">
+<div class="state">
+<div class="slabel"><span class="sid">auto</span>Auto — violet rail, “Holding 64–69°”, dual ± setpoints (light circles, matched this release)</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-auto.png" alt="ANDROID and/thermostat-auto.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-auto.png" alt="iOS ios/thermostat-auto.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">heating</span>Heating — heat mode actively heating, yellow, “Heating to 68°”</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-heating.png" alt="ANDROID and/thermostat-heating.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-heating.png" alt="iOS ios/thermostat-heating.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">cooling</span>Cooling — cool mode, blue, “Cooling to 70°”</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-cooling.png" alt="ANDROID and/thermostat-cooling.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-cooling.png" alt="iOS ios/thermostat-cooling.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">heat_idle</span>Heat, idle — at target, “Holding 64°”</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-heat_idle.png" alt="ANDROID and/thermostat-heat_idle.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-heat_idle.png" alt="iOS ios/thermostat-heat_idle.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">cool_idle</span>Cool, idle — “Holding 69°”</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-cool_idle.png" alt="ANDROID and/thermostat-cool_idle.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-cool_idle.png" alt="iOS ios/thermostat-cool_idle.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">fan</span>Fan only — slate rail, fan running, setpoints shown</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-fan.png" alt="ANDROID and/thermostat-fan.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-fan.png" alt="iOS ios/thermostat-fan.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">off</span>Off — slate; Android prompts “Choose a mode to turn on”, iOS shows “Off”</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-off.png" alt="ANDROID and/thermostat-off.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-off.png" alt="iOS ios/thermostat-off.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">offline</span>Offline — last-known reading greyed</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-offline.png" alt="ANDROID and/thermostat-offline.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-offline.png" alt="iOS ios/thermostat-offline.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">setup</span>Set up — Android has a dedicated “Set up thermostat” card; iOS has none and falls back to Unavailable (gap)</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-setup.png" alt="ANDROID and/thermostat-setup.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-setup.png" alt="iOS ios/thermostat-setup.png"></div>
+</div></div>
+</div></section>
 <section>
-  <div class="whead"><h2>Alarm</h2><span class="badge b-gaps">gaps</span></div>
-  <div class="cols">
-    <div class="pane"><div class="plabel">ANDROID (approved)</div><img src="and-alarm.png" alt="Android alarm"></div>
-    <div class="pane"><div class="plabel">iOS (current)</div><img src="crop-alarm.png" alt="iOS alarm"></div>
-  </div>
-  <div class="verdict"><ul>
-    <li class="ok">~37% blue rail, shield-slash glyph, big "Disarmed" + "…at 7:00 AM", Front Door well, Arm home / Arm away</li>
-    <li class="gap">Android shows an <b>"Unlock" button</b> inside the Front Door well; iOS shows door status only (no unlock affordance on the card)</li>
-    <li class="gap">Android Arm buttons carry <b>icons</b> (house / shield); iOS buttons are text-only</li>
-    <li class="min">Android door shows a green <b>"Locked" pill</b> badge; iOS renders "Locked" as plain text</li>
-    <li class="min">Stamp "Last check" vs "Checked"</li>
-  </ul></div>
-</section>
-
+<div class="whead"><h2>Alarm</h2><span class="badge b-parity">at parity</span><span class="count">10 states</span></div>
+<div class="verdict"><ul>
+<li class="ok">Rail, shield glyph, big state word + “…at <time>”, “Home” title, the Front Door well <b>with the Unlock button</b>, and the arm buttons <b>with house/shield icons</b> — all match now (these were the previous gaps).</li>
+<li class="ok">The green “Locked” pill + lock icon renders on both.</li>
+<li class="min">The unconfigured <code>setup</code> card differs in copy: Android “Connect your alarm”, iOS “Set up the alarm in Settings”.</li>
+</ul></div>
+<div class="states">
+<div class="state">
+<div class="slabel"><span class="sid">disarmed</span>Disarmed — blue rail, shield-off glyph, Arm home / Arm away</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-disarmed.png" alt="ANDROID and/alarm-disarmed.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-disarmed.png" alt="iOS ios/alarm-disarmed.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">armed_home</span>Armed home — red rail, home glyph, Disarm</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_home.png" alt="ANDROID and/alarm-armed_home.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_home.png" alt="iOS ios/alarm-armed_home.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">armed_away</span>Armed away — red rail, lock glyph, Disarm</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_away.png" alt="ANDROID and/alarm-armed_away.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_away.png" alt="iOS ios/alarm-armed_away.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">armed_night</span>Armed night — red, home glyph</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_night.png" alt="ANDROID and/alarm-armed_night.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_night.png" alt="iOS ios/alarm-armed_night.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">armed_vacation</span>Armed vacation — red, lock glyph</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_vacation.png" alt="ANDROID and/alarm-armed_vacation.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_vacation.png" alt="iOS ios/alarm-armed_vacation.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">armed_custom_bypass</span>Armed (bypass) — custom-bypass label</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_custom_bypass.png" alt="ANDROID and/alarm-armed_custom_bypass.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_custom_bypass.png" alt="iOS ios/alarm-armed_custom_bypass.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">arming</span>Arming… — exit-delay transitional state</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-arming.png" alt="ANDROID and/alarm-arming.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-arming.png" alt="iOS ios/alarm-arming.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">triggered</span>Alarm triggered — distinct triggered-red tone + alert glyph</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-triggered.png" alt="ANDROID and/alarm-triggered.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-triggered.png" alt="iOS ios/alarm-triggered.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">offline</span>Offline — last-known state greyed, “Can’t reach Home Assistant”</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-offline.png" alt="ANDROID and/alarm-offline.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-offline.png" alt="iOS ios/alarm-offline.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">setup</span>Set up — not yet connected</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-setup.png" alt="ANDROID and/alarm-setup.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-setup.png" alt="iOS ios/alarm-setup.png"></div>
+</div></div>
+</div></section>
 <section>
-  <div class="whead"><h2>Car</h2><span class="badge b-gaps">arrangement gaps</span></div>
-  <div class="cols">
-    <div class="pane"><div class="plabel">ANDROID (approved)</div><img src="and-car.png" alt="Android car"></div>
-    <div class="pane"><div class="plabel">iOS (current)</div><img src="crop-car.png" alt="iOS car"></div>
-  </div>
-  <div class="verdict"><ul>
-    <li class="ok">~37% green rail, big battery %, range, car photo, charge bar, Sentry chip, "Open Tesla"</li>
-    <li class="gap"><b>Lock / Doors placement:</b> Android shows them as fact chips in the RIGHT panel (beside Open Tesla); iOS lists them as rows in the LEFT hero instead</li>
-    <li class="gap">Android hero shows <b>"Not plugged in / Charge limit 80%"</b>; iOS omits the charge-limit line (shows "Unplugged" in the right panel)</li>
-    <li class="min">"Open Tesla" is full-width on iOS vs half-width beside the Lock/Doors chips on Android</li>
-    <li class="min">Left hero = 3 rows (Cabin/Outside/Tires) on Android vs 5 rows on iOS; stamp "Last check" vs "Checked"</li>
-  </ul></div>
-</section>
-
+<div class="whead"><h2>Car</h2><span class="badge b-gaps">arrangement gaps</span><span class="count">9 states</span></div>
+<div class="verdict"><ul>
+<li class="ok">Rail, big battery %, range, car photo, charge line + bar, Sentry chip, Open Tesla, and the facts (lock / doors / cabin / outside / tires) are all present on both.</li>
+<li class="gap"><b>Lock / Doors placement</b>: Android groups them as fact chips in the right panel; iOS lists them as left-hero rows.</li>
+<li class="min">The Android emulator renders “Tesla unavailable” (no Tesla app installed on it); a real device shows “Open Tesla”, as iOS does.</li>
+</ul></div>
+<div class="states">
+<div class="state">
+<div class="slabel"><span class="sid">parked</span>Parked — mint rail, Unplugged, sentry chip</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-parked.png" alt="ANDROID and/car-parked.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-parked.png" alt="iOS ios/car-parked.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">charging</span>Charging — blue rail, “Full by …” ETA + charge bar</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-charging.png" alt="ANDROID and/car-charging.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-charging.png" alt="iOS ios/car-charging.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">complete</span>Charged — charge complete at 80%</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-complete.png" alt="ANDROID and/car-complete.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-complete.png" alt="iOS ios/car-complete.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">sentry</span>Sentry on — red sentry indicator</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-sentry.png" alt="ANDROID and/car-sentry.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-sentry.png" alt="iOS ios/car-sentry.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">low_battery</span>Low battery — yellow rail, 18%</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-low_battery.png" alt="ANDROID and/car-low_battery.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-low_battery.png" alt="iOS ios/car-low_battery.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">open</span>Trunk open — warn tone, door/trunk open</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-open.png" alt="ANDROID and/car-open.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-open.png" alt="iOS ios/car-open.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">tires</span>Tire warning — “Check tires”, low psi highlighted</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-tires.png" alt="ANDROID and/car-tires.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-tires.png" alt="iOS ios/car-tires.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">unlocked_away</span>Unlocked & away — red rail, lock warning</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-unlocked_away.png" alt="ANDROID and/car-unlocked_away.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-unlocked_away.png" alt="iOS ios/car-unlocked_away.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">offline</span>Offline — last-known reading greyed</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-offline.png" alt="ANDROID and/car-offline.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-offline.png" alt="iOS ios/car-offline.png"></div>
+</div></div>
+</div></section>
 <section>
-  <div class="whead"><h2>ChargePoint</h2><span class="badge b-gaps">biggest gaps</span></div>
-  <div class="cols">
-    <div class="pane"><div class="plabel">ANDROID (approved — offer-state design inspector)</div><img src="and-chargepoint.png" alt="Android chargepoint states"></div>
-    <div class="pane"><div class="plabel">iOS (current — offer state)</div><img src="crop-chargepoint.png" alt="iOS chargepoint"></div>
-  </div>
-  <div class="verdict"><ul>
-    <li class="ok">Fixed orange brand rail ~37%, "Auto" pill, Accept / Snooze keys, account, a live countdown exists</li>
-    <li class="gap"><b>Hero emphasis:</b> Android leads with the big <b>countdown clock</b> ("13:53" + "to accept" + "respond by 6:37 PM"); iOS leads with the word "Your turn" and shows the timer small ("2:44")</li>
-    <li class="gap"><b>Right-panel body:</b> Android shows <b>"go to level P3 / SEA41-29"</b> (which charger/floor to go to); iOS shows the site name + account instead</li>
-    <li class="gap"><b>Floor-level stats:</b> Android lists per-level availability (P2–P6 with counts) in the Snoozed/idle states; iOS has no floor levels at all</li>
-    <li class="gap">Android surfaces more per-state detail (Accepting…, failed-Accept, Snoozed-by-ChargePoint variants) in the body region</li>
-  </ul></div>
-</section>
-
-<footer>
-  Cross-cutting: the <b>~37% rail split now matches on all four</b> (was 50/50). Interactions run in place on iOS (no app launch) except where iOS forbids it. Remaining non-layout walls: the system app-name label under Home-Screen widgets, and no continuous refresh-button animation — both iOS platform limits, documented in <code>docs/PARITY-AUDIT.md</code>.
-</footer>
-</body>
-</html>
+<div class="whead"><h2>ChargePoint</h2><span class="badge b-near">near parity</span><span class="count">10 states</span></div>
+<div class="verdict"><ul>
+<li class="ok">Fixed orange brand rail, Auto pill, account, and the state-specific keys (Accept / Snooze / Start / Leave / Rejoin) all match.</li>
+<li class="ok">iOS now leads timed states with the <b>countdown clock</b> as the hero and shows “go to level” + per-level floor stats — the biggest previous gaps, now closed.</li>
+<li class="min">iOS lists up to <b>4</b> floor levels; Android shows up to 5–6. The aggregate “N in use / N offline” line is richer on Android.</li>
+</ul></div>
+<div class="states">
+<div class="state">
+<div class="slabel"><span class="sid">available</span>Available — plugs-free hero + per-level floors (P2–P6) + Join</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-available.png" alt="ANDROID and/chargepoint-available.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-available.png" alt="iOS ios/chargepoint-available.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">waiting</span>In line — “#3”, floors at 0 free, Leave</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-waiting.png" alt="ANDROID and/chargepoint-waiting.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-waiting.png" alt="iOS ios/chargepoint-waiting.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">offer</span>Offer — countdown-clock hero + “go to level”, Accept / Snooze</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-offer.png" alt="ANDROID and/chargepoint-offer.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-offer.png" alt="iOS ios/chargepoint-offer.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">held</span>Held — plug-in countdown, Start / Snooze</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-held.png" alt="ANDROID and/chargepoint-held.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-held.png" alt="iOS ios/chargepoint-held.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">snoozed</span>Snoozed — back-in-line countdown, floor levels, Rejoin / Leave</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-snoozed.png" alt="ANDROID and/chargepoint-snoozed.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-snoozed.png" alt="iOS ios/chargepoint-snoozed.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">charging</span>Charging — kWh added + kW, Stop</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-charging.png" alt="ANDROID and/chargepoint-charging.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-charging.png" alt="iOS ios/chargepoint-charging.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">done</span>Done / move your car — overstay countdown, Open ChargePoint</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-done.png" alt="ANDROID and/chargepoint-done.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-done.png" alt="iOS ios/chargepoint-done.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">signed_out</span>Signed out — Sign in (ChargePoint’s own page)</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-signed_out.png" alt="ANDROID and/chargepoint-signed_out.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-signed_out.png" alt="iOS ios/chargepoint-signed_out.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">no_location</span>No location — “Set up”, choose a location</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-no_location.png" alt="ANDROID and/chargepoint-no_location.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-no_location.png" alt="iOS ios/chargepoint-no_location.png"></div>
+</div></div>
+<div class="state">
+<div class="slabel"><span class="sid">cant_join</span>Session expired — silent re-auth, Sign in</div>
+<div class="cols">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-cant_join.png" alt="ANDROID and/chargepoint-cant_join.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-cant_join.png" alt="iOS ios/chargepoint-cant_join.png"></div>
+</div></div>
+</div></section>
+<footer>Generated by <code>docs/parity-comparison/build.py</code>. Non-layout platform walls remain on iOS: the system app-name label under Home-Screen widgets, and no continuous refresh-button animation — documented in <code>docs/PARITY-AUDIT.md</code>.</footer>
+</body></html>

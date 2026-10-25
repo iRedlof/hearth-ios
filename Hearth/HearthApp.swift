@@ -5,7 +5,18 @@ import HearthKit
 @main
 struct HearthApp: App {
     var body: some Scene {
-        WindowGroup { ContentView() }
+        WindowGroup {
+            if let id = Self.parityState() { ParityStateScreen(id: id) }
+            else { ContentView() }
+        }
+    }
+
+    /// `-parityState <id>` renders a single Beacon state full-screen for the parity-gallery
+    /// screenshot script (docs/parity-comparison). No effect in normal use.
+    private static func parityState() -> String? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-parityState"), i + 1 < args.count else { return nil }
+        return args[i + 1]
     }
 }
 
