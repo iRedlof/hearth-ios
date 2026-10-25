@@ -82,18 +82,51 @@ public struct CpBeaconView: View {
                 Text(snap.account).font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
             }.padding(.top, 2)
             Spacer(minLength: 4)
-            if let plugs = snap.plugsFree {
-                HStack(spacing: 5) {
-                    Image(systemName: "powerplug.fill").font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.8))
-                    Text(plugs).font(.system(size: 12.5)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
-                }
-            }
+            detail
             Spacer(minLength: 6)
             if snap.keys.isEmpty { actionButton } else { keyRow }
         }
         .padding(.horizontal, 13).padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
+    }
+
+    /// The middle detail: "Go to <charger>" when offered/held, else per-level floor stats when idle,
+    /// else the aggregate plugs-free line (ports Android's CpRight.GoTo / Floors).
+    @ViewBuilder private var detail: some View {
+        if let goTo = snap.goTo {
+            HStack(spacing: 5) {
+                Image(systemName: "mappin.and.ellipse").font(.system(size: 11)).foregroundStyle(surfaceInk.opacity(0.8))
+                Text("Go to \(goTo)").font(.system(size: 12.5, weight: .medium)).foregroundStyle(surfaceInk)
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+        } else if !snap.floors.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(snap.floors.prefix(4), id: \.level) { f in floorRow(f) }
+            }
+        } else if let plugs = snap.plugsFree {
+            HStack(spacing: 5) {
+                Image(systemName: "powerplug.fill").font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.8))
+                Text(plugs).font(.system(size: 12.5)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
+            }
+        }
+    }
+
+    /// One parking level: label + a mini availability bar + "free/total".
+    private func floorRow(_ f: CpFloor) -> some View {
+        HStack(spacing: 6) {
+            Text(f.level).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(surfaceInk)
+                .frame(width: 26, alignment: .leading)
+            GeometryReader { g in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(surfaceInk.opacity(0.14))
+                    Capsule().fill(fill)
+                        .frame(width: f.total > 0 ? g.size.width * CGFloat(f.free) / CGFloat(f.total) : 0)
+                }
+            }.frame(height: 5)
+            Text("\(f.free)/\(f.total)").font(.system(size: 11)).foregroundStyle(surfaceInk.opacity(0.85))
+                .frame(width: 40, alignment: .trailing)
+        }
     }
 
     /// "Open" deep-links to the ChargePoint app; "Sign in"/"Join" are plain (the card's default tap

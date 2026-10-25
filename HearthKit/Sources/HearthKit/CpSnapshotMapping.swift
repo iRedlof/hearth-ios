@@ -15,6 +15,14 @@ public func cpSnapshot(_ state: CpState, email: String?, checkedAt: String) -> C
     }
     let showPlugs = !state.signedOut && state.location != nil && state.charging == nil
     let plugsFree = (showPlugs ? state.now : nil).map { "\($0.free) of \($0.total) free" }
+    // "Go to" the assigned charger when offered/held; per-level floor stats when idle with a location.
+    var goTo: String? = nil
+    if case let .inLine(_, s, _, offer?, _) = state.waitlist,
+       ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN"].contains(s), !offer.charger.isEmpty {
+        goTo = offer.charger
+    }
+    var isIdle = false
+    if case .notQueued = state.waitlist { isIdle = showPlugs }
     return CpSnapshot(
         site: state.location?.title ?? "ChargePoint",
         account: account,
@@ -26,5 +34,7 @@ public func cpSnapshot(_ state: CpState, email: String?, checkedAt: String) -> C
         actionLabel: ans.action,
         keys: cpManualKeys(state),
         deadline: cpDeadline(state),
+        goTo: goTo,
+        floors: isIdle ? state.floors : [],
         tone: .orange)
 }

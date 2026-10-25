@@ -13,14 +13,17 @@ public struct CpSnapshot: Sendable, Equatable {
     public var actionLabel: String   // "Sign in" / "Join" / "Open"
     public var keys: [CpKey]         // state-specific manual commands (Accept / Snooze / Leave / Rejoin)
     public var deadline: Date?       // when set, a live countdown to the offer/hold/snooze deadline
+    public var goTo: String?         // "SEA41-29 P3" — which charger/level to go to (offer / held)
+    public var floors: [CpFloor]     // per-level availability (idle, when a location is set)
     public var tone: BeaconTone      // always .orange
 
     public init(site: String, account: String, bigAnswer: String, unit: String, sub: String,
                 plugsFree: String?, autoOn: Bool, actionLabel: String, keys: [CpKey] = [],
-                deadline: Date? = nil, tone: BeaconTone = .orange) {
+                deadline: Date? = nil, goTo: String? = nil, floors: [CpFloor] = [],
+                tone: BeaconTone = .orange) {
         self.site = site; self.account = account; self.bigAnswer = bigAnswer; self.unit = unit
         self.sub = sub; self.plugsFree = plugsFree; self.autoOn = autoOn; self.actionLabel = actionLabel
-        self.keys = keys; self.deadline = deadline; self.tone = tone
+        self.keys = keys; self.deadline = deadline; self.goTo = goTo; self.floors = floors; self.tone = tone
     }
 
     /// Sample previews an offered state (keys + a live countdown visible).
@@ -28,5 +31,5 @@ public struct CpSnapshot: Sendable, Equatable {
         site: "SEA41", account: "typhoon.2010", bigAnswer: "Your turn", unit: "",
         sub: "Respond now", plugsFree: nil, autoOn: true, actionLabel: "Open",
         keys: [CpKey(command: "accept", label: "Accept"), CpKey(command: "snooze", label: "Snooze")],
-        deadline: Date().addingTimeInterval(165))
+        deadline: Date().addingTimeInterval(165), goTo: "SEA41-29 P3")
 }

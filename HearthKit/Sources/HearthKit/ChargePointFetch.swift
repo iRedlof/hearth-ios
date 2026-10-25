@@ -23,12 +23,16 @@ public func fetchCpSnapshot(_ session: CpSession, location: CpLocation? = nil,
             charging = cpChargingFrom(try? await client.chargingDetail(sessionId: sessionId))
         }
         var cpNow: CpNow?
+        var floors: [CpFloor] = []
         if let location, let stationsJson = try? await client.stations(location.bounds) {
-            cpNow = cpLocationNow(location, cpStationsFrom(stationsJson))
+            let stations = cpStationsFrom(stationsJson)
+            cpNow = cpLocationNow(location, stations)
+            floors = cpFloorsFrom(location, stations)
         }
         let state = CpState(signedOut: false,
                             account: cpAccount(hasSession: true, expired: false, joinExpired: session.joinExpired),
-                            location: location, now: cpNow, waitlist: waitlist, charging: charging, autoOn: autoOn)
+                            location: location, now: cpNow, waitlist: waitlist, charging: charging,
+                            autoOn: autoOn, floors: floors)
         return cpSnapshot(state, email: session.email, checkedAt: checked)
     } catch let e as HaError where e.code == 401 {
         var expired = session; expired.expired = true

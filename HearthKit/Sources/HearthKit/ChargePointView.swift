@@ -11,11 +11,12 @@ public struct CpState: Sendable, Equatable {
     public var waitlist: CpWaitlist
     public var charging: CpCharging?
     public var autoOn: Bool
+    public var floors: [CpFloor]
 
     public init(signedOut: Bool, account: CpAccount, location: CpLocation?, now: CpNow?,
-                waitlist: CpWaitlist, charging: CpCharging?, autoOn: Bool) {
+                waitlist: CpWaitlist, charging: CpCharging?, autoOn: Bool, floors: [CpFloor] = []) {
         self.signedOut = signedOut; self.account = account; self.location = location; self.now = now
-        self.waitlist = waitlist; self.charging = charging; self.autoOn = autoOn
+        self.waitlist = waitlist; self.charging = charging; self.autoOn = autoOn; self.floors = floors
     }
 }
 

@@ -197,6 +197,26 @@ public func cpLocationNow(_ loc: CpLocation, _ stations: [CpStation]) -> CpNow {
                  offline: mine.reduce(0) { $0 + $1.offline }, stations: mine.count)
 }
 
+/// One parking level's availability (free of total plugs), for the floor-stats panel. Ported from
+/// Android's `CpRight.Floors`.
+public struct CpFloor: Sendable, Equatable {
+    public let level: String
+    public let free: Int
+    public let total: Int
+    public init(level: String, free: Int, total: Int) { self.level = level; self.free = free; self.total = total }
+}
+
+/// The location's per-level availability (its own stations grouped by level, "P2"…"P6"), level-sorted.
+public func cpFloorsFrom(_ loc: CpLocation, _ stations: [CpStation]) -> [CpFloor] {
+    let ids = Set(loc.deviceIds)
+    let mine = stations.filter { ids.contains($0.deviceId) && !$0.level.isEmpty }
+    return Dictionary(grouping: mine, by: { $0.level }).map { level, s in
+        CpFloor(level: level,
+                free: s.reduce(0) { $0 + $1.free },
+                total: s.reduce(0) { $0 + $1.free + $1.inUse + $1.offline })
+    }.sorted { $0.level.localizedStandardCompare($1.level) == .orderedAscending }
+}
+
 /// "SEA41 SEA41-29 P3" (site, then charger) -> "SEA41-29 P3".
 private func chargerName(_ name: String) -> String {
     let parts = name.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1).map(String.init)
