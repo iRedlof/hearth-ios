@@ -15,6 +15,7 @@ from datetime import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FEEDBACK = os.path.join(HERE, "feedback.jsonl")
+DECISIONS = os.path.join(HERE, "decisions.json")   # {id: {choice, title, at}} — the agent reads this
 PORT = 8913
 
 
@@ -41,9 +42,18 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         items.append(json.loads(line))
         return items
 
+    def _read_decisions(self) -> dict:
+        if os.path.exists(DECISIONS):
+            with open(DECISIONS) as handle:
+                return json.load(handle)
+        return {}
+
     def do_GET(self) -> None:
-        if self.path.split("?")[0] == "/feedback":
+        path = self.path.split("?")[0]
+        if path == "/feedback":
             return self._send_json(200, self._read_feedback())
+        if path == "/decisions":
+            return self._send_json(200, self._read_decisions())
         return super().do_GET()
 
     def do_POST(self) -> None:
@@ -69,6 +79,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     for item in items:
                         handle.write(json.dumps(item) + "\n")
             return self._send_json(200, {"ok": True, "count": len(items)})
+        if path == "/decision":
+            data = json.loads(raw or b"{}")
+            decisions = self._read_decisions()
+            if data.get("id"):
+                decisions[data["id"]] = {"choice": data.get("choice"), "title": data.get("title"),
+                                         "at": datetime.now().isoformat(timespec="seconds")}
+                with open(DECISIONS, "w") as handle:
+                    json.dump(decisions, handle, indent=2)
+            return self._send_json(200, {"ok": True, "count": len(decisions)})
         return self._send_json(404, {"error": "not found"})
 
     def log_message(self, *args) -> None:  # quiet
