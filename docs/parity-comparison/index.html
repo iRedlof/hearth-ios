@@ -33,6 +33,39 @@
   .pane.miss { display:flex; align-items:center; justify-content:center; min-height:120px; color:#6f6f77; font-size:13px; text-align:center; }
   footer { padding:22px 24px 48px; color:#7a7a82; font-size:13px; border-top:1px solid #1d1d22; }
   @media (max-width:760px){ .cols{ grid-template-columns:1fr; } }
+
+  /* --- annotation layer (served by server.py; feedback -> feedback.jsonl) --- */
+  body { padding-right: 300px; }
+  .pane { position: relative; }
+  .render { cursor: crosshair; }
+  .render:hover, .render.fbflash { outline: 2px solid #4f8cff; outline-offset: -2px; }
+  .fbpin { position:absolute; transform:translate(-50%,-50%); width:20px; height:20px; border-radius:50%;
+           background:#4f8cff; color:#fff; font-size:11px; font-weight:700; display:flex; align-items:center;
+           justify-content:center; box-shadow:0 1px 4px rgba(0,0,0,.55); z-index:5; }
+  body.fbhide .fbpin { display:none; }
+  .fbcompose { position:absolute; transform:translate(-50%,8px); z-index:10; background:#1b1b22; border:1px solid #3a3a44;
+               border-radius:10px; padding:8px; width:230px; box-shadow:0 6px 20px rgba(0,0,0,.6); cursor:default; }
+  .fbcompose .fbwhere { font:11px/1.3 ui-monospace,monospace; color:#8fb7ff; margin-bottom:5px; }
+  .fbcompose textarea { width:100%; box-sizing:border-box; background:#0e0e12; color:#eee; border:1px solid #333;
+                        border-radius:6px; font-size:13px; padding:5px; resize:vertical; }
+  .fbcompose .fbbtns { display:flex; gap:6px; margin-top:6px; }
+  .fbcompose button { font-size:12px; padding:4px 10px; border-radius:6px; border:0; cursor:pointer; }
+  .fbcompose .fbsave { background:#4f8cff; color:#fff; }
+  .fbcompose .fbcancel { background:#2a2a32; color:#ccc; }
+  #fbpanel { position:fixed; right:0; top:0; width:300px; height:100vh; overflow:auto; background:#141418f2;
+             border-left:1px solid #2a2a33; padding:12px; z-index:50; font-size:13px; box-sizing:border-box; }
+  #fbpanel .fbhead { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  #fbpanel .fbhead b { font-size:15px; }
+  #fbcount { background:#4f8cff; color:#fff; border-radius:10px; padding:0 7px; font-size:11px; }
+  #fbpanel .fbhead button { font-size:11px; background:#2a2a32; color:#ccc; border:0; border-radius:6px; padding:3px 8px; cursor:pointer; }
+  #fbclear { margin-left:auto; }
+  .fbhint { color:#8a8a92; font-size:11px; margin:6px 0 10px; }
+  .fbrow { display:flex; align-items:flex-start; gap:6px; padding:6px 0; border-top:1px solid #23232a; }
+  .fbnum { background:#4f8cff; color:#fff; border-radius:50%; width:18px; height:18px; min-width:18px; display:flex;
+           align-items:center; justify-content:center; font-size:11px; font-weight:700; }
+  .fbtgt { font:11px/1.4 ui-monospace,monospace; color:#8fb7ff; }
+  .fbnote { flex:1; color:#e0e0e6; }
+  .fbdel { background:none; border:0; color:#888; cursor:pointer; font-size:15px; line-height:1; }
 </style></head><body>
 <header><h1>Hearth — iOS ↔ Android widget parity</h1>
 <div class="sub">Every core state of all four Beacon widgets, rendered on <b>both</b> platforms from the same sample data. Left: <b>Android</b> (<code>BeaconPreviewActivity</code> fixtures, 360×222dp, cropped to the card). Right: <b>iOS</b> (<code>HearthRenderTests</code> ImageRenderer, systemMedium 374×174pt). The shapes differ by platform on purpose: Android 4×2 ≈ 1.62:1, iOS <code>systemMedium</code> ≈ 2.15:1 — a fixed family size, not a choice. 38 states across 4 widgets.</div>
@@ -49,56 +82,56 @@
 <div class="state">
 <div class="slabel"><span class="sid">auto</span>Auto — violet rail, “Holding 64–69°”, dual ± setpoints (light circles, matched this release)</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-auto.png" alt="ANDROID and/thermostat-auto.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-auto.png" alt="iOS ios/thermostat-auto.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="auto" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-auto.png" alt="android auto"></div>
+<div class="pane render" data-widget="thermostat" data-state="auto" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-auto.png" alt="ios auto"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">heating</span>Heating — heat mode actively heating, yellow, “Heating to 68°”</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-heating.png" alt="ANDROID and/thermostat-heating.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-heating.png" alt="iOS ios/thermostat-heating.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="heating" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-heating.png" alt="android heating"></div>
+<div class="pane render" data-widget="thermostat" data-state="heating" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-heating.png" alt="ios heating"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">cooling</span>Cooling — cool mode, blue, “Cooling to 70°”</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-cooling.png" alt="ANDROID and/thermostat-cooling.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-cooling.png" alt="iOS ios/thermostat-cooling.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="cooling" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-cooling.png" alt="android cooling"></div>
+<div class="pane render" data-widget="thermostat" data-state="cooling" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-cooling.png" alt="ios cooling"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">heat_idle</span>Heat, idle — at target, “Holding 64°”</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-heat_idle.png" alt="ANDROID and/thermostat-heat_idle.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-heat_idle.png" alt="iOS ios/thermostat-heat_idle.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="heat_idle" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-heat_idle.png" alt="android heat_idle"></div>
+<div class="pane render" data-widget="thermostat" data-state="heat_idle" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-heat_idle.png" alt="ios heat_idle"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">cool_idle</span>Cool, idle — “Holding 69°”</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-cool_idle.png" alt="ANDROID and/thermostat-cool_idle.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-cool_idle.png" alt="iOS ios/thermostat-cool_idle.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="cool_idle" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-cool_idle.png" alt="android cool_idle"></div>
+<div class="pane render" data-widget="thermostat" data-state="cool_idle" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-cool_idle.png" alt="ios cool_idle"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">fan</span>Fan only — slate rail, fan running, setpoints shown</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-fan.png" alt="ANDROID and/thermostat-fan.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-fan.png" alt="iOS ios/thermostat-fan.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="fan" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-fan.png" alt="android fan"></div>
+<div class="pane render" data-widget="thermostat" data-state="fan" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-fan.png" alt="ios fan"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">off</span>Off — slate; Android prompts “Choose a mode to turn on”, iOS shows “Off”</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-off.png" alt="ANDROID and/thermostat-off.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-off.png" alt="iOS ios/thermostat-off.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="off" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-off.png" alt="android off"></div>
+<div class="pane render" data-widget="thermostat" data-state="off" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-off.png" alt="ios off"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">offline</span>Offline — last-known reading greyed</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-offline.png" alt="ANDROID and/thermostat-offline.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-offline.png" alt="iOS ios/thermostat-offline.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="offline" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-offline.png" alt="android offline"></div>
+<div class="pane render" data-widget="thermostat" data-state="offline" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-offline.png" alt="ios offline"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">setup</span>Set up — Android has a dedicated “Set up thermostat” card; iOS has none and falls back to Unavailable (gap)</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-setup.png" alt="ANDROID and/thermostat-setup.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-setup.png" alt="iOS ios/thermostat-setup.png"></div>
+<div class="pane render" data-widget="thermostat" data-state="setup" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-setup.png" alt="android setup"></div>
+<div class="pane render" data-widget="thermostat" data-state="setup" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-setup.png" alt="ios setup"></div>
 </div></div>
 </div></section>
 <section>
@@ -112,62 +145,62 @@
 <div class="state">
 <div class="slabel"><span class="sid">disarmed</span>Disarmed — blue rail, shield-off glyph, Arm home / Arm away</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-disarmed.png" alt="ANDROID and/alarm-disarmed.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-disarmed.png" alt="iOS ios/alarm-disarmed.png"></div>
+<div class="pane render" data-widget="alarm" data-state="disarmed" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-disarmed.png" alt="android disarmed"></div>
+<div class="pane render" data-widget="alarm" data-state="disarmed" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-disarmed.png" alt="ios disarmed"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">armed_home</span>Armed home — red rail, home glyph, Disarm</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_home.png" alt="ANDROID and/alarm-armed_home.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_home.png" alt="iOS ios/alarm-armed_home.png"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_home" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_home.png" alt="android armed_home"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_home" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_home.png" alt="ios armed_home"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">armed_away</span>Armed away — red rail, lock glyph, Disarm</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_away.png" alt="ANDROID and/alarm-armed_away.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_away.png" alt="iOS ios/alarm-armed_away.png"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_away" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_away.png" alt="android armed_away"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_away" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_away.png" alt="ios armed_away"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">armed_night</span>Armed night — red, home glyph</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_night.png" alt="ANDROID and/alarm-armed_night.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_night.png" alt="iOS ios/alarm-armed_night.png"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_night" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_night.png" alt="android armed_night"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_night" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_night.png" alt="ios armed_night"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">armed_vacation</span>Armed vacation — red, lock glyph</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_vacation.png" alt="ANDROID and/alarm-armed_vacation.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_vacation.png" alt="iOS ios/alarm-armed_vacation.png"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_vacation" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_vacation.png" alt="android armed_vacation"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_vacation" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_vacation.png" alt="ios armed_vacation"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">armed_custom_bypass</span>Armed (bypass) — custom-bypass label</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_custom_bypass.png" alt="ANDROID and/alarm-armed_custom_bypass.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_custom_bypass.png" alt="iOS ios/alarm-armed_custom_bypass.png"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_custom_bypass" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_custom_bypass.png" alt="android armed_custom_bypass"></div>
+<div class="pane render" data-widget="alarm" data-state="armed_custom_bypass" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_custom_bypass.png" alt="ios armed_custom_bypass"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">arming</span>Arming… — exit-delay transitional state</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-arming.png" alt="ANDROID and/alarm-arming.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-arming.png" alt="iOS ios/alarm-arming.png"></div>
+<div class="pane render" data-widget="alarm" data-state="arming" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-arming.png" alt="android arming"></div>
+<div class="pane render" data-widget="alarm" data-state="arming" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-arming.png" alt="ios arming"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">triggered</span>Alarm triggered — distinct triggered-red tone + alert glyph</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-triggered.png" alt="ANDROID and/alarm-triggered.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-triggered.png" alt="iOS ios/alarm-triggered.png"></div>
+<div class="pane render" data-widget="alarm" data-state="triggered" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-triggered.png" alt="android triggered"></div>
+<div class="pane render" data-widget="alarm" data-state="triggered" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-triggered.png" alt="ios triggered"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">offline</span>Offline — last-known state greyed, “Can’t reach Home Assistant”</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-offline.png" alt="ANDROID and/alarm-offline.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-offline.png" alt="iOS ios/alarm-offline.png"></div>
+<div class="pane render" data-widget="alarm" data-state="offline" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-offline.png" alt="android offline"></div>
+<div class="pane render" data-widget="alarm" data-state="offline" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-offline.png" alt="ios offline"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">setup</span>Set up — not yet connected</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-setup.png" alt="ANDROID and/alarm-setup.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-setup.png" alt="iOS ios/alarm-setup.png"></div>
+<div class="pane render" data-widget="alarm" data-state="setup" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-setup.png" alt="android setup"></div>
+<div class="pane render" data-widget="alarm" data-state="setup" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-setup.png" alt="ios setup"></div>
 </div></div>
 </div></section>
 <section>
@@ -181,56 +214,56 @@
 <div class="state">
 <div class="slabel"><span class="sid">parked</span>Parked — mint rail, Unplugged, sentry chip</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-parked.png" alt="ANDROID and/car-parked.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-parked.png" alt="iOS ios/car-parked.png"></div>
+<div class="pane render" data-widget="car" data-state="parked" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-parked.png" alt="android parked"></div>
+<div class="pane render" data-widget="car" data-state="parked" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-parked.png" alt="ios parked"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">charging</span>Charging — blue rail, “Full by …” ETA + charge bar</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-charging.png" alt="ANDROID and/car-charging.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-charging.png" alt="iOS ios/car-charging.png"></div>
+<div class="pane render" data-widget="car" data-state="charging" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-charging.png" alt="android charging"></div>
+<div class="pane render" data-widget="car" data-state="charging" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-charging.png" alt="ios charging"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">complete</span>Charged — charge complete at 80%</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-complete.png" alt="ANDROID and/car-complete.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-complete.png" alt="iOS ios/car-complete.png"></div>
+<div class="pane render" data-widget="car" data-state="complete" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-complete.png" alt="android complete"></div>
+<div class="pane render" data-widget="car" data-state="complete" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-complete.png" alt="ios complete"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">sentry</span>Sentry on — red sentry indicator</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-sentry.png" alt="ANDROID and/car-sentry.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-sentry.png" alt="iOS ios/car-sentry.png"></div>
+<div class="pane render" data-widget="car" data-state="sentry" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-sentry.png" alt="android sentry"></div>
+<div class="pane render" data-widget="car" data-state="sentry" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-sentry.png" alt="ios sentry"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">low_battery</span>Low battery — yellow rail, 18%</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-low_battery.png" alt="ANDROID and/car-low_battery.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-low_battery.png" alt="iOS ios/car-low_battery.png"></div>
+<div class="pane render" data-widget="car" data-state="low_battery" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-low_battery.png" alt="android low_battery"></div>
+<div class="pane render" data-widget="car" data-state="low_battery" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-low_battery.png" alt="ios low_battery"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">open</span>Trunk open — warn tone, door/trunk open</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-open.png" alt="ANDROID and/car-open.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-open.png" alt="iOS ios/car-open.png"></div>
+<div class="pane render" data-widget="car" data-state="open" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-open.png" alt="android open"></div>
+<div class="pane render" data-widget="car" data-state="open" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-open.png" alt="ios open"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">tires</span>Tire warning — “Check tires”, low psi highlighted</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-tires.png" alt="ANDROID and/car-tires.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-tires.png" alt="iOS ios/car-tires.png"></div>
+<div class="pane render" data-widget="car" data-state="tires" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-tires.png" alt="android tires"></div>
+<div class="pane render" data-widget="car" data-state="tires" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-tires.png" alt="ios tires"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">unlocked_away</span>Unlocked & away — red rail, lock warning</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-unlocked_away.png" alt="ANDROID and/car-unlocked_away.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-unlocked_away.png" alt="iOS ios/car-unlocked_away.png"></div>
+<div class="pane render" data-widget="car" data-state="unlocked_away" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-unlocked_away.png" alt="android unlocked_away"></div>
+<div class="pane render" data-widget="car" data-state="unlocked_away" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-unlocked_away.png" alt="ios unlocked_away"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">offline</span>Offline — last-known reading greyed</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-offline.png" alt="ANDROID and/car-offline.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-offline.png" alt="iOS ios/car-offline.png"></div>
+<div class="pane render" data-widget="car" data-state="offline" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/car-offline.png" alt="android offline"></div>
+<div class="pane render" data-widget="car" data-state="offline" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/car-offline.png" alt="ios offline"></div>
 </div></div>
 </div></section>
 <section>
@@ -244,63 +277,64 @@
 <div class="state">
 <div class="slabel"><span class="sid">available</span>Available — plugs-free hero + per-level floors (P2–P6) + Join</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-available.png" alt="ANDROID and/chargepoint-available.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-available.png" alt="iOS ios/chargepoint-available.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="available" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-available.png" alt="android available"></div>
+<div class="pane render" data-widget="chargepoint" data-state="available" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-available.png" alt="ios available"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">waiting</span>In line — “#3”, floors at 0 free, Leave</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-waiting.png" alt="ANDROID and/chargepoint-waiting.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-waiting.png" alt="iOS ios/chargepoint-waiting.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="waiting" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-waiting.png" alt="android waiting"></div>
+<div class="pane render" data-widget="chargepoint" data-state="waiting" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-waiting.png" alt="ios waiting"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">offer</span>Offer — countdown-clock hero + “go to level”, Accept / Snooze</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-offer.png" alt="ANDROID and/chargepoint-offer.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-offer.png" alt="iOS ios/chargepoint-offer.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="offer" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-offer.png" alt="android offer"></div>
+<div class="pane render" data-widget="chargepoint" data-state="offer" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-offer.png" alt="ios offer"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">held</span>Held — plug-in countdown, Start / Snooze</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-held.png" alt="ANDROID and/chargepoint-held.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-held.png" alt="iOS ios/chargepoint-held.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="held" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-held.png" alt="android held"></div>
+<div class="pane render" data-widget="chargepoint" data-state="held" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-held.png" alt="ios held"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">snoozed</span>Snoozed — back-in-line countdown, floor levels, Rejoin / Leave</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-snoozed.png" alt="ANDROID and/chargepoint-snoozed.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-snoozed.png" alt="iOS ios/chargepoint-snoozed.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="snoozed" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-snoozed.png" alt="android snoozed"></div>
+<div class="pane render" data-widget="chargepoint" data-state="snoozed" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-snoozed.png" alt="ios snoozed"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">charging</span>Charging — kWh added + kW, Stop</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-charging.png" alt="ANDROID and/chargepoint-charging.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-charging.png" alt="iOS ios/chargepoint-charging.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="charging" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-charging.png" alt="android charging"></div>
+<div class="pane render" data-widget="chargepoint" data-state="charging" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-charging.png" alt="ios charging"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">done</span>Done / move your car — overstay countdown, Open ChargePoint</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-done.png" alt="ANDROID and/chargepoint-done.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-done.png" alt="iOS ios/chargepoint-done.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="done" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-done.png" alt="android done"></div>
+<div class="pane render" data-widget="chargepoint" data-state="done" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-done.png" alt="ios done"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">signed_out</span>Signed out — Sign in (ChargePoint’s own page)</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-signed_out.png" alt="ANDROID and/chargepoint-signed_out.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-signed_out.png" alt="iOS ios/chargepoint-signed_out.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="signed_out" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-signed_out.png" alt="android signed_out"></div>
+<div class="pane render" data-widget="chargepoint" data-state="signed_out" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-signed_out.png" alt="ios signed_out"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">no_location</span>No location — “Set up”, choose a location</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-no_location.png" alt="ANDROID and/chargepoint-no_location.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-no_location.png" alt="iOS ios/chargepoint-no_location.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="no_location" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-no_location.png" alt="android no_location"></div>
+<div class="pane render" data-widget="chargepoint" data-state="no_location" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-no_location.png" alt="ios no_location"></div>
 </div></div>
 <div class="state">
 <div class="slabel"><span class="sid">cant_join</span>Session expired — silent re-auth, Sign in</div>
 <div class="cols">
-<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-cant_join.png" alt="ANDROID and/chargepoint-cant_join.png"></div>
-<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-cant_join.png" alt="iOS ios/chargepoint-cant_join.png"></div>
+<div class="pane render" data-widget="chargepoint" data-state="cant_join" data-platform="android"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-cant_join.png" alt="android cant_join"></div>
+<div class="pane render" data-widget="chargepoint" data-state="cant_join" data-platform="ios"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-cant_join.png" alt="ios cant_join"></div>
 </div></div>
 </div></section>
 <footer>Generated by <code>docs/parity-comparison/build.py</code>. Non-layout platform walls remain on iOS: the system app-name label under Home-Screen widgets, and no continuous refresh-button animation — documented in <code>docs/PARITY-AUDIT.md</code>.</footer>
+<script src="annotate.js"></script>
 </body></html>
