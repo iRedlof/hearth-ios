@@ -12,6 +12,13 @@ public struct AlarmBeaconView: View {
     private var fill: Color { Color(argb: snap.tone.fillARGB) }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }                 // dark text on the light tone rail
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) } // bright text on graphite
+    private var doorStatusColor: Color {
+        switch snap.doorLocked {
+        case .some(true):  return Color(argb: 0xFF8FD6A8)   // green when locked
+        case .some(false): return Color(argb: 0xFFF2A0A4)   // red when unlocked
+        case nil:          return surfaceInk.opacity(0.75)  // unknown / in-transit
+        }
+    }
 
     public var body: some View {
         GeometryReader { geo in
@@ -47,10 +54,19 @@ public struct AlarmBeaconView: View {
                 Spacer(minLength: 2)
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk)
             }
-            Spacer(minLength: 6)
-            doorRow
-            Spacer(minLength: 6)
-            actionsRow
+            if snap.stateWord == "Set up" {   // match Android's setup card: a message + a Connect button
+                Spacer(minLength: 6)
+                Text("Connect your alarm").font(.system(size: 13)).foregroundStyle(surfaceInk.opacity(0.85))
+                Spacer(minLength: 8)
+                Text("Connect").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(white: 0.12))
+                    .frame(maxWidth: .infinity).frame(height: 34)
+                    .background(Color(white: 0.94), in: RoundedRectangle(cornerRadius: 10))
+            } else {
+                Spacer(minLength: 6)
+                doorRow
+                Spacer(minLength: 6)
+                actionsRow
+            }
         }
         .padding(.horizontal, 13).padding(.vertical, 12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -65,8 +81,8 @@ public struct AlarmBeaconView: View {
                 .font(.system(size: 17)).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(snap.doorName).font(.system(size: 12.5, weight: .medium)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.7)
-                // Status and "since …" on their own lines so neither clips (was one line, cut off as "Locked · sinc…").
-                Text(snap.doorState).font(.system(size: 10.5)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1).minimumScaleFactor(0.8)
+                // Status green when locked, red when unlocked; "since …" on its own line so neither clips.
+                Text(snap.doorState).font(.system(size: 10.5, weight: .semibold)).foregroundStyle(doorStatusColor).lineLimit(1).minimumScaleFactor(0.8)
                 if let since = snap.doorSince {
                     Text(since).font(.system(size: 10.5)).foregroundStyle(surfaceInk.opacity(0.6)).lineLimit(1).minimumScaleFactor(0.8)
                 }
@@ -80,13 +96,12 @@ public struct AlarmBeaconView: View {
     }
 
     @ViewBuilder private func doorButton(_ locked: Bool) -> some View {
-        let label = HStack(spacing: 4) {
-            Image(systemName: locked ? "lock.open.fill" : "lock.fill").font(.system(size: 11, weight: .semibold))
-            Text(locked ? "Unlock" : "Lock").font(.system(size: 12, weight: .semibold)).lineLimit(1).fixedSize()
-        }
-        .foregroundStyle(surfaceInk).padding(.horizontal, 12).frame(height: 30)
-        .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
-        .fixedSize(horizontal: true, vertical: false)
+        // Text-only, matching Android — the door row's lock glyph already shows the state, so the button
+        // needn't repeat it.
+        let label = Text(locked ? "Unlock" : "Lock").font(.system(size: 12, weight: .semibold)).lineLimit(1)
+            .foregroundStyle(surfaceInk).padding(.horizontal, 14).frame(height: 30)
+            .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
+            .fixedSize(horizontal: true, vertical: false)
         if locked {
             Button(intent: AlarmGatedIntent(.unlock)) { label }.buttonStyle(.plain)
         } else {
