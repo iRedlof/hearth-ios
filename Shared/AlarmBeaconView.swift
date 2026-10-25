@@ -43,17 +43,9 @@ public struct AlarmBeaconView: View {
     private var surface: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
-                Text(snap.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk).lineLimit(1)
+                Text(alarmTitle).font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
-                Button(intent: WidgetRefreshIntent("com.rohit.hearth.alarm")) {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(surfaceInk.opacity(0.7))
-                }
-                .buttonStyle(.plain).padding(.trailing, 5)
-                VStack(alignment: .trailing, spacing: -1) {
-                    Text("Checked").font(.system(size: 10))
-                    Text(snap.checkedAt).font(.system(size: 10))
-                }.foregroundStyle(surfaceInk.opacity(0.78)).invalidatableContent()
+                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk)
             }
             Spacer(minLength: 6)
             doorRow
@@ -65,33 +57,38 @@ public struct AlarmBeaconView: View {
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }
 
-    /// The door row doubles as the Lock/Unlock button when a lock is configured (tap toggles it).
-    @ViewBuilder private var doorRow: some View {
-        if let locked = snap.doorLocked {
-            if locked {   // Unlock → Face ID gate (opens app)
-                Button(intent: AlarmGatedIntent(.unlock)) { doorRowContent }.buttonStyle(.plain)
-            } else {       // Lock → in place
-                Button(intent: AlarmControlIntent(LockAction.lock.rawValue)) { doorRowContent }.buttonStyle(.plain)
-            }
-        } else {
-            doorRowContent
-        }
-    }
-
-    private var doorRowContent: some View {
+    /// The Front Door well: lock status (left) + an explicit Unlock / Lock button (right, with icon),
+    /// matching Android's door well. Unlock is Face-ID-gated in place; Lock runs in place.
+    private var doorRow: some View {
         HStack(spacing: 8) {
             Image(systemName: (snap.doorLocked ?? true) ? "lock.fill" : "lock.open.fill")
                 .font(.system(size: 17)).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
-                Text(snap.doorName).font(.system(size: 12.5, weight: .medium)).foregroundStyle(surfaceInk).lineLimit(1)
+                Text(snap.doorName).font(.system(size: 12.5, weight: .medium)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.7)
                 Text([snap.doorState, snap.doorSince].compactMap { $0 }.joined(separator: " · "))
                     .font(.system(size: 10.5)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1).minimumScaleFactor(0.8)
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 4)
+            if let locked = snap.doorLocked { doorButton(locked) }
         }
         .padding(9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
+    }
+
+    @ViewBuilder private func doorButton(_ locked: Bool) -> some View {
+        let label = HStack(spacing: 4) {
+            Image(systemName: locked ? "lock.open.fill" : "lock.fill").font(.system(size: 11, weight: .semibold))
+            Text(locked ? "Unlock" : "Lock").font(.system(size: 12, weight: .semibold)).lineLimit(1).fixedSize()
+        }
+        .foregroundStyle(surfaceInk).padding(.horizontal, 12).frame(height: 30)
+        .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
+        .fixedSize(horizontal: true, vertical: false)
+        if locked {
+            Button(intent: AlarmGatedIntent(.unlock)) { label }.buttonStyle(.plain)
+        } else {
+            Button(intent: AlarmControlIntent(LockAction.lock.rawValue)) { label }.buttonStyle(.plain)
+        }
     }
 
     private var actionsRow: some View {
@@ -108,15 +105,30 @@ public struct AlarmBeaconView: View {
         }
     }
 
-    /// A pill styled like the Android action button; Disarm is the bright "primary" pill.
+    /// A pill styled like the Android action button (now with an icon); Disarm is the bright "primary" pill.
     private func actionLabel(_ action: AlarmAction) -> some View {
         let primary = (action == .disarm)
-        return Text(action.label)
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(primary ? Color(white: 0.12) : surfaceInk)
-            .frame(maxWidth: .infinity).frame(height: 34)
-            .background(primary ? Color(white: 0.94) : Color.white.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 10))
+        return HStack(spacing: 5) {
+            Image(systemName: armIcon(action)).font(.system(size: 11, weight: .semibold))
+            Text(action.label).font(.system(size: 12, weight: .semibold)).lineLimit(1).minimumScaleFactor(0.8)
+        }
+        .foregroundStyle(primary ? Color(white: 0.12) : surfaceInk)
+        .frame(maxWidth: .infinity).frame(height: 34)
+        .background(primary ? Color(white: 0.94) : Color.white.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func armIcon(_ action: AlarmAction) -> String {
+        switch action {
+        case .armHome: "house.fill"
+        case .armAway: "shield.fill"
+        case .disarm:  "shield.slash.fill"
+        }
+    }
+
+    /// The home name without a trailing " Alarm" (Rohit prefers "Home", not "Home Alarm").
+    private var alarmTitle: String {
+        snap.name.hasSuffix(" Alarm") ? String(snap.name.dropLast(6)) : snap.name
     }
 
     private var glyphSymbol: String {
