@@ -88,6 +88,35 @@ final class ChargePointAutoTests: XCTestCase {
         let newer = CpRun(armed: true, startedAt: 99)
         XCTAssertEqual(cpMergeAutoResult(run, newer, .snooze(run), true), newer)
     }
+    func testManualLeaveKeepsModeAndHistory() {
+        for mode in [true, false] {
+            let run = CpRun(armed: mode, snoozeUsed: true, drivePushed: true, startedAt: 17, offerPushed: true)
+            for command: CpCommand in [.leave, .join, .accept, .unsnooze, .still, .done] {
+                XCTAssertEqual(cpAfterManual(run, command, true), run)
+                XCTAssertEqual(cpAfterManual(run, command, false), run)
+            }
+        }
+    }
+
+    func testLateAutoResultPreservesConcurrentManualSnooze() {
+        let current = cpAfterManual(armed, .snooze(3600), true)
+        XCTAssertTrue(cpMergeAutoResult(armed, current, .accept(armed), true).snoozeUsed)
+    }
+
+    func testRefreshCannotUndoPauseOrCompletedCharging() {
+        XCTAssertFalse(cpMergeRunUpdate(armed, cpPauseRun(armed), armed).armed)
+        XCTAssertFalse(cpMergeRunUpdate(armed, armed, cpPauseRun(armed)).armed)
+        let new = CpRun(armed: true, startedAt: 99)
+        XCTAssertEqual(cpMergeRunUpdate(armed, new, cpPauseRun(armed)), new)
+    }
+
+    func testMergeAllowsNextOfferEpisodeToNotify() {
+        var before = armed; before.offerPushed = true
+        var result = before; result.offerPushed = false
+        XCTAssertFalse(cpMergeRunUpdate(before, before, result).offerPushed)
+        var current = armed; current.offerPushed = true
+        XCTAssertTrue(cpMergeRunUpdate(armed, current, armed).offerPushed)
+    }
     // 19
     func testExhaustedRetryWaitsForManualRecovery() {
         let failed = cpRecordAutoFailure(armed, "ACCEPT_PENDING", 5000, "nope")
@@ -104,7 +133,7 @@ final class ChargePointAutoTests: XCTestCase {
     func testArmAndEnd() {
         XCTAssertEqual(cpArmForCommand(CpRun(), .join, autoRun: true, now: 5), CpRun(armed: true, startedAt: 5))
         XCTAssertFalse(cpArmForCommand(CpRun(), .join, autoRun: false, now: 5).armed)
-        XCTAssertTrue(cpManualEndsRun(.leave))
+        XCTAssertFalse(cpManualEndsRun(.leave))
         for c: CpCommand in [.accept, .snooze(600), .unsnooze, .start, .stop, .still, .done, .join] {
             XCTAssertFalse(cpManualEndsRun(c), "\(c) should not end the run")
         }

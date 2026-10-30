@@ -1,8 +1,15 @@
 import Foundation
 
+/// One labelled stat row shown on the ChargePoint right panel while charging (Est. distance / Time / Charger).
+public struct CpStat: Sendable, Equatable, Codable {
+    public let label: String
+    public let value: String
+    public init(label: String, value: String) { self.label = label; self.value = value }
+}
+
 /// Everything the ChargePoint Beacon view renders, already formatted (mirrors the other snapshots).
 /// ChargePoint's rail is a FIXED brand orange (`.orange`), unlike the state-driven tones of the others.
-public struct CpSnapshot: Sendable, Equatable {
+public struct CpSnapshot: Sendable, Equatable, Codable {
     public var site: String          // the location title, e.g. "SEA41"
     public var account: String       // "typhoon.2010" / "Signed out" / "Account unknown"
     public var checkedAt: String     // "9:41 AM" — drives the refresh/"Checked" stamp (empty = hidden)
@@ -18,17 +25,27 @@ public struct CpSnapshot: Sendable, Equatable {
     public var deadline: Date?       // when set, a live countdown to the offer/hold/snooze deadline
     public var goTo: String?         // "SEA41-29 P3" — which charger/level to go to (offer / held)
     public var floors: [CpFloor]     // per-level availability (idle, when a location is set)
+    public var railNotes: [String]   // extra rail lines under the hero: "1 snooze left" / "Move by 10:14 AM"
+    public var stats: [CpStat]       // charging right-panel rows: Est. distance / Time elapsed / Charger
     public var tone: BeaconTone      // always .orange
+    public var stale: Bool           // last successful reading retained after a failed check
+    public var working: Bool
+    public var autoControl: CpAutoControl
 
     public init(site: String, account: String, bigAnswer: String, unit: String, sub: String,
                 plugsFree: String?, autoOn: Bool, actionLabel: String, keys: [CpKey] = [],
                 deadline: Date? = nil, goTo: String? = nil, floors: [CpFloor] = [],
                 checkedAt: String = "", freeDetail: [String] = [], showOpen: Bool = false,
-                tone: BeaconTone = .orange) {
+                railNotes: [String] = [], stats: [CpStat] = [],
+                tone: BeaconTone = .orange, stale: Bool = false, working: Bool = false,
+                autoControl: CpAutoControl = .disabled) {
         self.site = site; self.account = account; self.checkedAt = checkedAt; self.bigAnswer = bigAnswer
         self.unit = unit; self.sub = sub; self.freeDetail = freeDetail; self.plugsFree = plugsFree
         self.autoOn = autoOn; self.actionLabel = actionLabel; self.showOpen = showOpen
-        self.keys = keys; self.deadline = deadline; self.goTo = goTo; self.floors = floors; self.tone = tone
+        self.keys = keys; self.deadline = deadline; self.goTo = goTo; self.floors = floors
+        self.railNotes = railNotes; self.stats = stats; self.tone = tone
+        self.stale = stale
+        self.working = working; self.autoControl = autoControl
     }
 
     /// Sample previews an offered state (keys + a live countdown visible).

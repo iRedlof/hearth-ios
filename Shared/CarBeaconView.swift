@@ -68,7 +68,7 @@ public struct CarBeaconView: View {
             // Car photo — enlarged to fill the space freed by moving Sentry onto the charge line.
             Image("CarPremium").resizable().scaledToFit()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, -4).padding(.vertical, 3)
+                .padding(.horizontal, -20).padding(.vertical, 0)
             chargeBar.frame(height: 7)
             // Unplugged (left) + Sentry on/off (right-aligned) share one line — frees a row for the photo.
             HStack(spacing: 6) {

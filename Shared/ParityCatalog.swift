@@ -1,4 +1,5 @@
 import SwiftUI
+import WidgetKit
 import HearthKit
 
 /// The core-state catalog for the iOS↔Android parity gallery (docs/parity-comparison).
@@ -6,7 +7,36 @@ import HearthKit
 /// platforms can be compared side by side. Rendered by *displaying* `ParityStateScreen`
 /// (launched with `-parityState <id>`) and screenshotting — the Beacon views use
 /// WidgetKit-only modifiers that don't realise under ImageRenderer/XCTest.
-enum ParityCatalog {
+@MainActor enum ParityCatalog {
+    #if DEBUG
+    nonisolated private static var fixtureStore: UserDefaults {
+        UserDefaults(suiteName: HaConfigStore.appGroup) ?? .standard
+    }
+    /// Dedicated simulator captures only. Fixture mode bypasses provider reads and real actions.
+    nonisolated static func activeWidgetID(prefix: String) -> String? {
+        guard let id = fixtureStore.string(forKey: "parityWidgetState"),
+              id.hasPrefix(prefix + "-") else { return nil }
+        return id
+    }
+    static func activateWidget(_ id: String) {
+        guard view(id) != nil, let prefix = id.split(separator: "-").first else { return }
+        fixtureStore.removeObject(forKey: "parityWidgetRendered")
+        fixtureStore.set(id, forKey: "parityWidgetState")
+        fixtureStore.synchronize()
+        WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.\(prefix)")
+    }
+    static func deactivateWidget() {
+        fixtureStore.removeObject(forKey: "parityWidgetState")
+        fixtureStore.removeObject(forKey: "parityWidgetRendered")
+        fixtureStore.synchronize()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+    static func recordWidgetFrame(_ id: String, size: CGSize) {
+        fixtureStore.set(["id": id, "width": size.width, "height": size.height,
+                          "timestamp": Date().timeIntervalSince1970], forKey: "parityWidgetRendered")
+        fixtureStore.synchronize()
+    }
+    #endif
     private static let sensors = [ThermostatSensor(name: "Outside", value: "48°"),
                                   ThermostatSensor(name: "Bedroom", value: "67.5°"),
                                   ThermostatSensor(name: "Thermo", value: "69.5°")]
@@ -46,9 +76,9 @@ enum ParityCatalog {
     // MARK: Thermostat
     private static func thermoCard(_ room: String, _ status: String, _ tone: BeaconTone, heat: String?, cool: String?,
                                    mode: String, fan: String? = "Auto", resume: Bool = true,
-                                   humidity: String? = "52% humidity") -> AnyView {
+                                   humidity: String? = "52% humidity", roomSub: String = "In the room") -> AnyView {
         AnyView(ThermostatBeaconView(ThermostatSnapshot(name: "Thermostat", checkedAt: "9:41 AM", roomTemp: room,
-            roomSub: "In the room", humidity: humidity, status: status, tone: tone, heatSetpoint: heat,
+            roomSub: roomSub, humidity: humidity, status: status, tone: tone, heatSetpoint: heat,
             coolSetpoint: cool, mode: mode, fan: fan, canResume: resume, sensors: sensors)))
     }
     private static func thermostat() -> [(String, AnyView)] {
@@ -59,8 +89,8 @@ enum ParityCatalog {
          ("thermostat-cool_idle", thermoCard("67°", "Holding 69°", .blue, heat: nil, cool: "69°", mode: "Cool")),
          ("thermostat-fan", thermoCard("67°", "Fan only · set 64–69°", .slate, heat: "64°", cool: "69°", mode: "Fan", fan: "On")),
          ("thermostat-off", thermoCard("67°", "Off", .slate, heat: nil, cool: nil, mode: "Off")),
-         ("thermostat-offline", thermoCard("67°", "Last known", .offline, heat: "64°", cool: "69°", mode: "Auto")),
-         ("thermostat-setup", thermoCard("—", "Unavailable", .offline, heat: nil, cool: nil, mode: "", fan: nil, resume: false, humidity: nil))]
+         ("thermostat-offline", thermoCard("67°", "Can't connect", .offline, heat: "64°", cool: "69°", mode: "Auto", roomSub: "Last known")),
+         ("thermostat-setup", thermoCard("—", "Tap to connect", .offline, heat: nil, cool: nil, mode: "", fan: nil, resume: false, humidity: "Humidity —", roomSub: "No reading"))]
     }
 
     // MARK: Car
@@ -87,11 +117,11 @@ enum ParityCatalog {
          ("car-low_battery", carCard(battery: 18, range: "55 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
             doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Home · Awake", sentry: .off,
             charge: "Low battery", tone: .yellow)),
-         ("car-open", carCard(battery: 79, range: "242 mi range", lock: "Locked", lockWarn: false, doors: "Trunk open",
+         ("car-open", carCard(battery: 79, range: "242 mi range", lock: "Unlocked", lockWarn: true, doors: "Trunk open",
             doorsWarn: true, tires: "38–40 psi", tiresWarn: false, place: "Home · Awake", sentry: .off,
             charge: "Unplugged", tone: .yellow)),
          ("car-tires", carCard(battery: 79, range: "242 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
-            doorsWarn: false, tires: "31–40 psi", tiresWarn: true, place: "Home · Awake", sentry: .off,
+            doorsWarn: false, tires: "31–40 psi", tiresWarn: true, place: "Home · asleep since Mon 10:33 PM", sentry: .off,
             charge: "Check tires", tone: .yellow)),
          ("car-unlocked_away", carCard(battery: 79, range: "242 mi range", lock: "Unlocked", lockWarn: true, doors: "All shut",
             doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Away · Awake", sentry: .off,
@@ -102,44 +132,67 @@ enum ParityCatalog {
     }
 
     // MARK: ChargePoint
-    private static func cpCard(_ big: String, unit: String = "", sub: String = "", plugsFree: String? = nil,
-                               action: String = "Open", keys: [CpKey] = [], deadlineIn: TimeInterval? = nil,
-                               goTo: String? = nil, floors: [CpFloor] = [], freeDetail: [String] = [],
-                               showOpen: Bool = false, site: String = "Amazon Day 1",
-                               account: String = "iredlof") -> AnyView {
-        AnyView(CpBeaconView(CpSnapshot(site: site, account: account, bigAnswer: big, unit: unit, sub: sub,
-            plugsFree: plugsFree, autoOn: true, actionLabel: action, keys: keys,
-            deadline: deadlineIn.map { Date().addingTimeInterval($0) }, goTo: goTo, floors: floors,
-            checkedAt: "9:41 AM", freeDetail: freeDetail, showOpen: showOpen)))
-    }
     private static func chargePoint() -> [(String, AnyView)] {
-        let full = [CpFloor(level: "P2", free: 8, total: 14), CpFloor(level: "P3", free: 17, total: 18),
-                    CpFloor(level: "P4", free: 22, total: 22), CpFloor(level: "P5", free: 21, total: 22),
-                    CpFloor(level: "P6", free: 10, total: 10)]
-        let busy = [CpFloor(level: "P2", free: 0, total: 14), CpFloor(level: "P3", free: 0, total: 18),
-                    CpFloor(level: "P4", free: 0, total: 22), CpFloor(level: "P5", free: 0, total: 22),
-                    CpFloor(level: "P6", free: 0, total: 10)]
-        return [("chargepoint-available", cpCard("78", unit: "plugs free", action: "Join", floors: full,
-            freeDetail: ["of 86 plugs", "7 in use", "1 offline"], showOpen: true)),
-         ("chargepoint-waiting", cpCard("#3", unit: "in line", sub: "43 chargers",
-            keys: [CpKey(command: "leave", label: "Leave")], floors: busy)),
-         ("chargepoint-offer", cpCard("Your turn", sub: "Respond by 10:13 AM",
-            keys: [CpKey(command: "accept", label: "Accept"), CpKey(command: "snooze", label: "Snooze")],
-            deadlineIn: 833, goTo: "SEA41-29 P3")),
-         ("chargepoint-held", cpCard("Held", sub: "Plug in by 10:28 AM",
-            keys: [CpKey(command: "start", label: "Start"), CpKey(command: "snooze", label: "Snooze")],
-            deadlineIn: 1690, goTo: "SEA41-29 P3")),
-         ("chargepoint-snoozed", cpCard("Snoozed", sub: "Place kept",
-            keys: [CpKey(command: "rejoin", label: "Rejoin"), CpKey(command: "leave", label: "Leave")],
-            deadlineIn: 1605, floors: busy)),
-         ("chargepoint-charging", cpCard("7.4", unit: "kWh added", sub: "6.6 kW now",
-            keys: [CpKey(command: "stop", label: "Stop")])),
-         ("chargepoint-done", cpCard("Done", sub: "Done charging", deadlineIn: 840, goTo: "SEA41-29 P3")),
-         ("chargepoint-signed_out", cpCard("Sign in", sub: "Use its own sign-in page", action: "Sign in",
-            site: "ChargePoint", account: "Signed out")),
-         ("chargepoint-no_location", cpCard("Set up", sub: "Choose a location", action: "Choose location",
-            site: "ChargePoint", account: "iredlof")),
-         ("chargepoint-cant_join", cpCard("Sign in", sub: "Session expired", action: "Sign in"))]
+        let now = Date()
+        let rows: [(String, String?, Int?, Bool)] = [
+            ("available", nil, nil, false), ("waiting", "WAITING", nil, false),
+            ("offer", "ACCEPT_PENDING", 1, false), ("offer_last", "ACCEPT_PENDING", 0, false),
+            ("held", "PENDING_PLUG_IN", 1, false), ("held_unknown", "PENDING_PLUG_IN", nil, false),
+            ("auto_held_last", "PENDING_PLUG_IN", 0, true), ("dib_held", "DIB_PENDING_PLUG_IN", 1, false),
+            ("offer_no_floor", "ACCEPT_PENDING", 1, false), ("snoozed", "PASS", nil, false),
+            ("charging", "CHARGING", nil, false), ("charging_no_stop", "CHARGING", nil, false),
+            ("done", "PENDING_PLUG_OUT", nil, false), ("fault", "CHARGING_FAULT", nil, false),
+            ("unplugged", "DIB_PLUG_OUT", nil, false), ("overstayed", "OVER_STAYED", nil, false),
+            ("blocked", "BLOCKED", nil, false), ("pending", "PENDING", nil, false),
+            ("signed_out", nil, nil, false), ("no_location", nil, nil, false), ("cant_join", nil, nil, true),
+            ("expired", "ACCEPT_PENDING", 1, false), ("unknown_deadline", "ACCEPT_PENDING", 1, true),
+            ("working_accept", "ACCEPT_PENDING", 1, true), ("failed_accept", "ACCEPT_PENDING", 1, true),
+            ("auto_waiting", "WAITING", nil, true), ("auto_snoozed", "PASS", nil, true)
+        ]
+        return rows.map { id, status, allowance, auto in
+            let location = ["signed_out", "no_location"].contains(id) ? nil :
+                CpLocation(name: "Amazon Day 1", address: "", deviceIds: Array(1...43).map(Int64.init),
+                           bounds: cpBounds(lat: 0, lon: 0))
+            let deadline = id == "unknown_deadline" ? 0 : Int64(now.addingTimeInterval(id == "expired" ? -1 : 1690).timeIntervalSince1970 * 1000)
+            let offer = CpOffer(deviceId: 1, port: 1,
+                charger: id == "offer_no_floor" ? "SEA41-29" : "SEA41 - 29 P3",
+                untilMs: deadline, startMs: Int64(now.addingTimeInterval(600).timeIntervalSince1970 * 1000))
+            let charging = status == "CHARGING" ? CpCharging(sessionId: 9, powerKw: 6.6, energyKwh: 7.4,
+                minutes: 65, canStop: id != "charging_no_stop", miles: 31, vehicle: "Tesla Model Y", charger: "SEA41 - 29 P3") : nil
+            let floors = zip(["P2", "P3", "P4", "P5", "P6"], [14, 18, 22, 22, 10]).enumerated().map { index, pair in
+                CpFloor(level: pair.0, free: status == nil ? [8, 17, 22, 21, 10][index] : 0, total: pair.1)
+            }
+            let state = CpState(signedOut: id == "signed_out",
+                account: cpAccount(hasSession: id != "signed_out", expired: false, joinExpired: id == "cant_join"),
+                location: location, now: location == nil ? nil : CpNow(free: 78, inUse: 7, offline: 1, stations: 43),
+                waitlist: status.map { .inLine(place: $0 == "WAITING" ? 3 : nil, state: $0, stations: 43, offer: offer, auto: false) } ?? .notQueued,
+                charging: charging, autoOn: auto, floors: floors, snoozesLeft: allowance)
+            let snapshot = cpSnapshot(state, email: "iredlof@example.com",
+                                      checkedAt: now.formatted(date: .omitted, time: .shortened), now: now)
+            let operation = id == "working_accept" ? CpOperation(command: "accept", startedAt: now)
+                : id == "failed_accept" ? CpOperation(command: "accept", startedAt: now, error: "Offer expired") : nil
+            return ("chargepoint-\(id)", AnyView(CpBeaconView(cpApplyingOperation(snapshot, operation, now: now))))
+        }
+    }
+}
+
+/// In debug capture mode WidgetKit itself supplies the rounded container and native size.
+/// Release builds contain only the normal production view.
+struct ParityWidgetContent<Content: View>: View {
+    let prefix: String
+    @ViewBuilder let content: () -> Content
+    var body: some View {
+        #if DEBUG
+        if let id = ParityCatalog.activeWidgetID(prefix: prefix),
+           let fixture = ParityCatalog.view(id) {
+            GeometryReader { geometry in
+                let _ = ParityCatalog.recordWidgetFrame(id, size: geometry.size)
+                fixture.allowsHitTesting(false).accessibilityIdentifier("parity-\(id)")
+            }
+        } else { content() }
+        #else
+        content()
+        #endif
     }
 }
 
@@ -147,15 +200,30 @@ enum ParityCatalog {
 /// top-leading offset on black so the capture script can crop it deterministically.
 struct ParityStateScreen: View {
     let id: String
+    private var width: CGFloat { dimension("-parityWidth", fallback: 374) }
+    private var height: CGFloat { dimension("-parityHeight", fallback: 174) }
+    private func dimension(_ flag: String, fallback: CGFloat) -> CGFloat {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: flag), index + 1 < args.count,
+              let value = Double(args[index + 1]), value >= 110, value <= 900 else { return fallback }
+        return CGFloat(value)
+    }
     var body: some View {
         ZStack(alignment: .topLeading) {
-            Color.black.ignoresSafeArea()
+            Color(red: 1, green: 0, blue: 1).ignoresSafeArea()   // magenta crop marker — appears nowhere in the card
             (ParityCatalog.view(id) ?? AnyView(Text(id).foregroundStyle(.white)))
-                .frame(width: 374, height: 174)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .frame(width: width, height: height)
+                .clipped()
                 .padding(.leading, 16).padding(.top, 70)
         }
         .preferredColorScheme(.dark)
         .statusBarHidden(true)
+        .task {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("-parityWidgetKit") {
+                ParityCatalog.activateWidget(id)
+            }
+            #endif
+        }
     }
 }

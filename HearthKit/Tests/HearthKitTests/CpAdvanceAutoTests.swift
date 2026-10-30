@@ -82,4 +82,58 @@ final class CpAdvanceAutoTests: XCTestCase {
                                     statusJson: statusJSON("ACCEPT_PENDING", start: 10, dur: 50), now: 0)
         XCTAssertNil(r.alert)
     }
+
+    func testMissingTimingNeverAcceptsOrSnoozes() async {
+        for state in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN"] {
+            let json = """
+            {"user_status":{"waitlist":{"state":{"state":"\(state)","deviceId":1,"token":"test"},"stations":[]}}}
+            """
+            let result = await cpAdvanceAuto(armed, client: client(), statusJson: json, now: 1_700_000_000_000)
+            XCTAssertNil(result.alert, state)
+            XCTAssertEqual(result.run, armed, state)
+        }
+    }
+
+    func testCancelledAutoCannotDispatchAccept() async {
+        let result = await cpAdvanceAuto(armed, client: client(),
+            statusJson: statusJSON("ACCEPT_PENDING", start: 10, dur: 50), now: 0,
+            canAct: { false })
+        XCTAssertNil(result.alert)
+        XCTAssertEqual(result.run, armed)
+    }
+
+    func testCancelledDuringAllowanceReadCannotDispatchSnooze() async {
+        let gate = AutoGate()
+        let client = CpClient(token: "fixture", userId: 1, transport: { req in
+            if req.url!.absoluteString.contains("get_notification_detail") {
+                await gate.cancel()
+                return (Data(#"{"response":{"remainingSnoozeCount":1}}"#.utf8),
+                        HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+            }
+            await gate.recordCommand()
+            return (Data(#"{"result":true}"#.utf8),
+                    HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+        })
+        let result = await cpAdvanceAuto(armed, client: client,
+            statusJson: statusJSON("PENDING_PLUG_IN", start: 10, dur: 50, token: "test"), now: 0,
+            canAct: { await gate.active })
+        XCTAssertNil(result.alert)
+        let commands = await gate.commands
+        XCTAssertEqual(commands, 0)
+    }
+
+    func testDecisionClockIncludesStatusReadLatency() async {
+        // Deadline is 127 seconds from request start, but 117 seconds from decision time.
+        let result = await cpAdvanceAuto(armed, client: client(),
+            statusJson: statusJSON("ACCEPT_PENDING", start: 10, dur: 117), now: 0,
+            decisionNow: { 10_000 })
+        XCTAssertEqual(result.alert, .accepted)
+    }
+}
+
+private actor AutoGate {
+    var active = true
+    var commands = 0
+    func cancel() { active = false }
+    func recordCommand() { commands += 1 }
 }

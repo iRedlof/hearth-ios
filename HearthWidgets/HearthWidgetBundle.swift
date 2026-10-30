@@ -261,6 +261,9 @@ struct CarProvider: TimelineProvider {
     /// Not signed in → `.sample` (shows a representative preview). A fetch error also falls back to
     /// `.sample` for now. TODO: surface a real offline/error state on the widget face.
     private static func fetch() async -> CarSnapshot {
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "car") != nil { return .sample }
+        #endif
         guard let cfg = HaConfigStore.load(), cfg.carReady else { return .sample }
         do {
             let json = try await HaClient(cfg).template(CAR_TEMPLATE)
@@ -275,7 +278,7 @@ struct CarProvider: TimelineProvider {
 struct CarWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.car", provider: CarProvider()) { entry in
-            CarBeaconView(entry.snap)
+            ParityWidgetContent(prefix: "car") { CarBeaconView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("Car")
@@ -308,6 +311,9 @@ struct AlarmProvider: TimelineProvider {
 
     /// Live alarm + door when configured; `.sample` otherwise (an error also falls back to sample).
     private static func fetch() async -> AlarmSnapshot {
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "alarm") != nil { return .sample }
+        #endif
         guard let cfg = HaConfigStore.load(), cfg.isComplete else { return .sample }
         return await fetchAlarmSnapshot(cfg)
     }
@@ -316,7 +322,7 @@ struct AlarmProvider: TimelineProvider {
 struct AlarmWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.alarm", provider: AlarmProvider()) { entry in
-            AlarmBeaconView(entry.snap)
+            ParityWidgetContent(prefix: "alarm") { AlarmBeaconView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("Home Alarm")
@@ -348,6 +354,9 @@ struct ThermostatProvider: TimelineProvider {
     }
 
     private static func fetch() async -> ThermostatSnapshot {
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "thermostat") != nil { return .sample }
+        #endif
         guard let cfg = HaConfigStore.load(), cfg.hasClimate else { return .sample }
         return await fetchThermostatSnapshot(cfg)
     }
@@ -356,7 +365,7 @@ struct ThermostatProvider: TimelineProvider {
 struct ThermostatWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.thermostat", provider: ThermostatProvider()) { entry in
-            ThermostatBeaconView(entry.snap)
+            ParityWidgetContent(prefix: "thermostat") { ThermostatBeaconView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("Thermostat")
@@ -376,7 +385,11 @@ struct CpEntry: TimelineEntry {
 struct CpProvider: TimelineProvider {
     func placeholder(in context: Context) -> CpEntry { CpEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (CpEntry) -> Void) {
-        completion(CpEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(CpEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task {
+            completion(CpEntry(date: .now, snap: await CpProvider.fetch(advanceAuto: false)))
+        }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<CpEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -387,37 +400,19 @@ struct CpProvider: TimelineProvider {
         }
     }
 
-    private static func fetch() async -> CpSnapshot {
-        let session = CpSessionStore.load()
-        guard !session.token.isEmpty else { return .sample }   // never signed in → representative preview
-        var run = CpSessionStore.loadRun()
-        // Best-effort auto-waitlist: advance the tested engine on this refresh. iOS has no guaranteed
-        // background cadence or exact pre-deadline wake (docs/CHARGEPOINT-IOS.md), so this runs when
-        // the widget/app happens to refresh.
-        if run.armed {
-            let client = CpClient(token: session.token, userId: session.userId,
-                                  onToken: { CpSessionStore.saveToken($0) })
-            if let statusJson = try? await client.userStatus() {
-                let result = await cpAdvanceAuto(run, client: client, statusJson: statusJson,
-                                                 now: Int64(Date().timeIntervalSince1970 * 1000))
-                run = result.run
-                CpSessionStore.saveRun(run)
-                if let alert = result.alert, cpAlertAllowed(alert, prefs: CpSessionStore.loadAlertPrefs()) {
-                    let subj = cpAlertSubjects(statusJson)
-                    let c = cpAlertContent(alert, who: subj.who, by: subj.by)
-                    CpNotify.post(title: c.title, body: c.body, id: c.id)
-                }
-            }
-        }
-        return await fetchCpSnapshot(session, location: CpSessionStore.loadLocation(),
-                                     onToken: { CpSessionStore.saveToken($0) }, autoOn: run.armed)
+    private static func fetch(advanceAuto: Bool = true) async -> CpSnapshot {
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "chargepoint") != nil { return .sample }
+        #endif
+        // iOS schedules refreshes at its discretion; Auto remains best-effort.
+        return await CpLiveSnapshot.fetch(advanceAuto: advanceAuto)
     }
 }
 
 struct ChargePointWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.chargepoint", provider: CpProvider()) { entry in
-            CpBeaconView(entry.snap)
+            ParityWidgetContent(prefix: "chargepoint") { CpBeaconView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("ChargePoint")

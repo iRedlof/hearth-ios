@@ -86,12 +86,13 @@ struct SettingsView: View {
                         Toggle("Auto-waitlist", isOn: Binding(
                             get: { cpAuto },
                             set: { on in
-                                let run = CpSessionStore.loadRun()
-                                let next = on ? cpResumeRun(run, nil, Int64(Date().timeIntervalSince1970 * 1000))
-                                              : cpPauseRun(run)
-                                CpSessionStore.saveRun(next); cpAuto = on
-                                if on { CpNotify.requestPermission() }
-                                WidgetCenter.shared.reloadAllTimelines()
+                                Task { @MainActor in
+                                    if on { await CpWidgetOperation.enableAuto() }
+                                    else { CpSessionStore.saveRun(cpPauseRun(CpSessionStore.loadRun())) }
+                                    cpAuto = CpSessionStore.loadRun().armed
+                                    if cpAuto { CpNotify.requestPermission() }
+                                    CpWidgetOperation.reload()
+                                }
                             }))
                         if cpAuto {
                             Toggle("Alert · Your turn", isOn: Binding(

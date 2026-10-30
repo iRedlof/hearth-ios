@@ -20,22 +20,8 @@ import HearthKit
     }
 
     private func perform(auto: Bool) async {
-        let session = CpSessionStore.load()
-        guard session.isSignedIn, let location = CpSessionStore.loadLocation() else { return }
-        let client = CpClient(token: session.token, userId: session.userId,
-                              onToken: { CpSessionStore.saveToken($0) })
-        do {
-            try await client.join(cpJoinBody(location))
-            if auto {
-                let armed = cpArmForCommand(CpSessionStore.loadRun(), .join, autoRun: true,
-                                            now: Int64(Date().timeIntervalSince1970 * 1000))
-                CpSessionStore.saveRun(armed)
-                CpNotify.requestPermission()
-            }
-            WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.chargepoint")
-            RefreshSignal.shared.bump()
-        } catch {
-            print("Hearth: join failed — \(friendlyError(error))")
-        }
+        if auto { await CpWidgetOperation.enableAuto() }
+        else { await CpWidgetOperation.perform("join") }
+        if auto && CpSessionStore.loadRun().armed { CpNotify.requestPermission() }
     }
 }

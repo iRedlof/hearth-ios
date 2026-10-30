@@ -12,13 +12,7 @@ struct CpSnoozeIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        let session = CpSessionStore.load()
-        guard session.isSignedIn else { return .result() }
-        let client = CpClient(token: session.token, userId: session.userId,
-                              onToken: { CpSessionStore.saveToken($0) })
-        try await client.snooze(seconds: CP_AUTO_SNOOZE_SECONDS)
-        WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.chargepoint")
-        RefreshSignal.shared.bump()
+        await CpWidgetOperation.perform("snooze")
         return .result()
     }
 }

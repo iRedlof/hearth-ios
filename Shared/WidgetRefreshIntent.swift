@@ -1,5 +1,6 @@
 import AppIntents
 import WidgetKit
+import HearthKit
 
 /// The header "Check again" button — re-reads the widget from Home Assistant now, like Android's
 /// refresh glyph. Reloading the timeline re-runs the provider's live fetch; the "Checked <time>"
@@ -15,6 +16,10 @@ struct WidgetRefreshIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
+        if kind == "com.rohit.hearth.chargepoint", let operation = CpSessionStore.loadOperation(),
+           operation.error != nil || Date().timeIntervalSince(operation.startedAt) >= 120 {
+            CpSessionStore.saveOperation(nil)
+        }
         if kind.isEmpty {
             WidgetCenter.shared.reloadAllTimelines()
         } else {

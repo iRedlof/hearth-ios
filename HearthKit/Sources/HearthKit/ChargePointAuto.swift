@@ -98,8 +98,8 @@ public func cpArmForCommand(_ run: CpRun, _ command: CpCommand, autoRun: Bool, n
     return CpRun()
 }
 
-/// Only leaving the waitlist ends the run.
-public func cpManualEndsRun(_ command: CpCommand) -> Bool { command == .leave }
+/// Manual waitlist commands preserve Auto. Pause and completed charging end unattended work.
+public func cpManualEndsRun(_ command: CpCommand) -> Bool { false }
 
 /// Pause keeps the run's history (so it can resume), just disarms it.
 public func cpPauseRun(_ run: CpRun) -> CpRun { var r = run; r.armed = false; return r }
@@ -113,12 +113,11 @@ public func cpResumeRun(_ run: CpRun, _ snoozesLeft: Int?, _ now: Int64) -> CpRu
     return r
 }
 
-/// Fold a manual command into the run: Leave resets, Snooze spends the snooze, others clear failure.
+/// Fold a manual command into the run: Snooze spends the snooze; manual commands preserve mode/history.
 /// A failed command (success == false) changes nothing.
 public func cpAfterManual(_ run: CpRun, _ command: CpCommand, _ success: Bool) -> CpRun {
     guard success else { return run }
     switch command {
-    case .leave: return CpRun()
     case .snooze: var r = clearedFailure(run); r.snoozeUsed = true; return r
     default: return clearedFailure(run)
     }
@@ -133,9 +132,23 @@ public func cpRecordAutoFailure(_ run: CpRun, _ state: String, _ until: Int64?, 
 /// a different identity or already reset; otherwise apply the step's result but keep the current
 /// armed state (so a pause that happened meanwhile sticks).
 public func cpMergeAutoResult(_ before: CpRun, _ current: CpRun, _ step: CpAutoStep, _ success: Bool) -> CpRun {
+    cpMergeRunUpdate(before, current, cpAfterAct(before, step, success))
+}
+
+/// Merge an asynchronous refresh result without replacing newer user mode/history.
+public func cpMergeRunUpdate(_ before: CpRun, _ current: CpRun, _ result: CpRun) -> CpRun {
     guard current.startedAt == before.startedAt, current != CpRun() else { return current }
-    var merged = cpAfterAct(before, step, success)
-    merged.armed = current.armed
+    var merged = result
+    merged.armed = current.armed && result.armed
+    merged.snoozeUsed = merged.snoozeUsed || current.snoozeUsed
+    merged.drivePushed = merged.drivePushed || current.drivePushed
+    // Unlike snooze history, this flag resets between offer episodes.
+    if current.offerPushed != before.offerPushed { merged.offerPushed = current.offerPushed }
+    if current.failedState != before.failedState || current.failedUntil != before.failedUntil {
+        merged.failedState = current.failedState
+        merged.failedUntil = current.failedUntil
+        merged.failedReason = current.failedReason
+    }
     return merged
 }
 

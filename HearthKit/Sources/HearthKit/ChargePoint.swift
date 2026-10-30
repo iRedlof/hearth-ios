@@ -199,7 +199,7 @@ public func cpLocationNow(_ loc: CpLocation, _ stations: [CpStation]) -> CpNow {
 
 /// One parking level's availability (free of total plugs), for the floor-stats panel. Ported from
 /// Android's `CpRight.Floors`.
-public struct CpFloor: Sendable, Equatable {
+public struct CpFloor: Sendable, Equatable, Codable {
     public let level: String
     public let free: Int
     public let total: Int

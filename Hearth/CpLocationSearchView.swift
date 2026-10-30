@@ -69,9 +69,13 @@ struct CpLocationSearchView: View {
                 return
             }
             let session = CpSessionStore.load()
+            let scope = CpSessionStore.requestScope()
             let client = CpClient(token: session.token, userId: session.userId,
-                                  onToken: { CpSessionStore.saveToken($0) })
+                                  onToken: { CpSessionStore.saveToken($0, scope: scope) })
             let stationsJson = try await client.stations(cpBounds(lat: coord.latitude, lon: coord.longitude))
+            guard CpSessionStore.isCurrent(scope) else {
+                phase = .failed("Account changed · Search again"); return
+            }
             let found = cpLocations(cpStationsFrom(stationsJson))
             results = found
             phase = found.isEmpty ? .failed("No ChargePoint stations near there") : .idle

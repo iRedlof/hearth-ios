@@ -1,6 +1,22 @@
 import SwiftUI
 import AppIntents
 
+/// The card remains compact while its host's middle region expands between header and footer.
+struct BeaconMiddle<Content: View>: View {
+    var maximumHeight: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        GeometryReader { geometry in
+            content()
+                .frame(maxWidth: .infinity)
+                .frame(height: min(maximumHeight, geometry.size.height))
+                .position(x: geometry.size.width / 2, y: geometry.size.height / 2)
+        }
+        .padding(.vertical, 8)
+    }
+}
+
 /// The shared freshness cluster for every widget header: the "Checked <time>" stamp with a **circular
 /// reload button to its RIGHT** (ported from Android's raised circular refresh). Used everywhere so the
 /// wording ("Checked") and the reload button are identical across all widgets, iOS and — once ported —

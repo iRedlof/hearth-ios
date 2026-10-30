@@ -4,6 +4,11 @@ import HearthKit
 
 @main
 struct HearthApp: App {
+    init() {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-parityLive") { ParityCatalog.deactivateWidget() }
+        #endif
+    }
     var body: some Scene {
         WindowGroup {
             if let id = Self.parityState() { ParityStateScreen(id: id) }
@@ -31,6 +36,7 @@ struct ContentView: View {
     @ObservedObject private var garageGate = GarageGate.shared
     @ObservedObject private var joinGate = CpJoinGate.shared
     @ObservedObject private var snoozeGate = CpSnoozeGate.shared
+    @ObservedObject private var cpSetup = CpSetupGate.shared
 
     var body: some View {
         TabView(selection: $selection) {
@@ -83,6 +89,15 @@ struct ContentView: View {
             Button("30 minutes") { snoozeGate.snooze(minutes: 30) }
             Button("60 minutes") { snoozeGate.snooze(minutes: 60) }
             Button("Cancel", role: .cancel) { snoozeGate.cancel() }
+        }
+        .sheet(item: $cpSetup.route) { route in
+            NavigationStack {
+                if route == .signin {
+                    CpSignInView(onSignedIn: { cpSetup.route = nil })
+                } else {
+                    CpLocationSearchView(onPicked: { cpSetup.route = nil })
+                }
+            }
         }
     }
 

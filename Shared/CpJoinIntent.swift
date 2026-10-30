@@ -13,13 +13,7 @@ struct CpJoinIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        let session = CpSessionStore.load()
-        guard session.isSignedIn, let location = CpSessionStore.loadLocation() else { return .result() }
-        let client = CpClient(token: session.token, userId: session.userId,
-                              onToken: { CpSessionStore.saveToken($0) })
-        try await client.join(cpJoinBody(location))
-        WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.chargepoint")
-        RefreshSignal.shared.bump()
+        await CpWidgetOperation.perform("join")
         return .result()
     }
 }

@@ -19,16 +19,6 @@ import HearthKit
     }
 
     private func perform(_ minutes: Int) async {
-        let session = CpSessionStore.load()
-        guard session.isSignedIn else { return }
-        let client = CpClient(token: session.token, userId: session.userId,
-                              onToken: { CpSessionStore.saveToken($0) })
-        do {
-            try await client.snooze(seconds: minutes * 60)
-            WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.chargepoint")
-            RefreshSignal.shared.bump()
-        } catch {
-            print("Hearth: snooze failed — \(friendlyError(error))")
-        }
+        await CpWidgetOperation.perform("snooze", snoozeSeconds: minutes * 60)
     }
 }

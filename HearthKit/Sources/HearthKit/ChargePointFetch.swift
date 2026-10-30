@@ -6,48 +6,65 @@ import Foundation
 /// docs/CHARGEPOINT-IOS.md); until one is set, an idle signed-in user shows "Set up".
 public func fetchCpSnapshot(_ session: CpSession, location: CpLocation? = nil,
                             onToken: @escaping @Sendable (String) -> Void = { _ in },
-                            autoOn: Bool = false, now: Date = Date()) async -> CpSnapshot {
+                            autoOn: Bool = false, now: Date = Date(),
+                            client suppliedClient: CpClient? = nil, previous: CpSnapshot? = nil,
+                            onExpired: @escaping @Sendable () -> Void = {}) async -> CpSnapshot {
     let checked = cpClockString(now)
     guard session.isSignedIn else {
-        return cpSnapshot(cpSignedOutState(session, autoOn: autoOn), email: session.email, checkedAt: checked)
+        return cpSnapshot(cpSignedOutState(session, location: location, autoOn: autoOn), email: session.email,
+                          checkedAt: previous?.checkedAt ?? "—", now: now)
     }
-    let client = CpClient(token: session.token, userId: session.userId, onToken: onToken)
+    let client = suppliedClient ?? CpClient(token: session.token, userId: session.userId, onToken: onToken)
     do {
         let statusJson = try await client.userStatus()
         var waitlist = cpWaitlistFrom(statusJson, nil)
         if case .inLine = waitlist {
             waitlist = cpWaitlistFrom(statusJson, try? await client.inlineStatus())
         }
+        var snoozesLeft: Int?
+        if case let .inLine(_, state, _, _, _) = waitlist,
+           ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN"].contains(state),
+           let token = cpOfferToken(statusJson) {
+            snoozesLeft = cpSnoozesFrom(try? await client.snoozeDetail(offerToken: token))
+        }
         var charging: CpCharging?
         if let sessionId = cpSessionId(statusJson) {
             charging = cpChargingFrom(try? await client.chargingDetail(sessionId: sessionId))
+                ?? CpCharging(sessionId: sessionId, powerKw: nil, energyKwh: nil, minutes: nil, canStop: false)
         }
         var cpNow: CpNow?
         var floors: [CpFloor] = []
         if let location, let stationsJson = try? await client.stations(location.bounds) {
             let stations = cpStationsFrom(stationsJson)
-            cpNow = cpLocationNow(location, stations)
+            if stations.contains(where: { location.deviceIds.contains($0.deviceId) }) {
+                cpNow = cpLocationNow(location, stations)
+            }
             floors = cpFloorsFrom(location, stations)
         }
         let state = CpState(signedOut: false,
                             account: cpAccount(hasSession: true, expired: false, joinExpired: session.joinExpired),
                             location: location, now: cpNow, waitlist: waitlist, charging: charging,
-                            autoOn: autoOn, floors: floors)
-        return cpSnapshot(state, email: session.email, checkedAt: checked)
+                            autoOn: autoOn, floors: floors, snoozesLeft: snoozesLeft)
+        return cpSnapshot(state, email: session.email, checkedAt: checked, now: now)
     } catch let e as HaError where e.code == 401 {
         var expired = session; expired.expired = true
-        return cpSnapshot(cpSignedOutState(expired, autoOn: autoOn), email: session.email, checkedAt: checked)
+        onExpired()
+        return cpSnapshot(cpSignedOutState(expired, location: location, autoOn: autoOn), email: session.email,
+                          checkedAt: previous?.checkedAt ?? "—", now: now)
     } catch {
-        // Keep showing signed-in (transient error); next refresh retries.
+        // A failed check retains the selected building and the last successful reading.
         let state = CpState(signedOut: false, account: cpAccount(hasSession: true, expired: false),
-                            location: nil, now: nil, waitlist: .notQueued, charging: nil, autoOn: autoOn)
-        return cpSnapshot(state, email: session.email, checkedAt: checked)
+                            location: location, now: nil, waitlist: .notQueued, charging: nil, autoOn: autoOn)
+        var snapshot = previous ?? cpSnapshot(state, email: session.email, checkedAt: "—", now: now)
+        snapshot.sub = "Couldn't check · Refresh to retry"
+        snapshot.stale = true
+        return snapshot
     }
 }
 
-private func cpSignedOutState(_ session: CpSession, autoOn: Bool) -> CpState {
+private func cpSignedOutState(_ session: CpSession, location: CpLocation?, autoOn: Bool) -> CpState {
     CpState(signedOut: true, account: cpAccount(hasSession: false, expired: session.expired),
-            location: nil, now: nil, waitlist: .notQueued, charging: nil, autoOn: autoOn)
+            location: location, now: nil, waitlist: .notQueued, charging: nil, autoOn: autoOn)
 }
 
 func cpClockString(_ date: Date) -> String {
@@ -71,22 +88,29 @@ public func cpSnoozesFrom(_ json: String?) -> Int? {
 /// pre-deadline wake, so unattended accept/snooze is best-effort (see docs/CHARGEPOINT-IOS.md). The
 /// decision itself is exact; only *when iOS lets it run* differs from Android.
 public func cpAdvanceAuto(_ run: CpRun, client: CpClient, statusJson: String,
-                          now: Int64) async -> (run: CpRun, alert: CpAlert?) {
-    guard run.armed else { return (run, nil) }
+                          now: Int64,
+                          canAct: @escaping @Sendable () async -> Bool = { true },
+                          decisionNow: @Sendable () -> Int64? = { nil }) async -> (run: CpRun, alert: CpAlert?) {
+    guard run.armed, await canAct() else { return (run, nil) }
     var run = run
     let waitlist = cpWaitlistFrom(statusJson, nil)
     let charging = cpSessionId(statusJson) != nil
     var state = ""
     var untilMs: Int64?
-    if case let .inLine(_, s, _, offer, _) = waitlist { state = s; untilMs = offer?.untilMs }
+    if case let .inLine(_, s, _, offer, _) = waitlist {
+        state = s
+        untilMs = offer.flatMap { $0.untilMs > 0 ? $0.untilMs : nil }
+    }
     // A fresh offer episode re-arms the one-shot "your turn" notification (Android resets per offer).
     if state != "ACCEPT_PENDING" { run.offerPushed = false }
     var snoozesLeft: Int?
     if CP_HELD.contains(state), let token = cpOfferToken(statusJson) {
         snoozesLeft = cpSnoozesFrom(try? await client.snoozeDetail(offerToken: token))
     }
+    // Status/detail reads suspend. Recheck the user's current mode before any cloud command.
+    guard await canAct() else { return (run, nil) }
     let step = cpAutoDecide(run, state: state, untilMs: untilMs, snoozesLeft: snoozesLeft,
-                            charging: charging, now: now)
+                            charging: charging, now: decisionNow() ?? now)
     switch step {
     case .accept:
         do { try await client.accept(); return (cpAfterAct(run, step, true), .accepted) }

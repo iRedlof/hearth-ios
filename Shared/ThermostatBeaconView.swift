@@ -13,6 +13,9 @@ public struct ThermostatBeaconView: View {
     private var fill: Color { Color(argb: snap.tone.fillARGB) }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
+    private var isSetup: Bool { snap.mode.isEmpty }                                       // no mode reported yet → setup
+    private var isOff: Bool { snap.mode.caseInsensitiveCompare("Off") == .orderedSame }
+    private var stale: Bool { snap.tone == .offline && !isSetup }                         // offline: dim the controls
 
     public var body: some View {
         GeometryReader { geo in
@@ -59,25 +62,77 @@ public struct ThermostatBeaconView: View {
                 // same as Alarm/Car/ChargePoint and Android — was a bespoke header (bare icon on the left).
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.thermostat", ink: surfaceInk)
             }
-            Spacer(minLength: 5)
-            if let heat = snap.heatSetpoint { setpointRow("Heat to", heat, 0xFFF6D58A, side: .heat) }
-            if let cool = snap.coolSetpoint {
-                setpointRow("Cool to", cool, 0xFFA6D5FF, side: .cool).padding(.top, snap.heatSetpoint == nil ? 0 : 5)
-            }
-            Spacer(minLength: 6)
-            HStack(spacing: 6) {
-                Button(intent: ClimatePickerIntent("mode")) { chip("Mode", snap.mode) }.buttonStyle(.plain)
-                if let fan = snap.fan {
-                    Button(intent: ClimatePickerIntent("fan")) { chip("Fan", fan) }.buttonStyle(.plain)
-                }
-                if snap.canResume {
-                    Button(intent: ClimateSetpointIntent("resume")) { chip(nil, "Resume") }.buttonStyle(.plain)
-                }
+            BeaconMiddle(maximumHeight: 92) { middleContent }
+            if isSetup {
+                connectButton
+            } else {
+                controlRow.opacity(stale ? 0.45 : 1).disabled(stale)
             }
         }
-        .padding(.horizontal, 13).padding(.vertical, 11)
+        .padding(.horizontal, 13).padding(.top, 11).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
+    }
+
+    @ViewBuilder private var middleContent: some View {
+        if isSetup {
+            setupCta
+        } else if isOff {
+            offCard
+        } else if snap.heatSetpoint == nil && snap.coolSetpoint == nil {
+            VStack(spacing: 3) {
+                Text(stale ? "Unavailable" : snap.mode).font(.system(size: 14, weight: .semibold))
+                if !stale {
+                    Text("No temperature target").font(.system(size: 12))
+                        .foregroundStyle(surfaceInk.opacity(0.7)).multilineTextAlignment(.center)
+                }
+            }
+            .foregroundStyle(surfaceInk).frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else {
+            VStack(alignment: .leading, spacing: 5) {
+                if let heat = snap.heatSetpoint { setpointRow("Heat to", heat, 0xFFF6D58A, side: .heat) }
+                if let cool = snap.coolSetpoint { setpointRow("Cool to", cool, 0xFFA6D5FF, side: .cool) }
+            }.opacity(stale ? 0.45 : 1).disabled(stale)
+        }
+    }
+
+    /// The Mode / Fan / Resume chip row (shared by the normal and off layouts).
+    private var controlRow: some View {
+        HStack(spacing: 6) {
+            Button(intent: ClimatePickerIntent("mode")) { chip("Mode", snap.mode) }.buttonStyle(.plain)
+            if let fan = snap.fan {
+                Button(intent: ClimatePickerIntent("fan")) { chip("Fan", fan) }.buttonStyle(.plain)
+            }
+            if snap.canResume {
+                Button(intent: ClimateSetpointIntent("resume")) { chip(nil, "Resume") }.buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// Setup middle CTA — a large recessed "Set up thermostat" button filling the mid-region (Android parity).
+    private var setupCta: some View {
+        Text("Set up thermostat").font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 13))
+    }
+
+    /// Setup bottom action — a full-width "Connect" in place of the Mode/Fan/Resume row.
+    private var connectButton: some View {
+        Text("Connect").font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk)
+            .frame(maxWidth: .infinity).frame(height: 34)
+            .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+    }
+
+    /// Off middle message — a recessed card "Off / Choose a mode to turn on" (Android parity).
+    private var offCard: some View {
+        VStack(spacing: 3) {
+            Text("Off").font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk)
+            Text("Choose a mode to turn on").font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.7))
+                .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.8)
+        }
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))
     }
 
     private func setpointRow(_ label: String, _ value: String, _ valueColor: UInt32, side: ClimateSide) -> some View {

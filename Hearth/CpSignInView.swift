@@ -28,16 +28,21 @@ struct CpSignInView: View {
         guard !working else { return }
         working = true
         defer { working = false }
+        let signInScope = CpSessionStore.requestScope()
         do {
             let json = try await CpClient(token: token, userId: 0).profile()
             guard let who = cpProfileFrom(json) else { return }   // still redirecting → wait for the next cookie
+            guard CpSessionStore.isCurrent(signInScope) else { return }
             phase = "Signing in…"
             // Save first (with the captured cookie), then renew to mint the 6-month cookie; the
             // client's onToken persists the rolled value in place.
             CpSessionStore.save(CpSession(token: token, userId: who.userId, email: who.email,
                                           renewedAt: Int64(Date().timeIntervalSince1970 * 1000)))
-            let renewer = CpClient(token: token, userId: who.userId, onToken: { CpSessionStore.saveToken($0) })
+            let scope = CpSessionStore.requestScope()
+            let renewer = CpClient(token: token, userId: who.userId,
+                                  onToken: { CpSessionStore.saveToken($0, scope: scope) })
             try? await renewer.renewSession()
+            guard CpSessionStore.isCurrent(scope) else { return }
             WidgetCenter.shared.reloadAllTimelines()
             onSignedIn()
         } catch {

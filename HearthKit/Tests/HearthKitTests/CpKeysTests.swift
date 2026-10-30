@@ -11,10 +11,10 @@ final class CpKeysTests: XCTestCase {
         func keys(_ s: String, _ auto: Bool = false) -> [String] {
             cpManualKeys(state(.inLine(place: nil, state: s, stations: 0, offer: nil, auto: auto))).map(\.command)
         }
-        XCTAssertEqual(keys("ACCEPT_PENDING"), ["accept", "snooze"])
-        XCTAssertEqual(keys("PENDING_PLUG_IN"), ["start", "snooze"])
-        XCTAssertEqual(keys("DIB_PENDING_PLUG_IN"), ["start", "snooze"])
-        XCTAssertEqual(keys("PASS", true), ["unsnooze"])
+        XCTAssertEqual(keys("ACCEPT_PENDING"), ["accept", "leave"])
+        XCTAssertEqual(keys("PENDING_PLUG_IN"), ["open", "leave"])
+        XCTAssertEqual(keys("DIB_PENDING_PLUG_IN"), ["open", "leave"])
+        XCTAssertEqual(keys("PASS", true), ["unsnooze", "leave"])
         XCTAssertEqual(keys("WAITING"), ["leave"])
         XCTAssertEqual(keys("CHARGING_FAULT"), ["still", "done"])
         XCTAssertEqual(keys("DIB_PLUG_OUT"), ["still", "done"])
@@ -23,6 +23,11 @@ final class CpKeysTests: XCTestCase {
         let charging = CpCharging(sessionId: 1, powerKw: nil, energyKwh: nil, minutes: nil, canStop: true,
                                   miles: nil, seconds: nil, vehicle: nil, charger: nil)
         XCTAssertEqual(cpManualKeys(state(.notQueued, charging: charging)).map(\.command), ["stop"])
+        let unsupported = CpCharging(sessionId: 1, powerKw: nil, energyKwh: nil, minutes: nil, canStop: false)
+        XCTAssertEqual(cpManualKeys(state(.notQueued, charging: unsupported)).map(\.command), ["open"])
+        XCTAssertEqual(keys("CHARGING"), ["open"])
+        XCTAssertEqual(keys("PENDING_PLUG_OUT"), ["open"])
+        XCTAssertEqual(keys("OVER_STAYED"), ["open"])
     }
 
     func testDeadlineFromOffer() {

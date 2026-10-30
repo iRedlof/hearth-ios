@@ -94,4 +94,17 @@ final class ThermostatTests: XCTestCase {
         XCTAssertEqual(beaconClimatePair("auto", stale: false), beaconClimatePair("heat_cool", stale: false))
         XCTAssertEqual(beaconClimatePair("heat", stale: true).fillARGB, 0xFFBCC2B9)
     }
+
+    func testSnapshotDistinguishesMissingAndStaleRoomReadings() {
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        let missing = thermostatSnapshot(nil, name: "Thermostat", now: now, stale: true, checkedAt: nil)
+        XCTAssertEqual(missing.roomSub, "No reading")
+        var value = ClimateState.fromJson(thermo)!
+        let saved = thermostatSnapshot(value, name: "Thermostat", now: now, stale: true, checkedAt: now, canResume: true)
+        XCTAssertEqual(saved.roomSub, "Last known")
+        XCTAssertFalse(saved.canResume)
+        value.current = nil
+        let noRoom = thermostatSnapshot(value, name: "Thermostat", now: now, stale: false, checkedAt: now)
+        XCTAssertEqual(noRoom.roomSub, "No reading")
+    }
 }

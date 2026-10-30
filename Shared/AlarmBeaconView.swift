@@ -54,21 +54,23 @@ public struct AlarmBeaconView: View {
                 Spacer(minLength: 2)
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk)
             }
-            if snap.stateWord == "Set up" {   // match Android's setup card: a message + a Connect button
-                Spacer(minLength: 6)
-                Text("Connect your alarm").font(.system(size: 13)).foregroundStyle(surfaceInk.opacity(0.85))
-                Spacer(minLength: 8)
+            BeaconMiddle(maximumHeight: 72) {
+                if snap.stateWord == "Set up" {
+                    Text("Connect your alarm").font(.system(size: 13)).foregroundStyle(surfaceInk.opacity(0.85))
+                        .frame(maxHeight: .infinity)
+                } else {
+                    doorRow
+                }
+            }
+            if snap.stateWord == "Set up" {
                 Text("Connect").font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(white: 0.12))
                     .frame(maxWidth: .infinity).frame(height: 34)
                     .background(Color(white: 0.94), in: RoundedRectangle(cornerRadius: 10))
             } else {
-                Spacer(minLength: 6)
-                doorRow
-                Spacer(minLength: 6)
                 actionsRow
             }
         }
-        .padding(.horizontal, 13).padding(.vertical, 12)
+        .padding(.horizontal, 13).padding(.top, 11).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }
@@ -139,7 +141,7 @@ public struct AlarmBeaconView: View {
     private func armIcon(_ action: AlarmAction) -> String {
         switch action {
         case .armHome: "house.fill"
-        case .armAway: "shield.fill"
+        case .armAway: "car.fill"
         case .disarm:  "shield.slash.fill"
         }
     }

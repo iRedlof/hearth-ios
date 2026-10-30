@@ -10,7 +10,7 @@ public func thermostatSnapshot(_ s: ClimateState?, name: String, now: Date, stal
         name: name,
         checkedAt: checkedAt.map { climateClock($0, zone, locale) } ?? "—",
         roomTemp: degrees(s?.current),
-        roomSub: "In the room",
+        roomSub: s?.current == nil ? "No reading" : stale ? "Last known" : "In the room",
         humidity: s?.humidity.map { "\(Int($0.rounded()))% humidity" },
         status: view.headline,
         tone: beaconClimatePair(s?.mode, stale: stale),
@@ -18,7 +18,7 @@ public func thermostatSnapshot(_ s: ClimateState?, name: String, now: Date, stal
         coolSetpoint: cool,
         mode: s.map { modeDisplay($0.mode) } ?? "—",
         fan: s?.fanMode?.capitalizedFirst,
-        canResume: canResume,
+        canResume: canResume && !stale && s != nil,
         sensors: sensors)
 }
 
