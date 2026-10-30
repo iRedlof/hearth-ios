@@ -103,3 +103,8 @@ public func haSameConnection(_ a: HaConfig?, _ b: HaConfig?) -> Bool {
     let bCredential = b.token.isEmpty ? "oauth:" + b.refreshToken : "token:" + b.token
     return a.baseUrl.trimmedTrailingSlash == b.baseUrl.trimmedTrailingSlash && aCredential == bCredential
 }
+
+/// Readiness for HA entity rows; Settings and ChargePoint remain available independently.
+public func haSettingsReady(_ config: HaConfig?) -> Bool {
+    config?.carReady == true
+}

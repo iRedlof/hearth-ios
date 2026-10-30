@@ -142,14 +142,9 @@ struct ContentView: View {
         }
     }
 
-    @ViewBuilder private var settingsTab: some View {
-        if let c = config, c.hasAuth {
-            SettingsView(config: c, onChange: { config = $0 })
-                .id(HaConfigStore.requestScope())
-        } else {
-            ContentUnavailableView("Sign in first", systemImage: "gearshape",
-                description: Text("Connect to Home Assistant on the Live tab to configure widgets."))
-        }
+    private var settingsTab: some View {
+        SettingsView(config: config, onChange: { config = $0 })
+            .id(HaConfigStore.requestScope())
     }
 
     private func signOut() {
