@@ -13,6 +13,23 @@ public struct AlarmSnapshot: Sendable, Equatable {
     public var doorSince: String?    // "since 7:44 PM"
     public var doorLocked: Bool?     // true locked, false not secure, nil unknown/in-transit
     public var actions: [AlarmAction]
+    public var actionSlots: [AlarmAction]
+    public var entityID = ""
+    public var lockID = ""
+    public var requestScope = ""
+    public var alarmRevision = ""
+    public var setup = false
+    public var error: String?
+    public var stale = false
+    public var doorSelected = true
+    public var doorStale = false
+    public var doorError: String?
+    public var doorAction: LockAction?
+    public var needsSettings = false
+    public var needsSignIn = false
+    public var commandPending = false
+    public var commandFeedback: String?
+    public var commandError: String?
 
     public init(name: String, checkedAt: String, stateWord: String, detail: String, tone: BeaconTone,
                 glyph: AlarmGlyph, doorName: String, doorState: String, doorSince: String?,
@@ -20,6 +37,8 @@ public struct AlarmSnapshot: Sendable, Equatable {
         self.name = name; self.checkedAt = checkedAt; self.stateWord = stateWord; self.detail = detail
         self.tone = tone; self.glyph = glyph; self.doorName = doorName; self.doorState = doorState
         self.doorSince = doorSince; self.doorLocked = doorLocked; self.actions = actions
+        self.actionSlots = actions
+        self.doorAction = doorLocked.map { $0 ? .unlock : .lock }
     }
 
     public static let sample = AlarmSnapshot(

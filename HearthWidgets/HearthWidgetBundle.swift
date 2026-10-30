@@ -291,7 +291,9 @@ struct AlarmEntry: TimelineEntry {
 struct AlarmProvider: TimelineProvider {
     func placeholder(in context: Context) -> AlarmEntry { AlarmEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (AlarmEntry) -> Void) {
-        completion(AlarmEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(AlarmEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(AlarmEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<AlarmEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -302,13 +304,12 @@ struct AlarmProvider: TimelineProvider {
         }
     }
 
-    /// Live alarm + door when configured; `.sample` otherwise (an error also falls back to sample).
+    /// Samples are reserved for previews; live setup and failures preserve actual shared state.
     private static func fetch() async -> AlarmSnapshot {
         #if DEBUG
         if ParityCatalog.activeWidgetID(prefix: "alarm") != nil { return .sample }
         #endif
-        guard let cfg = HaConfigStore.load(), cfg.isComplete else { return .sample }
-        return await fetchAlarmSnapshot(cfg)
+        return await AlarmLiveSnapshot.fetch()
     }
 }
 

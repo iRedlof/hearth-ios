@@ -31,7 +31,6 @@ struct HearthApp: App {
 struct ContentView: View {
     @State private var config: HaConfig? = HaConfigStore.load()
     @State private var selection = ContentView.initialTab()
-    @ObservedObject private var gate = AlarmGate.shared
     @ObservedObject private var climateGate = ClimateGate.shared
     @ObservedObject private var garageGate = GarageGate.shared
     @ObservedObject private var joinGate = CpJoinGate.shared
@@ -56,13 +55,6 @@ struct ContentView: View {
         .alert("Couldn't sign out", isPresented: Binding(
             get: { signOutError != nil }, set: { if !$0 { signOutError = nil } }
         )) { Button("OK", role: .cancel) {} } message: { Text(signOutError ?? "") }
-        .alert("Confirm", isPresented: Binding(
-            get: { gate.confirming != nil },
-            set: { if !$0 { gate.cancel() } }
-        ), presenting: gate.confirming) { action in
-            Button(action.verb, role: .destructive) { gate.confirm(action) }
-            Button("Cancel", role: .cancel) { gate.cancel() }
-        } message: { action in Text(action.title) }
         .confirmationDialog(climateGate.pick?.title ?? "", isPresented: Binding(
             get: { climateGate.pick != nil },
             set: { if !$0 { climateGate.dismiss() } }

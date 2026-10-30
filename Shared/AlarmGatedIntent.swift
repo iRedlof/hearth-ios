@@ -1,5 +1,4 @@
 import AppIntents
-import WidgetKit
 import HearthKit
 
 /// Disarm / Unlock from a widget button — performed **in place**, no app launch. The home-screen
@@ -10,14 +9,19 @@ struct AlarmGatedIntent: AppIntent {
     static var isDiscoverable: Bool { false }
 
     @Parameter(title: "Action") var action: String
+    @Parameter(title: "Account scope") var scope: String
+    @Parameter(title: "Alarm revision") var revision: String
+    @Parameter(title: "Entity") var entityID: String
 
     init() {}
-    init(_ action: GatedAlarmAction) { self.action = action.rawValue }
+    init(_ action: String, snapshot: AlarmSnapshot, entityID: String) {
+        self.action = action; self.scope = snapshot.requestScope
+        self.revision = snapshot.alarmRevision; self.entityID = entityID
+    }
 
     func perform() async throws -> some IntentResult {
-        guard let config = HaConfigStore.load(), let a = GatedAlarmAction(rawValue: action) else { return .result() }
-        try await HaClient(config).callService(domain: a.domain, service: a.service, entityId: a.entityId(config))
-        WidgetCenter.shared.reloadAllTimelines()
+        guard ["disarm", "unlock"].contains(action) else { return .result() }
+        try await AlarmActionRuntime.perform(scope: scope, revision: revision, entityID: entityID, action: action)
         return .result()
     }
 }

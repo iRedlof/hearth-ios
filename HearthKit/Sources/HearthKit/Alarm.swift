@@ -1,10 +1,20 @@
 import Foundation
+import CoreFoundation
 
 /// The alarm as Home Assistant reports it (`alarm_control_panel.*`). Ported from Android `AlarmState.kt`.
 public struct AlarmState: Sendable, Equatable {
     public let state: String
     public let lastChanged: Date?
-    public init(state: String, lastChanged: Date?) { self.state = state; self.lastChanged = lastChanged }
+    public let entityID: String?
+    public let supportedFeatures: Int?
+    public let codeFormat: String?
+    public let codeArmRequired: Bool?
+    public init(state: String, lastChanged: Date?, entityID: String? = nil,
+                supportedFeatures: Int? = nil, codeFormat: String? = nil, codeArmRequired: Bool? = nil) {
+        self.state = state; self.lastChanged = lastChanged; self.entityID = entityID
+        self.supportedFeatures = supportedFeatures; self.codeFormat = codeFormat
+        self.codeArmRequired = codeArmRequired
+    }
 
     /// From `GET /api/states/<entity>`; nil if the reply isn't an entity state.
     public static func fromJson(_ body: String) -> AlarmState? {
@@ -12,7 +22,30 @@ public struct AlarmState: Sendable, Equatable {
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let state = (obj["state"] as? String), !state.isEmpty else { return nil }
         let changed = (obj["last_changed"] as? String).flatMap(parseOffsetDateTime)
-        return AlarmState(state: state, lastChanged: changed)
+        let attributes = obj["attributes"] as? [String: Any] ?? [:]
+        let number = attributes["supported_features"] as? NSNumber
+        let features = number.flatMap { value -> Int? in
+            let d = value.doubleValue
+            guard CFGetTypeID(value) != CFBooleanGetTypeID(), d.isFinite, d >= 0,
+                  d < Double(Int.max), d.rounded(.towardZero) == d else { return nil }
+            return Int(d)
+        }
+        return AlarmState(state: state, lastChanged: changed, entityID: obj["entity_id"] as? String,
+            supportedFeatures: features, codeFormat: attributes["code_format"] as? String,
+            codeArmRequired: attributes["code_arm_required"] as? Bool)
+    }
+}
+
+/// Home/Away have feature bits; Disarm has none. A code format is not a capability flag:
+/// Home Assistant may supply a configured default code that is absent from the state reply.
+public func alarmAvailableActions(_ state: AlarmState?) -> [AlarmAction] {
+    guard let state else { return [] }
+    return actionsFor(state.state).filter { action in
+        switch action {
+        case .armHome: return state.supportedFeatures.map { $0 & 1 != 0 } ?? false
+        case .armAway: return state.supportedFeatures.map { $0 & 2 != 0 } ?? false
+        case .disarm: return true
+        }
     }
 }
 

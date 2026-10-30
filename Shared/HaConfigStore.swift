@@ -19,6 +19,10 @@ public enum HaConfigStore {
         guard let store else { throw HaError("Shared storage is unavailable") }
         return try store.expireClimateOperation(now: now)
     }
+    static func alarmContext(now: Date = .now) throws -> HaStoreSnapshot {
+        guard let store else { throw HaError("Shared storage is unavailable") }
+        return try store.expireAlarmOperation(now: now)
+    }
 
     public static func load() -> HaConfig? {
         context()?.config

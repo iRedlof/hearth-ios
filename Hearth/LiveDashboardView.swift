@@ -105,14 +105,14 @@ struct LiveDashboardView: View {
         let now = Date(), selected = config
         await withTaskGroup(of: CardResult.self) { group in
             group.addTask { .car(await CarLiveSnapshot.fetch(now: now)) }
-            group.addTask { .alarm(selected.isComplete ? await fetchAlarmSnapshot(selected, now: now) : nil) }
+            group.addTask { .alarm(selected.isComplete ? await AlarmLiveSnapshot.fetch(now: now) : nil) }
             group.addTask { .thermostat(selected.hasClimate ? await ThermostatLiveSnapshot.fetch(now: now) : nil) }
             group.addTask { .chargePoint(await CpLiveSnapshot.fetch(now: now)) }
             for await result in group {
                 guard !Task.isCancelled, loadID == requestID else { group.cancelAll(); return }
                 switch result {
                 case .car(let snapshot): car = snapshot
-                case .alarm(let snapshot): alarm = snapshot
+                case .alarm(let snapshot): alarm = snapshot.map { AlarmLiveSnapshot.currentFeedback($0) }
                 case .thermostat(let snapshot): thermostat = snapshot.map { ThermostatLiveSnapshot.currentFeedback($0) }
                 case .chargePoint(let snapshot): cp = snapshot
                 }

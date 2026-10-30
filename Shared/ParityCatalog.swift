@@ -46,27 +46,8 @@ import HearthKit
     }
 
     // MARK: Alarm
-    private static func alarmCard(_ word: String, _ detail: String, _ tone: BeaconTone, _ glyph: AlarmGlyph,
-                                  _ actions: [AlarmAction], doorState: String = "Locked",
-                                  doorSince: String? = "since 8:36 AM", doorLocked: Bool? = true,
-                                  doorName: String = "Front Door") -> AnyView {
-        AnyView(AlarmBeaconView(AlarmSnapshot(name: "Home", checkedAt: "9:41 AM", stateWord: word, detail: detail,
-            tone: tone, glyph: glyph, doorName: doorName, doorState: doorState, doorSince: doorSince,
-            doorLocked: doorLocked, actions: actions)))
-    }
     private static func alarm() -> [(String, AnyView)] {
-        [("alarm-disarmed", alarmCard("Disarmed", "Disarmed at 9:42 AM", .blue, .off, [.armHome, .armAway])),
-         ("alarm-armed_home", alarmCard("Armed home", "Armed at 7:00 AM", .red, .home, [.disarm])),
-         ("alarm-armed_away", alarmCard("Armed away", "Armed at 8:15 AM", .red, .lock, [.disarm])),
-         ("alarm-armed_night", alarmCard("Armed night", "Armed at 9:42 AM", .red, .home, [.disarm])),
-         ("alarm-armed_vacation", alarmCard("Armed vacation", "Armed at 9:42 AM", .red, .lock, [.disarm])),
-         ("alarm-armed_custom_bypass", alarmCard("Armed (bypass)", "Armed at 9:42 AM", .red, .home, [.disarm])),
-         ("alarm-arming", alarmCard("Arming…", "Exit delay", .red, .lock, [.disarm])),
-         ("alarm-triggered", alarmCard("Alarm triggered", "Triggered at 9:40 AM", .triggered, .alert, [.disarm])),
-         ("alarm-offline", alarmCard("Armed home", "Can't reach Home Assistant", .offline, .home, [.disarm],
-            doorSince: "Last known", doorLocked: nil)),
-         ("alarm-setup", alarmCard("Set up", "Set up the alarm in Settings", .offline, .alert, [],
-            doorState: "", doorSince: nil, doorLocked: nil, doorName: ""))]
+        AlarmParityInputs.states.map { ("alarm-" + $0, AnyView(AlarmBeaconView(AlarmParityInputs.snapshot($0)))) }
     }
 
     // MARK: Thermostat

@@ -50,7 +50,11 @@ enum ClimateActionRuntime {
                     var data = command.temperatures.mapValues { $0 as Any }
                     if let key = command.optionKey, let value = command.option { data[key] = value }
                     try await client.callService(domain: command.domain, service: command.service,
-                        entityId: command.entityID, data: data)
+                        entityId: command.entityID, data: data,
+                        isAuthorized: {
+                            current(scope: scope, entityID: entityID, operationID: operation.id,
+                                resumeID: boundResume, config: config)
+                        })
                 })
             _ = try store.finishClimateOperation(expectedScope: scope, operationID: operation.id, error: nil)
             await notify()

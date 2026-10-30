@@ -90,8 +90,8 @@ final class AlarmActionsTests: XCTestCase {
         for s in ["armed_home", "armed_away", "arming", "disarming", "pending", "triggered"] {
             XCTAssertEqual(actionsFor(s), [.disarm], s)
         }
-        XCTAssertEqual(actionsFor(nil), AlarmAction.allCases)
-        XCTAssertEqual(actionsFor("unavailable"), AlarmAction.allCases)
+        XCTAssertTrue(actionsFor(nil).isEmpty)
+        XCTAssertTrue(actionsFor("unavailable").isEmpty)
     }
 
     func testDoorReadsHonestly() {
@@ -108,7 +108,7 @@ final class AlarmActionsTests: XCTestCase {
         XCTAssertEqual(lockActionFor("unlocked"), .lock)
         XCTAssertEqual(lockActionFor("jammed"), .lock)
         XCTAssertNil(lockActionFor("locking"))
-        XCTAssertEqual(lockActionFor("unavailable"), .lock)
+        XCTAssertNil(lockActionFor("unavailable"))
     }
 }
 
@@ -134,7 +134,7 @@ final class BeaconAlarmTests: XCTestCase {
     func testSnapshotMapping() {
         let zone = TimeZone(identifier: "America/Los_Angeles")!, us = Locale(identifier: "en_US")
         let now = iso("2026-10-12T20:00:00Z")
-        let alarm = AlarmState(state: "disarmed", lastChanged: iso("2026-10-12T14:00:00Z"))
+        let alarm = AlarmState(state: "disarmed", lastChanged: iso("2026-10-12T14:00:00Z"), supportedFeatures: 3)
         let snap = alarmSnapshot(alarm: alarm, lockState: "locked", lockChanged: iso("2026-10-12T02:44:00Z"),
                                  name: "Home", error: nil, checkedAt: now, now: now, zone: zone, locale: us)
         XCTAssertEqual(snap.stateWord, "Disarmed")

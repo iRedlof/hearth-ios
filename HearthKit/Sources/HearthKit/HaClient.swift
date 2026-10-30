@@ -76,7 +76,18 @@ public struct HaTokens: Sendable, Equatable {
 /// Home Assistant REST client. Ported from Android `HaClient.kt`. The car widget uses only `template`.
 public struct HaClient: Sendable {
     public let config: HaConfig
-    public init(_ config: HaConfig) { self.config = config }
+    private let tokenProvider: (@Sendable () async throws -> String)?
+    private let transport: @Sendable (URLRequest) async throws -> (Data, URLResponse)
+    public init(_ config: HaConfig) {
+        self.config = config
+        self.tokenProvider = nil
+        self.transport = { try await URLSession.shared.data(for: $0) }
+    }
+    /// Internal transport seam verifies the actual service dispatch boundary without real accounts.
+    init(_ config: HaConfig, tokenProvider: @escaping @Sendable () async throws -> String,
+         transport: @escaping @Sendable (URLRequest) async throws -> (Data, URLResponse)) {
+        self.config = config; self.tokenProvider = tokenProvider; self.transport = transport
+    }
 
     /// Renders a Home Assistant template (`POST /api/template`); the reply is the raw rendered string.
     public func template(_ template: String) async throws -> String {
@@ -86,11 +97,12 @@ public struct HaClient: Sendable {
 
     /// Call a Home Assistant service: `POST /api/services/{domain}/{service}` with `{entity_id}`.
     /// Every widget action (arm/disarm, lock/unlock, climate set, button.press) goes through here.
-    public func callService(domain: String, service: String, entityId: String, data: [String: Any] = [:]) async throws {
+    public func callService(domain: String, service: String, entityId: String, data: [String: Any] = [:],
+                            isAuthorized: (@Sendable () -> Bool)? = nil) async throws {
         var payload = data
         payload["entity_id"] = entityId
         let body = try JSONSerialization.data(withJSONObject: payload)
-        _ = try await request("POST", "/api/services/\(domain)/\(service)", body)
+        _ = try await request("POST", "/api/services/\(domain)/\(service)", body, isAuthorized: isAuthorized)
     }
 
     public func allStatesJson() async throws -> String { try await request("GET", "/api/states", nil) }
@@ -104,10 +116,12 @@ public struct HaClient: Sendable {
     }
 
     private func bearer() async throws -> String {
-        config.token.isEmpty ? try await HaAuth.shared.accessToken(config) : config.token
+        if let tokenProvider { return try await tokenProvider() }
+        return config.token.isEmpty ? try await HaAuth.shared.accessToken(config) : config.token
     }
 
-    private func request(_ method: String, _ path: String, _ body: Data?) async throws -> String {
+    private func request(_ method: String, _ path: String, _ body: Data?,
+                         isAuthorized: (@Sendable () -> Bool)? = nil) async throws -> String {
         let token = try await bearer()
         guard let url = URL(string: config.baseUrl.trimmedTrailingSlash + path) else { throw HaError("Bad URL") }
         var req = URLRequest(url: url)
@@ -116,7 +130,10 @@ public struct HaClient: Sendable {
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
         if let body { req.httpBody = body }
-        let (data, resp) = try await URLSession.shared.data(for: req)
+        // Bearer renewal can suspend. Revoke old operations at the actual dispatch boundary.
+        try Task.checkCancellation()
+        guard isAuthorized?() != false else { throw HaError("Configuration changed · Refresh to check") }
+        let (data, resp) = try await transport(req)
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if code == 401 {
             await HaAuth.shared.forget()

@@ -17,6 +17,8 @@ public struct HaStoreSnapshot: Sendable {
     public let readings: [String: HaStateReading]
     public let climateRevision: String
     public let climateOperation: ClimateOperation?
+    public let alarmRevision: String
+    public let alarmOperation: AlarmOperation?
     public let failures: [String: HaStateFailure]
 }
 
@@ -33,15 +35,21 @@ public struct HaStateStore: Sendable {
         var readings: [String: HaStateReading]
         var climateRevision: String
         var climateOperation: ClimateOperation?
+        var alarmRevision: String
+        var alarmOperation: AlarmOperation?
         var failures: [String: HaStateFailure]
         init(config: HaConfig?, scope: String, readings: [String: HaStateReading],
              climateRevision: String = UUID().uuidString, climateOperation: ClimateOperation? = nil,
+             alarmRevision: String = UUID().uuidString, alarmOperation: AlarmOperation? = nil,
              failures: [String: HaStateFailure] = [:]) {
             self.config = config; self.scope = scope; self.readings = readings
             self.climateRevision = climateRevision; self.climateOperation = climateOperation
+            self.alarmRevision = alarmRevision; self.alarmOperation = alarmOperation
             self.failures = failures
         }
-        private enum CodingKeys: String, CodingKey { case version, config, scope, readings, climateRevision, climateOperation, failures }
+        private enum CodingKeys: String, CodingKey {
+            case version, config, scope, readings, climateRevision, climateOperation, alarmRevision, alarmOperation, failures
+        }
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
             version = try values.decode(Int.self, forKey: .version)
@@ -50,11 +58,14 @@ public struct HaStateStore: Sendable {
             readings = try values.decode([String: HaStateReading].self, forKey: .readings)
             climateRevision = try values.decodeIfPresent(String.self, forKey: .climateRevision) ?? "legacy"
             climateOperation = try values.decodeIfPresent(ClimateOperation.self, forKey: .climateOperation)
+            alarmRevision = try values.decodeIfPresent(String.self, forKey: .alarmRevision) ?? "legacy"
+            alarmOperation = try values.decodeIfPresent(AlarmOperation.self, forKey: .alarmOperation)
             failures = try values.decodeIfPresent([String: HaStateFailure].self, forKey: .failures) ?? [:]
         }
         var snapshot: HaStoreSnapshot {
             HaStoreSnapshot(config: config, scope: scope, readings: readings,
-                climateRevision: climateRevision, climateOperation: climateOperation, failures: failures)
+                climateRevision: climateRevision, climateOperation: climateOperation,
+                alarmRevision: alarmRevision, alarmOperation: alarmOperation, failures: failures)
         }
     }
 
@@ -81,6 +92,11 @@ public struct HaStateStore: Sendable {
                 stored.climateRevision = UUID().uuidString
                 stored.climateOperation = nil
             }
+            if stored.config?.entityId != config?.entityId || stored.config?.lockId != config?.lockId
+                || config == nil || !haSameConnection(stored.config, config) {
+                stored.alarmRevision = UUID().uuidString
+                stored.alarmOperation = nil
+            }
             stored.config = config
             try write(stored)
             return stored.snapshot
@@ -99,15 +115,20 @@ public struct HaStateStore: Sendable {
 
     /// nil explicitly means an obsolete request. It never activates the requesting generation.
     public func merge(_ readings: [String: HaStateReading], expectedScope: String,
-                      expectedClimateRevision: String? = nil, failures: [String: String] = [:],
+                      expectedClimateRevision: String? = nil, expectedAlarmRevision: String? = nil,
+                      failures: [String: String] = [:],
                       checkedAt: Date = .now) throws -> HaStoreSnapshot? {
         try locked {
             var stored = try read()
             guard stored.scope == expectedScope else { return nil }
             let rejectClimate = stored.climateOperation?.pending == true
                 || expectedClimateRevision.map({ $0 != stored.climateRevision }) == true
+            let rejectAlarm = stored.alarmOperation?.pending == true
+                || expectedAlarmRevision.map({ $0 != stored.alarmRevision }) == true
+            let alarmEntities = Set([stored.config?.entityId, stored.config?.lockId].compactMap { $0 })
             for (id, value) in readings where value.entityID == id {
                 if id == stored.config?.climateId && rejectClimate { continue }
+                if alarmEntities.contains(id) && rejectAlarm { continue }
                 if stored.readings[id].map({ $0.checkedAt <= value.checkedAt }) ?? true {
                     stored.readings[id] = value
                 }
@@ -117,6 +138,7 @@ public struct HaStateStore: Sendable {
             }
             for (id, message) in failures where !message.isEmpty {
                 if id == stored.config?.climateId && rejectClimate { continue }
+                if alarmEntities.contains(id) && rejectAlarm { continue }
                 guard stored.readings[id].map({ $0.checkedAt <= checkedAt }) ?? true,
                       stored.failures[id].map({ $0.checkedAt <= checkedAt }) ?? true else { continue }
                 stored.failures[id] = HaStateFailure(message: message, checkedAt: checkedAt)
@@ -168,6 +190,89 @@ public struct HaStateStore: Sendable {
                 operation.error = "Update interrupted · Refresh to check"
                 stored.climateOperation = operation
                 stored.climateRevision = UUID().uuidString
+                try write(stored)
+            }
+            return stored.snapshot
+        }
+    }
+
+    /// Alarm and door share one operation: two conflicting security taps cannot execute together.
+    public func beginAlarmOperation(expectedScope: String, expectedRevision: String, entityID: String,
+                                    action: String, now: Date = .now) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, stored.alarmRevision == expectedRevision,
+                  let config = stored.config, config.isComplete, stored.alarmOperation?.pending != true,
+                  (AlarmAction(rawValue: action) != nil && config.entityId == entityID)
+                    || (LockAction(rawValue: action) != nil && config.hasLock && config.lockId == entityID) else { return nil }
+            stored.alarmOperation = AlarmOperation(entityID: entityID, action: action, startedAt: now)
+            stored.alarmRevision = UUID().uuidString
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+
+    /// Only the command's own validated live replies can update its telemetry while pending.
+    public func observeAlarmOperation(expectedScope: String, operationID: String,
+                                      reading: HaStateReading) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, let operation = stored.alarmOperation,
+                  operation.id == operationID, operation.pending,
+                  alarmObservation(reading, entityID: operation.entityID) != nil else { return nil }
+            let id = operation.entityID
+            if stored.readings[id].map({ $0.checkedAt <= reading.checkedAt }) ?? true {
+                stored.readings[id] = reading
+            }
+            if stored.failures[id].map({ $0.checkedAt <= reading.checkedAt }) ?? false {
+                stored.failures.removeValue(forKey: id)
+            }
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+
+    public func failAlarmOperationRead(expectedScope: String, operationID: String,
+                                       message: String, checkedAt: Date = .now) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, let operation = stored.alarmOperation,
+                  operation.id == operationID, operation.pending else { return nil }
+            let id = operation.entityID
+            if (stored.readings[id].map({ $0.checkedAt <= checkedAt }) ?? true)
+                && (stored.failures[id].map({ $0.checkedAt <= checkedAt }) ?? true) {
+                stored.failures[id] = HaStateFailure(message: message, checkedAt: checkedAt)
+            }
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+
+    public func finishAlarmOperation(expectedScope: String, operationID: String,
+                                     error: String?) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, var operation = stored.alarmOperation,
+                  operation.id == operationID, operation.pending else { return nil }
+            if let error {
+                operation.error = error.isEmpty ? "Couldn't confirm · Refresh to check" : error
+                stored.alarmOperation = operation
+            } else { stored.alarmOperation = nil }
+            stored.alarmRevision = UUID().uuidString
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+
+    /// Extension termination cannot leave the card pending forever; expiry never repeats a POST.
+    public func expireAlarmOperation(now: Date = .now) throws -> HaStoreSnapshot {
+        try locked {
+            var stored = try read()
+            if var operation = stored.alarmOperation, operation.pending,
+               now.timeIntervalSince(operation.startedAt) > 90 {
+                operation.error = "Update interrupted · Refresh to check"
+                stored.alarmOperation = operation
+                stored.alarmRevision = UUID().uuidString
                 try write(stored)
             }
             return stored.snapshot
