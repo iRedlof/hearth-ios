@@ -335,7 +335,9 @@ struct ThermostatEntry: TimelineEntry {
 struct ThermostatProvider: TimelineProvider {
     func placeholder(in context: Context) -> ThermostatEntry { ThermostatEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (ThermostatEntry) -> Void) {
-        completion(ThermostatEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(ThermostatEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(ThermostatEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ThermostatEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -350,8 +352,7 @@ struct ThermostatProvider: TimelineProvider {
         #if DEBUG
         if ParityCatalog.activeWidgetID(prefix: "thermostat") != nil { return .sample }
         #endif
-        guard let cfg = HaConfigStore.load(), cfg.hasClimate else { return .sample }
-        return await fetchThermostatSnapshot(cfg)
+        return await ThermostatLiveSnapshot.fetch()
     }
 }
 

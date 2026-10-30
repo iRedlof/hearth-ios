@@ -1,44 +1,46 @@
 import SwiftUI
-import WidgetKit
 import HearthKit
 
-/// A pending Mode/Fan choice surfaced by `ClimatePickerIntent` once the app is foregrounded.
 struct ClimatePick: Identifiable, Sendable {
     let id = UUID()
-    let kind: String          // "mode" | "fan"
+    let kind: String
     let options: [String]
     let current: String?
+    let scope: String
+    let entityID: String
+    let revision: String
     var title: String { kind == "fan" ? "Fan mode" : "Mode" }
 }
 
-/// Shared singleton the climate picker intent talks to in-app; the view layer observes `pick` and
-/// shows a confirmation dialog of the options (the iOS parity for Android's ClimatePickerActivity).
+/// App choices retain the widget's entity/account binding until the selected command dispatches.
 @MainActor final class ClimateGate: ObservableObject {
     static let shared = ClimateGate()
     private init() {}
-
     @Published var pick: ClimatePick?
-
-    func present(kind: String, options: [String], current: String?) {
-        pick = ClimatePick(kind: kind, options: options, current: current)
+    @Published var error: String?
+    func present(kind: String, options: [String], current: String?, scope: String, entityID: String, revision: String) {
+        error = nil
+        pick = ClimatePick(kind: kind, options: options, current: current,
+            scope: scope, entityID: entityID, revision: revision)
     }
-
-    func choose(_ kind: String, _ option: String) {
+    func choose(_ request: ClimatePick, _ option: String) {
+        guard pick?.id == request.id, request.options.contains(option) else { return }
         pick = nil
-        Task { await apply(kind: kind, option: option) }
-    }
-    func dismiss() { pick = nil }
-
-    private func apply(kind: String, option: String) async {
-        guard let config = HaConfigStore.load(), config.hasClimate else { return }
-        let service = kind == "fan" ? "set_fan_mode" : "set_hvac_mode"
-        let key = kind == "fan" ? "fan_mode" : "hvac_mode"
-        do {
-            try await HaClient(config).callService(domain: "climate", service: service,
-                                                   entityId: config.climateId, data: [key: option])
-            WidgetCenter.shared.reloadAllTimelines()
-        } catch {
-            print("Hearth: set \(kind) failed — \(friendlyError(error))")
+        Task {
+            do {
+                try await ClimateActionRuntime.perform(scope: request.scope, entityID: request.entityID,
+                    revision: request.revision, resumeID: "", action: request.kind, option: option)
+            } catch let failure as ClimateActionFailure {
+                guard let current = HaConfigStore.context(), current.scope == request.scope,
+                      current.config?.climateId == request.entityID,
+                      current.climateOperation?.id == failure.operationID else { return }
+                self.error = failure.message
+            } catch {
+                guard let current = HaConfigStore.context(), current.scope == request.scope,
+                      current.config?.climateId == request.entityID else { return }
+                self.error = friendlyError(error)
+            }
         }
     }
+    func dismiss() { pick = nil }
 }

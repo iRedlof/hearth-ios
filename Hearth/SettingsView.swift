@@ -13,6 +13,7 @@ struct SettingsView: View {
     @State private var cpLocation = CpSessionStore.loadLocation()
     @State private var cpAlerts = CpSessionStore.loadAlertPrefs()
     @State private var entityNames: [String: String] = [:]   // entity_id → friendly name, for display
+    @State private var saveError: String?
     let onChange: (HaConfig) -> Void
 
     init(config: HaConfig, onChange: @escaping (HaConfig) -> Void) {
@@ -185,6 +186,9 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .task { await loadNames() }
+            .alert("Couldn't save settings", isPresented: Binding(
+                get: { saveError != nil }, set: { if !$0 { saveError = nil } }
+            )) { Button("OK", role: .cancel) {} } message: { Text(saveError ?? "") }
         }
     }
 
@@ -215,10 +219,12 @@ struct SettingsView: View {
     private func apply(_ mutate: (inout HaConfig) -> Void) {
         var next = config
         mutate(&next)
-        config = next
-        HaConfigStore.save(next)
-        WidgetCenter.shared.reloadAllTimelines()
-        onChange(next)
+        do {
+            try HaConfigStore.save(next)
+            config = next
+            WidgetCenter.shared.reloadAllTimelines()
+            onChange(next)
+        } catch { saveError = friendlyError(error) }
     }
 
     private func encodeIds(_ ids: [String]) -> String {

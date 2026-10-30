@@ -6,20 +6,36 @@ public func thermostatSnapshot(_ s: ClimateState?, name: String, now: Date, stal
                                zone: TimeZone = .current, locale: Locale = .current) -> ThermostatSnapshot {
     let view = climateViewFor(s)
     let (heat, cool) = setpoints(s)
-    return ThermostatSnapshot(
+    let historical = stale || s?.isAvailable == false
+    var snapshot = ThermostatSnapshot(
         name: name,
         checkedAt: checkedAt.map { climateClock($0, zone, locale) } ?? "—",
         roomTemp: degrees(s?.current),
-        roomSub: s?.current == nil ? "No reading" : stale ? "Last known" : "In the room",
-        humidity: s?.humidity.map { "\(Int($0.rounded()))% humidity" },
-        status: view.headline,
-        tone: beaconClimatePair(s?.mode, stale: stale),
+        roomSub: climateNumber(s?.current) == nil ? "No reading" : historical ? "Last known" : "In the room",
+        humidity: s?.humidity.flatMap { h in
+            guard h.isFinite, h >= 0, h <= 100, let n = Int(exactly: h.rounded()) else { return nil }
+            return "\(n)% humidity"
+        },
+        status: stale ? "Last known" : view.headline,
+        tone: beaconClimatePair(s?.mode, stale: historical),
         heatSetpoint: heat,
         coolSetpoint: cool,
         mode: s.map { modeDisplay($0.mode) } ?? "—",
         fan: s?.fanMode?.capitalizedFirst,
-        canResume: canResume && !stale && s != nil,
+        canResume: canResume && !historical && s?.isAvailable == true,
         sensors: sensors)
+    snapshot.stale = historical
+    snapshot.hasResumeControl = canResume
+    snapshot.hasFanControl = s.map { $0.fanMode != nil || !climateAdvertisedOptions($0, kind: "fan").isEmpty } ?? false
+    if let s, !historical {
+        snapshot.canAdjustHeatUp = setpointNudge(s, side: .heat, by: 1) != nil
+        snapshot.canAdjustHeatDown = setpointNudge(s, side: .heat, by: -1) != nil
+        snapshot.canAdjustCoolUp = setpointNudge(s, side: .cool, by: 1) != nil
+        snapshot.canAdjustCoolDown = setpointNudge(s, side: .cool, by: -1) != nil
+        snapshot.canPickMode = climateNextOption(s, kind: "mode") != nil
+        snapshot.canPickFan = climateNextOption(s, kind: "fan") != nil
+    }
+    return snapshot
 }
 
 private func setpoints(_ s: ClimateState?) -> (heat: String?, cool: String?) {

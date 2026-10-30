@@ -62,6 +62,17 @@ final class ThermostatTests: XCTestCase {
         var c = s; c.mode = "heat"; c.target = nil; XCTAssertEqual(climateViewFor(c).headline, "Target unavailable")
     }
 
+    func testInvalidTargetsCannotBecomeAHoldingHeadline() {
+        var state = ClimateState.fromJson(thermo)!
+        state.action = "idle"
+        state.low = 1e300
+        XCTAssertEqual(climateViewFor(state).headline, "Heat target unavailable")
+        state.low = 64; state.high = .nan
+        XCTAssertEqual(climateViewFor(state).headline, "Cool target unavailable")
+        state.mode = "heat"; state.target = .infinity
+        XCTAssertEqual(climateViewFor(state).headline, "Target unavailable")
+    }
+
     func testCanSetTemperature() {
         let s = ClimateState.fromJson(thermo)!
         XCTAssertTrue(s.canSetTemperature)
@@ -85,6 +96,9 @@ final class ThermostatTests: XCTestCase {
         XCTAssertEqual(degrees(69.0), "69°")
         XCTAssertEqual(degrees(69.5), "69.5°")
         XCTAssertEqual(degrees(nil), "—")
+        XCTAssertEqual(degrees(.nan), "—")
+        XCTAssertEqual(degrees(.infinity), "—")
+        XCTAssertEqual(degrees(1e300), "—")
     }
 
     func testClimateTones() {
@@ -106,5 +120,32 @@ final class ThermostatTests: XCTestCase {
         value.current = nil
         let noRoom = thermostatSnapshot(value, name: "Thermostat", now: now, stale: false, checkedAt: now)
         XCTAssertEqual(noRoom.roomSub, "No reading")
+    }
+
+    func testUnavailableTelemetryCannotClaimCurrentRoomOrEnableCommands() throws {
+        for mode in ["unavailable", "unknown", "null", "unexpected"] {
+            let json = #"{"state":"\#(mode)","attributes":{"current_temperature":67,"temperature":68,"fan_mode":"auto","fan_modes":["auto","on"],"hvac_modes":["off","heat"]}}"#
+            let state = try XCTUnwrap(ClimateState.fromJson(json))
+            let snapshot = thermostatSnapshot(state, name: "Thermostat", now: .now, stale: false,
+                checkedAt: .now, canResume: true)
+            XCTAssertEqual(snapshot.status, "Unavailable", mode)
+            XCTAssertEqual(snapshot.roomSub, "Last known", mode)
+            XCTAssertTrue(snapshot.stale, mode)
+            XCTAssertFalse(snapshot.canPickMode, mode)
+            XCTAssertFalse(snapshot.canPickFan, mode)
+            XCTAssertFalse(snapshot.canResume, mode)
+        }
+    }
+
+    func testAdvertisedFanRetainsItsSlotWhenUnavailableAndCurrentFanIsMissing() throws {
+        for mode in ["unavailable", "unknown"] {
+            let json = #"{"state":"\#(mode)","attributes":{"fan_modes":["auto","on"]}}"#
+            let state = try XCTUnwrap(ClimateState.fromJson(json))
+            let snapshot = thermostatSnapshot(state, name: "Thermostat", now: .now,
+                stale: false, checkedAt: .now)
+            XCTAssertTrue(snapshot.hasFanControl, mode)
+            XCTAssertNil(snapshot.fan, mode)
+            XCTAssertFalse(snapshot.canPickFan, mode)
+        }
     }
 }

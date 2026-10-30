@@ -17,6 +17,7 @@ struct LiveDashboardView: View {
     @State private var cpSignedIn = CpSessionStore.load().isSignedIn
     @State private var showCpSignIn = false
     @State private var loading = true
+    @State private var loadID = UUID()
     @ObservedObject private var refreshSignal = RefreshSignal.shared
 
     var body: some View {
@@ -98,30 +99,29 @@ struct LiveDashboardView: View {
     }
 
     private func load() async {
+        let requestID = UUID()
+        loadID = requestID
         loading = true
-        let now = Date()
-        async let carSnap = CarLiveSnapshot.fetch(now: now)
-        async let alarmSnap = fetchAlarmMaybe(now)
-        async let thermoSnap = fetchThermostatMaybe(now)
-        async let cpSnap = fetchCpMaybe(now)
-        car = await carSnap
-        alarm = await alarmSnap
-        thermostat = await thermoSnap
-        cp = await cpSnap
-        loading = false
+        let now = Date(), selected = config
+        await withTaskGroup(of: CardResult.self) { group in
+            group.addTask { .car(await CarLiveSnapshot.fetch(now: now)) }
+            group.addTask { .alarm(selected.isComplete ? await fetchAlarmSnapshot(selected, now: now) : nil) }
+            group.addTask { .thermostat(selected.hasClimate ? await ThermostatLiveSnapshot.fetch(now: now) : nil) }
+            group.addTask { .chargePoint(await CpLiveSnapshot.fetch(now: now)) }
+            for await result in group {
+                guard !Task.isCancelled, loadID == requestID else { group.cancelAll(); return }
+                switch result {
+                case .car(let snapshot): car = snapshot
+                case .alarm(let snapshot): alarm = snapshot
+                case .thermostat(let snapshot): thermostat = snapshot.map { ThermostatLiveSnapshot.currentFeedback($0) }
+                case .chargePoint(let snapshot): cp = snapshot
+                }
+            }
+        }
+        if loadID == requestID { loading = false }
     }
 
-    private func fetchThermostatMaybe(_ now: Date) async -> ThermostatSnapshot? {
-        guard config.hasClimate else { return nil }
-        return await fetchThermostatSnapshot(config, now: now)
-    }
-
-    private func fetchCpMaybe(_ now: Date) async -> CpSnapshot {
-        await CpLiveSnapshot.fetch(now: now)
-    }
-
-    private func fetchAlarmMaybe(_ now: Date) async -> AlarmSnapshot? {
-        guard config.isComplete else { return nil }
-        return await fetchAlarmSnapshot(config, now: now)
+    private enum CardResult: Sendable {
+        case car(CarSnapshot), alarm(AlarmSnapshot?), thermostat(ThermostatSnapshot?), chargePoint(CpSnapshot)
     }
 }

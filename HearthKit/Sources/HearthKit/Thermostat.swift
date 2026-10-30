@@ -29,9 +29,20 @@ public struct ClimateState: Sendable, Equatable {
 
     public var isRange: Bool { mode == "heat_cool" || mode == "auto" }
     public var isOff: Bool { mode == "off" }
+    public var isAvailable: Bool { ["off", "heat", "cool", "heat_cool", "auto", "fan_only", "dry"].contains(mode) }
     /// A range command sends both values; a partial reading cannot form that command.
     public var canSetTemperature: Bool {
-        isRange ? (low != nil && high != nil) : (["heat", "cool"].contains(mode) && target != nil)
+        guard climateNumber(min) != nil, climateNumber(max) != nil, min < max,
+              step.isFinite, step > 0, step <= max - min else { return false }
+        func valid(_ value: Double?) -> Bool {
+            guard let value = climateNumber(value) else { return false }
+            return value >= min && value <= max
+        }
+        if isRange {
+            guard valid(low), valid(high), let low, let high else { return false }
+            return high - low >= step
+        }
+        return ["heat", "cool"].contains(mode) && valid(target)
     }
 
     public static func fromJson(_ body: String) -> ClimateState? {
@@ -74,9 +85,15 @@ public let CLIMATE_MODES: [(mode: String, name: String)] =
 
 /// "69°", "69.5°" (no trailing .0), "—" for nil.
 public func degrees(_ t: Double?) -> String {
-    guard let t else { return "—" }
-    if t.truncatingRemainder(dividingBy: 1.0) == 0 { return "\(Int(t.rounded()))°" }
+    guard let t = climateNumber(t) else { return "—" }
+    if t.truncatingRemainder(dividingBy: 1.0) == 0 { return "\(Int(exactly: t.rounded())!)°" }
     return String(format: "%.1f°", t)
+}
+
+/// Reject non-finite and unrepresentable readings before integer formatting or control arithmetic.
+func climateNumber(_ value: Double?) -> Double? {
+    guard let value, value.isFinite, Int(exactly: value.rounded()) != nil else { return nil }
+    return value
 }
 
 extension String {

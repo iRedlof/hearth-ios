@@ -59,8 +59,7 @@ public struct CarFetchResult: Sendable, Equatable {
         } else if let error {
             value.error = error
             value.needsSettings = beaconNeedsSettings(error)
-            let message = error.lowercased()
-            value.needsSignIn = message.contains("sign in") || message.contains("sign-in")
+            value.needsSignIn = beaconNeedsSignIn(error)
             value.chargeLine = error.contains("Can't reach") ? "Can't connect"
                 : value.needsSignIn ? "Sign in again"
                 : value.needsSettings ? "Check setup" : "Check failed"

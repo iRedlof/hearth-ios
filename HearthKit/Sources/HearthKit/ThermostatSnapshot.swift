@@ -3,7 +3,11 @@ import Foundation
 public struct ThermostatSensor: Sendable, Equatable {
     public var name: String
     public var value: String
-    public init(name: String, value: String) { self.name = name; self.value = value }
+    public var id: String
+    public var stale: Bool
+    public init(name: String, value: String, id: String? = nil, stale: Bool = false) {
+        self.name = name; self.value = value; self.id = id ?? name; self.stale = stale
+    }
 }
 
 /// Everything the Thermostat Beacon view renders, already formatted (mirrors CarSnapshot/AlarmSnapshot).
@@ -21,6 +25,26 @@ public struct ThermostatSnapshot: Sendable, Equatable {
     public var fan: String?            // "Auto" / "On"
     public var canResume: Bool
     public var sensors: [ThermostatSensor]
+    public var setup: Bool = false
+    public var stale: Bool = false
+    public var error: String?
+    public var needsSettings: Bool = false
+    public var needsSignIn: Bool = false
+    public var canAdjustHeatUp: Bool = false
+    public var canAdjustHeatDown: Bool = false
+    public var canAdjustCoolUp: Bool = false
+    public var canAdjustCoolDown: Bool = false
+    public var canPickMode: Bool = false
+    public var canPickFan: Bool = false
+    public var hasFanControl: Bool = false
+    public var hasResumeControl: Bool = false
+    public var entityID: String = ""
+    public var resumeID: String = ""
+    public var requestScope: String = ""
+    public var climateRevision: String = ""
+    public var commandPending: Bool = false
+    public var commandFeedback: String?
+    public var commandError: String?
 
     public init(name: String, checkedAt: String, roomTemp: String, roomSub: String, humidity: String?,
                 status: String, tone: BeaconTone, heatSetpoint: String?, coolSetpoint: String?,
@@ -28,6 +52,7 @@ public struct ThermostatSnapshot: Sendable, Equatable {
         self.name = name; self.checkedAt = checkedAt; self.roomTemp = roomTemp; self.roomSub = roomSub
         self.humidity = humidity; self.status = status; self.tone = tone; self.heatSetpoint = heatSetpoint
         self.coolSetpoint = coolSetpoint; self.mode = mode; self.fan = fan; self.canResume = canResume
+        self.hasFanControl = fan != nil; self.hasResumeControl = canResume
         self.sensors = sensors
     }
 

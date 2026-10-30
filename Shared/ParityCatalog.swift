@@ -37,10 +37,6 @@ import HearthKit
         fixtureStore.synchronize()
     }
     #endif
-    private static let sensors = [ThermostatSensor(name: "Outside", value: "48°"),
-                                  ThermostatSensor(name: "Bedroom", value: "67.5°"),
-                                  ThermostatSensor(name: "Thermo", value: "69.5°")]
-
     static func view(_ id: String) -> AnyView? {
         all().first { $0.0 == id }?.1
     }
@@ -74,23 +70,10 @@ import HearthKit
     }
 
     // MARK: Thermostat
-    private static func thermoCard(_ room: String, _ status: String, _ tone: BeaconTone, heat: String?, cool: String?,
-                                   mode: String, fan: String? = "Auto", resume: Bool = true,
-                                   humidity: String? = "52% humidity", roomSub: String = "In the room") -> AnyView {
-        AnyView(ThermostatBeaconView(ThermostatSnapshot(name: "Thermostat", checkedAt: "9:41 AM", roomTemp: room,
-            roomSub: roomSub, humidity: humidity, status: status, tone: tone, heatSetpoint: heat,
-            coolSetpoint: cool, mode: mode, fan: fan, canResume: resume, sensors: sensors)))
-    }
     private static func thermostat() -> [(String, AnyView)] {
-        [("thermostat-auto", thermoCard("67°", "Holding 64–69°", .violet, heat: "64°", cool: "69°", mode: "Auto")),
-         ("thermostat-heating", thermoCard("65°", "Heating to 68°", .yellow, heat: "68°", cool: nil, mode: "Heat")),
-         ("thermostat-cooling", thermoCard("74°", "Cooling to 70°", .blue, heat: nil, cool: "70°", mode: "Cool")),
-         ("thermostat-heat_idle", thermoCard("67°", "Holding 64°", .yellow, heat: "64°", cool: nil, mode: "Heat")),
-         ("thermostat-cool_idle", thermoCard("67°", "Holding 69°", .blue, heat: nil, cool: "69°", mode: "Cool")),
-         ("thermostat-fan", thermoCard("67°", "Fan only · set 64–69°", .slate, heat: "64°", cool: "69°", mode: "Fan", fan: "On")),
-         ("thermostat-off", thermoCard("67°", "Off", .slate, heat: nil, cool: nil, mode: "Off")),
-         ("thermostat-offline", thermoCard("67°", "Can't connect", .offline, heat: "64°", cool: "69°", mode: "Auto", roomSub: "Last known")),
-         ("thermostat-setup", thermoCard("—", "Tap to connect", .offline, heat: nil, cool: nil, mode: "", fan: nil, resume: false, humidity: "Humidity —", roomSub: "No reading"))]
+        ThermostatParityInputs.states.map {
+            ("thermostat-" + $0, AnyView(ThermostatBeaconView(ThermostatParityInputs.snapshot($0))))
+        }
     }
 
     // MARK: Car

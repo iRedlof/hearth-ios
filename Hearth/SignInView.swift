@@ -148,7 +148,7 @@ final class AuthCoordinator: NSObject, ObservableObject, ASWebAuthenticationPres
             cfg.baseUrl = base
             cfg.refreshToken = refresh
             cfg.token = ""                       // OAuth supersedes any long-lived token
-            HaConfigStore.save(cfg)
+            try HaConfigStore.save(cfg)
             await HaAuth.shared.forget()          // drop any stale cached access token
             WidgetCenter.shared.reloadAllTimelines()
             busy = false

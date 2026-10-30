@@ -39,6 +39,7 @@ struct ContentView: View {
     @ObservedObject private var cpSetup = CpSetupGate.shared
     @ObservedObject private var haSetup = HaSetupGate.shared
     @State private var reconnectPresented = false
+    @State private var signOutError: String?
 
     var body: some View {
         TabView(selection: $selection) {
@@ -52,6 +53,9 @@ struct ContentView: View {
                 .tabItem { Label("Preview", systemImage: "square.grid.2x2.fill") }
                 .tag(2)
         }
+        .alert("Couldn't sign out", isPresented: Binding(
+            get: { signOutError != nil }, set: { if !$0 { signOutError = nil } }
+        )) { Button("OK", role: .cancel) {} } message: { Text(signOutError ?? "") }
         .alert("Confirm", isPresented: Binding(
             get: { gate.confirming != nil },
             set: { if !$0 { gate.cancel() } }
@@ -64,10 +68,15 @@ struct ContentView: View {
             set: { if !$0 { climateGate.dismiss() } }
         ), titleVisibility: .visible, presenting: climateGate.pick) { pick in
             ForEach(pick.options, id: \.self) { opt in
-                Button(opt.capitalized) { climateGate.choose(pick.kind, opt) }
+                Button(opt.capitalized) { climateGate.choose(pick, opt) }
             }
             Button("Cancel", role: .cancel) { climateGate.dismiss() }
         }
+        .alert("Thermostat", isPresented: Binding(
+            get: { climateGate.error != nil }, set: { if !$0 { climateGate.error = nil } }
+        )) {
+            Button("OK") { climateGate.error = nil }
+        } message: { Text(climateGate.error ?? "") }
         .alert("Open the garage?", isPresented: Binding(
             get: { garageGate.confirming != nil },
             set: { if !$0 { garageGate.cancel() } }
@@ -152,9 +161,11 @@ struct ContentView: View {
     }
 
     private func signOut() {
-        HaConfigStore.clear()
-        Task { await HaAuth.shared.forget() }
-        WidgetCenter.shared.reloadAllTimelines()
-        config = nil
+        do {
+            try HaConfigStore.clear()
+            Task { await HaAuth.shared.forget() }
+            WidgetCenter.shared.reloadAllTimelines()
+            config = nil
+        } catch { signOutError = friendlyError(error) }
     }
 }

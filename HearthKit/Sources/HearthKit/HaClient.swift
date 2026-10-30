@@ -145,8 +145,13 @@ public func friendlyError(_ error: Error) -> String {
 /// Whether the error should route to the Settings CTA (vs a Retry). Ported from `beaconNeedsSettings`.
 public func beaconNeedsSettings(_ error: String?) -> Bool {
     guard let e = error?.lowercased() else { return false }
-    return e.hasPrefix("set up") || e.contains("sign in") || e.contains("sign-in")
+    return e.hasPrefix("set up") || beaconNeedsSignIn(error)
         || e.contains("check the entity") || e.contains("check the token")
+}
+
+public func beaconNeedsSignIn(_ error: String?) -> Bool {
+    guard let e = error?.lowercased() else { return false }
+    return e.contains("sign in") || e.contains("sign-in")
 }
 
 extension String {
