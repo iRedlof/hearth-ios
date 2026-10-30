@@ -56,3 +56,12 @@ public struct HaConfig: Sendable, Equatable, Codable {
         return arr
     }
 }
+
+/// The same HA account/server, independent of which widget entities are selected.
+/// A long-lived token takes precedence over OAuth, matching HaClient's bearer choice.
+public func haSameConnection(_ a: HaConfig?, _ b: HaConfig?) -> Bool {
+    guard let a, let b else { return a == nil && b == nil }
+    let aCredential = a.token.isEmpty ? "oauth:" + a.refreshToken : "token:" + a.token
+    let bCredential = b.token.isEmpty ? "oauth:" + b.refreshToken : "token:" + b.token
+    return a.baseUrl.trimmedTrailingSlash == b.baseUrl.trimmedTrailingSlash && aCredential == bCredential
+}

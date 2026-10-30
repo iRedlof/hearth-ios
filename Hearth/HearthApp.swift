@@ -37,6 +37,8 @@ struct ContentView: View {
     @ObservedObject private var joinGate = CpJoinGate.shared
     @ObservedObject private var snoozeGate = CpSnoozeGate.shared
     @ObservedObject private var cpSetup = CpSetupGate.shared
+    @ObservedObject private var haSetup = HaSetupGate.shared
+    @State private var reconnectPresented = false
 
     var body: some View {
         TabView(selection: $selection) {
@@ -99,6 +101,29 @@ struct ContentView: View {
                 }
             }
         }
+        .onChange(of: haSetup.request, initial: true) {
+            guard haSetup.request != nil else { return }
+            config = HaConfigStore.load()
+            if haSetup.reconnect {
+                reconnectPresented = true
+            } else {
+                selection = config?.hasAuth == true ? 1 : 0
+            }
+        }
+        .sheet(isPresented: $reconnectPresented) {
+            NavigationStack {
+                SignInView(initialURL: config?.baseUrl) {
+                    config = HaConfigStore.load()
+                    selection = 0
+                    reconnectPresented = false
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") { reconnectPresented = false }
+                    }
+                }
+            }
+        }
     }
 
     /// Initial tab from a launch arg (`-tab live|settings|preview`), for screenshots and testing.
@@ -119,6 +144,7 @@ struct ContentView: View {
     @ViewBuilder private var settingsTab: some View {
         if let c = config, c.hasAuth {
             SettingsView(config: c, onChange: { config = $0 })
+                .id(HaConfigStore.requestScope())
         } else {
             ContentUnavailableView("Sign in first", systemImage: "gearshape",
                 description: Text("Connect to Home Assistant on the Live tab to configure widgets."))

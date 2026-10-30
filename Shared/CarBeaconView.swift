@@ -12,7 +12,7 @@ public struct CarBeaconView: View {
     private var fill: Color { Color(argb: snap.tone.fillARGB) }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }                       // dark text on light mint
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }       // bright text on graphite
-    private var sentryInk: Color { snap.sentry == .on ? Color(argb: BeaconSurfaceColors.sentryOnARGB) : surfaceInk }
+    private var sentryInk: Color { snap.sentry == .on && !snap.stale ? Color(argb: BeaconSurfaceColors.sentryOnARGB) : surfaceInk }
 
     public var body: some View {
         GeometryReader { geo in
@@ -30,7 +30,7 @@ public struct CarBeaconView: View {
             Image(systemName: "car.fill").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
             HStack(alignment: .firstTextBaseline, spacing: 0) {
                 Text(snap.battery.map(String.init) ?? "—").font(.system(size: 34, weight: .heavy)).tracking(-1.2)
-                Text("%").font(.system(size: 15, weight: .heavy))
+                if snap.battery != nil { Text("%").font(.system(size: 15, weight: .heavy)) }
             }.foregroundStyle(ink).padding(.top, 1)
             Text(snap.range).font(.system(size: 12, weight: .medium)).foregroundStyle(ink)
             Rectangle().fill(ink.opacity(0.26)).frame(height: 1).padding(.top, 4).padding(.bottom, 1)
@@ -74,6 +74,7 @@ public struct CarBeaconView: View {
             HStack(spacing: 6) {
                 Text(snap.chargeLine).font(.system(size: 12)).foregroundStyle(surfaceInk)
                     .lineLimit(1).minimumScaleFactor(0.8)
+                    .accessibilityLabel(snap.error ?? snap.chargeLine)
                 Spacer(minLength: 4)
                 HStack(spacing: 4) {
                     Image(systemName: "lock.shield.fill").font(.system(size: 10.5))
@@ -98,23 +99,33 @@ public struct CarBeaconView: View {
                 Capsule()
                     .fill(Color(argb: snap.tone == .mint ? 0xFF8FF0C4 : snap.tone.fillARGB))
                     .frame(width: g.size.width * CGFloat(min(max(snap.battery ?? 0, 0), 100)) / 100)
-                Rectangle().fill(surfaceInk).frame(width: 2).offset(x: g.size.width * 0.8 - 1)
+                if let limit = snap.limit {
+                    Rectangle().fill(surfaceInk).frame(width: 2)
+                        .offset(x: max(0, min(g.size.width - 2,
+                            g.size.width * CGFloat(min(max(limit, 0), 100)) / 100 - 1)))
+                }
             }
         }
     }
 
-    private var openTesla: some View {
-        // Deep-links to the Tesla app. iOS (unlike Android's package launch) can't detect whether
-        // Tesla is installed, so there's no "Tesla unavailable" disabled state — if it's absent the
-        // tap is a no-op. The whole card otherwise opens Hearth.
-        Link(destination: URL(string: "tesla://")!) {
-            HStack(spacing: 6) {
-                Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
-                Text("Open Tesla").font(.system(size: 13, weight: .semibold))
-            }
+    @ViewBuilder private var openTesla: some View {
+        if snap.needsSettings {
+            Button(intent: HaSetupIntent(reconnect: snap.needsSignIn)) {
+                actionLabel(snap.needsSignIn ? "Sign in" : "Open Settings")
+            }.buttonStyle(.plain)
+        } else {
+            // Deep-links to the Tesla app. The whole card otherwise opens Hearth.
+            Link(destination: URL(string: "tesla://")!) { actionLabel("Open Tesla") }
+        }
+    }
+
+    private func actionLabel(_ title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
+            Text(title).font(.system(size: 13, weight: .semibold))
+        }
             .foregroundStyle(surfaceInk)
             .frame(maxWidth: .infinity).frame(height: 36)
             .background(Color.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 11))
-        }
     }
 }

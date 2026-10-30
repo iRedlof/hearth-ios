@@ -17,6 +17,11 @@ struct SignInView: View {
     @StateObject private var auth = AuthCoordinator()
     @State private var urlText = "https://ha.iredlof-nas.synology.me/"
 
+    init(initialURL: String? = nil, onSignedIn: @escaping () -> Void) {
+        self.onSignedIn = onSignedIn
+        if let initialURL, !initialURL.isEmpty { _urlText = State(initialValue: initialURL) }
+    }
+
     var body: some View {
         VStack(spacing: 18) {
             Spacer()

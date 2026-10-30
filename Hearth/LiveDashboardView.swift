@@ -47,7 +47,7 @@ struct LiveDashboardView: View {
         }
         .background(Color(white: 0.08).ignoresSafeArea())
         .preferredColorScheme(.dark)
-        .task { await load() }
+        .task(id: config) { await load() }
         .onChange(of: refreshSignal.tick) { Task { await load() } }
         .sheet(isPresented: $showCpSignIn) {
             NavigationStack {
@@ -100,7 +100,7 @@ struct LiveDashboardView: View {
     private func load() async {
         loading = true
         let now = Date()
-        async let carSnap = fetchCar(now)
+        async let carSnap = CarLiveSnapshot.fetch(now: now)
         async let alarmSnap = fetchAlarmMaybe(now)
         async let thermoSnap = fetchThermostatMaybe(now)
         async let cpSnap = fetchCpMaybe(now)
@@ -118,13 +118,6 @@ struct LiveDashboardView: View {
 
     private func fetchCpMaybe(_ now: Date) async -> CpSnapshot {
         await CpLiveSnapshot.fetch(now: now)
-    }
-
-    private func fetchCar(_ now: Date) async -> CarSnapshot? {
-        do {
-            let json = try await HaClient(config).template(CAR_TEMPLATE)
-            return carSnapshot(carFromTemplate(json), now: now, stale: false, checkedAt: now)
-        } catch { return nil }
     }
 
     private func fetchAlarmMaybe(_ now: Date) async -> AlarmSnapshot? {

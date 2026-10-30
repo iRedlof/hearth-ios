@@ -94,41 +94,8 @@ import HearthKit
     }
 
     // MARK: Car
-    private static func carCard(battery: Int?, range: String, lock: String, lockWarn: Bool, doors: String, doorsWarn: Bool,
-                                tires: String, tiresWarn: Bool, place: String, sentry: SentryState, charge: String,
-                                tone: BeaconTone, cabin: String = "69°F", outside: String = "55°F") -> AnyView {
-        AnyView(CarBeaconView(CarSnapshot(name: "Stargate", checkedAt: "9:41 AM", battery: battery, range: range,
-            lock: lock, lockWarn: lockWarn, doors: doors, doorsWarn: doorsWarn, cabin: cabin, outside: outside,
-            tires: tires, tiresWarn: tiresWarn, place: place, sentry: sentry, chargeLine: charge, tone: tone)))
-    }
     private static func car() -> [(String, AnyView)] {
-        [("car-parked", carCard(battery: 79, range: "242 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
-            doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Home · asleep since Mon 10:33 PM",
-            sentry: .off, charge: "Unplugged", tone: .mint)),
-         ("car-charging", carCard(battery: 64, range: "196 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
-            doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Home · Awake", sentry: .off,
-            charge: "Full by Wed 12:40 AM", tone: .blue)),
-         ("car-complete", carCard(battery: 80, range: "245 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
-            doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Home · asleep since Mon 10:33 PM",
-            sentry: .off, charge: "Charged", tone: .mint)),
-         ("car-sentry", carCard(battery: 79, range: "242 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
-            doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Home · asleep since Mon 10:33 PM",
-            sentry: .on, charge: "Unplugged", tone: .mint)),
-         ("car-low_battery", carCard(battery: 18, range: "55 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
-            doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Home · Awake", sentry: .off,
-            charge: "Low battery", tone: .yellow)),
-         ("car-open", carCard(battery: 79, range: "242 mi range", lock: "Unlocked", lockWarn: true, doors: "Trunk open",
-            doorsWarn: true, tires: "38–40 psi", tiresWarn: false, place: "Home · Awake", sentry: .off,
-            charge: "Unplugged", tone: .yellow)),
-         ("car-tires", carCard(battery: 79, range: "242 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
-            doorsWarn: false, tires: "31–40 psi", tiresWarn: true, place: "Home · asleep since Mon 10:33 PM", sentry: .off,
-            charge: "Check tires", tone: .yellow)),
-         ("car-unlocked_away", carCard(battery: 79, range: "242 mi range", lock: "Unlocked", lockWarn: true, doors: "All shut",
-            doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Away · Awake", sentry: .off,
-            charge: "Unplugged", tone: .red)),
-         ("car-offline", carCard(battery: 79, range: "242 mi range", lock: "Locked", lockWarn: false, doors: "All shut",
-            doorsWarn: false, tires: "38–40 psi", tiresWarn: false, place: "Home · Last known", sentry: .off,
-            charge: "Last known", tone: .offline))]
+        CarParityInputs.states.map { ("car-" + $0, AnyView(CarBeaconView(CarParityInputs.snapshot($0)))) }
     }
 
     // MARK: ChargePoint

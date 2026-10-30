@@ -244,7 +244,9 @@ struct CarEntry: TimelineEntry {
 struct CarProvider: TimelineProvider {
     func placeholder(in context: Context) -> CarEntry { CarEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (CarEntry) -> Void) {
-        completion(CarEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(CarEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(CarEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<CarEntry>) -> Void) {
         // WidgetKit's completion predates Swift concurrency (not `@Sendable`) and is invoked exactly
@@ -257,21 +259,12 @@ struct CarProvider: TimelineProvider {
         }
     }
 
-    /// Reads the App-Group `HaConfig`; when signed in, renders the car via `POST /api/template`.
-    /// Not signed in → `.sample` (shows a representative preview). A fetch error also falls back to
-    /// `.sample` for now. TODO: surface a real offline/error state on the widget face.
+    /// Reads the same raw-reading cache and error state as the in-app dashboard.
     private static func fetch() async -> CarSnapshot {
         #if DEBUG
         if ParityCatalog.activeWidgetID(prefix: "car") != nil { return .sample }
         #endif
-        guard let cfg = HaConfigStore.load(), cfg.carReady else { return .sample }
-        do {
-            let json = try await HaClient(cfg).template(CAR_TEMPLATE)
-            let now = Date()
-            return carSnapshot(carFromTemplate(json), now: now, stale: false, checkedAt: now)
-        } catch {
-            return .sample
-        }
+        return await CarLiveSnapshot.fetch()
     }
 }
 
