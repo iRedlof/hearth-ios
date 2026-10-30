@@ -42,9 +42,16 @@ import HearthKit
     }
 
     static func all() -> [(String, AnyView)] {
-        alarm() + thermostat() + car() + chargePoint()
+        alarm() + thermostat() + car() + chargePoint() + tiles()
     }
 
+    private static func tiles() -> [(String, AnyView)] {
+        TileParityInputs.states.flatMap { state in [
+            ("favourites-" + state, AnyView(FavouritesView(TileParityInputs.favourites(state)))),
+            ("lights-" + state, AnyView(LightTileView(TileParityInputs.lights(state)))),
+            ("quick-" + state, AnyView(QuickView(TileParityInputs.quick(state))))
+        ] }
+    }
     // MARK: Alarm
     private static func alarm() -> [(String, AnyView)] {
         AlarmParityInputs.states.map { ("alarm-" + $0, AnyView(AlarmBeaconView(AlarmParityInputs.snapshot($0)))) }
@@ -144,6 +151,7 @@ struct ParityStateScreen: View {
             Color(red: 1, green: 0, blue: 1).ignoresSafeArea()   // magenta crop marker — appears nowhere in the card
             (ParityCatalog.view(id) ?? AnyView(Text(id).foregroundStyle(.white)))
                 .frame(width: width, height: height)
+                .allowsHitTesting(false)
                 .clipped()
                 .padding(.leading, 16).padding(.top, 70)
         }

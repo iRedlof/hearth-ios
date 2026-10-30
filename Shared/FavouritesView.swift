@@ -9,7 +9,7 @@ public struct FavouritesView: View {
     public init(_ snap: FavSnapshot) { self.snap = snap }
 
     private let ink = Color(argb: BeaconSurfaceColors.inkARGB)
-    private let columns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
+    private let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -22,9 +22,14 @@ public struct FavouritesView: View {
                 Text(snap.checkedAt).font(.system(size: 10)).foregroundStyle(ink.opacity(0.7)).padding(.leading, 6).invalidatableContent()
             }
             if snap.items.isEmpty {
-                Text("No favourites chosen").font(.system(size: 13)).foregroundStyle(ink.opacity(0.6)).padding(.top, 4)
+                TileStatusContent(state: snap.state, error: snap.error, choice: "Choose your favourites",
+                                  empty: "No favourites found")
             } else {
-                LazyVGrid(columns: columns, spacing: 8) { ForEach(snap.items, id: \.id) { tile($0) } }
+                if let error = snap.error {
+                    Text(error).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                }
+                LazyVGrid(columns: columns, spacing: 8) { ForEach(snap.items.prefix(4), id: \.id) { tile($0) } }
+                if snap.items.count > 4 { TileMoreContent(count: snap.items.count - 4) }
             }
             Spacer(minLength: 0)
         }
@@ -34,20 +39,26 @@ public struct FavouritesView: View {
     }
 
     private func tile(_ f: Fav) -> some View {
-        Button(intent: FavToggleIntent(f.id, on: !f.on)) {
-            VStack(alignment: .leading, spacing: 2) {
+        let label = VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Image(systemName: icon(f.domain)).font(.system(size: 15))
                         .foregroundStyle(f.on ? Color(argb: 0xFFFF_D27F) : ink.opacity(0.45))
                     Spacer()
                 }
                 Spacer(minLength: 2)
-                Text(f.name).font(.system(size: 11.5, weight: .medium)).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.8)
-                Text(f.domain == "script" ? "Run" : (f.on ? "On" : "Off")).font(.system(size: 9)).foregroundStyle(ink.opacity(0.6))
+                Text(f.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(ink).lineLimit(2)
+                Text(!f.available ? "Unavailable" : f.domain == "script" ? "Run" : (f.on ? "On" : "Off"))
+                    .font(.system(size: 12)).foregroundStyle(ink.opacity(0.8))
             }
-            .padding(9).frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+            .padding(9).frame(maxWidth: .infinity, alignment: .topLeading).frame(height: 92)
             .background(f.on ? ink.opacity(0.13) : ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))
-        }.buttonStyle(.plain)
+        return Group {
+            if f.available {
+                Button(intent: FavToggleIntent(f.id, turnOn: f.requestedOn)) { label }.buttonStyle(.plain)
+            } else {
+                label.accessibilityLabel("\(f.name), Unavailable")
+            }
+        }
     }
 
     private func icon(_ domain: String) -> String {

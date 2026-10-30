@@ -97,7 +97,9 @@ struct LightsEntry: TimelineEntry { let date: Date; let snap: LightsSnapshot }
 struct LightsProvider: TimelineProvider {
     func placeholder(in context: Context) -> LightsEntry { LightsEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (LightsEntry) -> Void) {
-        completion(LightsEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(LightsEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(LightsEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<LightsEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -108,15 +110,17 @@ struct LightsProvider: TimelineProvider {
         }
     }
     private static func fetch() async -> LightsSnapshot {
-        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
-        return await fetchLightsSnapshot(cfg)
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "lights") != nil { return .loading }
+        #endif
+        return await fetchLightsSnapshot(HaConfigStore.load())
     }
 }
 
 struct LightsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.lights", provider: LightsProvider()) { entry in
-            LightTileView(entry.snap)
+            ParityWidgetContent(prefix: "lights") { LightTileView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("Lights")
@@ -133,7 +137,9 @@ struct QuickEntry: TimelineEntry { let date: Date; let snap: QuickSnapshot }
 struct QuickProvider: TimelineProvider {
     func placeholder(in context: Context) -> QuickEntry { QuickEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (QuickEntry) -> Void) {
-        completion(QuickEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(QuickEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(QuickEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<QuickEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -144,15 +150,17 @@ struct QuickProvider: TimelineProvider {
         }
     }
     private static func fetch() async -> QuickSnapshot {
-        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
-        return await fetchQuickSnapshot(cfg)
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "quick") != nil { return .loading }
+        #endif
+        return await fetchQuickSnapshot(HaConfigStore.load())
     }
 }
 
 struct QuickWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.quick", provider: QuickProvider()) { entry in
-            QuickView(entry.snap)
+            ParityWidgetContent(prefix: "quick") { QuickView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("Quick")
@@ -169,7 +177,9 @@ struct FavouritesEntry: TimelineEntry { let date: Date; let snap: FavSnapshot }
 struct FavouritesProvider: TimelineProvider {
     func placeholder(in context: Context) -> FavouritesEntry { FavouritesEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (FavouritesEntry) -> Void) {
-        completion(FavouritesEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(FavouritesEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(FavouritesEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<FavouritesEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -180,15 +190,17 @@ struct FavouritesProvider: TimelineProvider {
         }
     }
     private static func fetch() async -> FavSnapshot {
-        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
-        return await fetchFavouritesSnapshot(cfg)
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "favourites") != nil { return .loading }
+        #endif
+        return await fetchFavouritesSnapshot(HaConfigStore.load())
     }
 }
 
 struct FavouritesWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.favourites", provider: FavouritesProvider()) { entry in
-            FavouritesView(entry.snap)
+            ParityWidgetContent(prefix: "favourites") { FavouritesView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("Favourites")

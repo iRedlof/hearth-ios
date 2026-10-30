@@ -16,7 +16,11 @@ struct LightToggleIntent: AppIntent {
 
     func perform() async throws -> some IntentResult {
         guard let config = HaConfigStore.load() else { return .result() }
-        try await HaClient(config).callService(domain: "light", service: turnOn ? "turn_on" : "turn_off", entityId: id)
+        guard id.hasPrefix("light.") else { return .result() }
+        let client = HaClient(config)
+        let current = try favouriteFromState(await client.stateJson(id), id: id)
+        guard current.available else { return .result() }
+        try await client.callService(domain: "light", service: turnOn ? "turn_on" : "turn_off", entityId: id)
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.lights")
         return .result()
     }

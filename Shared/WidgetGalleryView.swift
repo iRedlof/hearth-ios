@@ -49,6 +49,7 @@ struct WidgetGalleryView: View {
                             Text("\(size.label)  ·  \(Int(size.w))×\(Int(size.h))")
                                 .font(.caption).foregroundStyle(.secondary)
                             widget
+                                .allowsHitTesting(false)
                                 .frame(width: size.w, height: size.h)
                                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                                 .shadow(color: .black.opacity(0.25), radius: 6, y: 3)

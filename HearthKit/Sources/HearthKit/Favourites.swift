@@ -2,9 +2,13 @@ import Foundation
 
 /// A favourite entity (switch / light / fan / input_boolean / script): its name and whether it's on.
 public struct Fav: Sendable, Equatable {
-    public let id: String; public let name: String; public let on: Bool
-    public init(id: String, name: String, on: Bool) { self.id = id; self.name = name; self.on = on }
+    public let id: String; public let name: String; public let on: Bool; public let available: Bool
+    public init(id: String, name: String, on: Bool, available: Bool = true) {
+        self.id = id; self.name = name; self.on = on; self.available = available
+    }
     public var domain: String { String(id.prefix { $0 != "." }) }
+    /// The requested target is fixed at render time; dispatch must never flip a newer reading.
+    public var requestedOn: Bool { domain == "script" || !on }
 }
 
 /// The service to toggle a favourite: scripts always run; everything else flips to the opposite of

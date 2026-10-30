@@ -10,22 +10,34 @@ public struct LightTileView: View {
     public init(_ snap: LightsSnapshot) { self.snap = snap }
 
     private let ink = Color(argb: BeaconSurfaceColors.inkARGB)
-    private let columns = [GridItem(.adaptive(minimum: 96), spacing: 8)]
+    private let columns = [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)]
+    private var page: LightTilePage { lightTilePage(snap.summary) }
+    private var visiblePinned: [LightView] { page.pinned }
+    private var visibleOn: [LightView] { page.main }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             header
-            if !snap.summary.on.isEmpty {
-                LazyVGrid(columns: columns, spacing: 8) { ForEach(snap.summary.on, id: \.id) { tile($0) } }
+            if snap.state == .setup || snap.state == .loading || snap.state == .failed {
+                TileStatusContent(state: snap.state, error: snap.error, choice: "", empty: "No lights found")
+            } else {
+            if !visibleOn.isEmpty {
+                LazyVGrid(columns: columns, spacing: 8) { ForEach(visibleOn, id: \.id) { tile($0) } }
             }
-            if !snap.summary.pinned.isEmpty {
+            if !visiblePinned.isEmpty {
                 Text("ALWAYS SHOW").font(.system(size: 9, weight: .semibold)).tracking(0.5)
                     .foregroundStyle(ink.opacity(0.45)).padding(.top, 2)
-                LazyVGrid(columns: columns, spacing: 8) { ForEach(snap.summary.pinned, id: \.id) { tile($0) } }
+                LazyVGrid(columns: columns, spacing: 8) {
+                    ForEach(visiblePinned, id: \.id) { tile($0) }
+                }
+            }
+            if page.hiddenCount > 0 {
+                TileMoreContent(count: page.hiddenCount)
             }
             if snap.summary.on.isEmpty && snap.summary.pinned.isEmpty {
                 Text(snap.summary.offCount > 0 ? "\(snap.summary.offCount) off" : "No lights")
                     .font(.system(size: 13)).foregroundStyle(ink.opacity(0.6)).padding(.top, 4)
+            }
             }
             Spacer(minLength: 0)
         }
@@ -36,7 +48,8 @@ public struct LightTileView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(snap.summary.headline).font(.system(size: 18, weight: .bold)).foregroundStyle(ink)
+            Text(snap.state == .ready || snap.state == .empty ? snap.summary.headline : "Lights")
+                .font(.system(size: 18, weight: .bold)).foregroundStyle(ink)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Spacer()
             Button(intent: WidgetRefreshIntent("com.rohit.hearth.lights")) {
@@ -48,8 +61,7 @@ public struct LightTileView: View {
 
     private func tile(_ v: LightView) -> some View {
         let accent = v.rgb.map { Color(argb: $0) } ?? Color(argb: 0xFFFF_D27F)
-        return Button(intent: LightToggleIntent(v.id, on: !v.on)) {
-            VStack(alignment: .leading, spacing: 2) {
+        let label = VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Image(systemName: v.on ? "lightbulb.fill" : "lightbulb")
                         .font(.system(size: 15)).foregroundStyle(v.on ? accent : ink.opacity(0.45))
@@ -57,11 +69,17 @@ public struct LightTileView: View {
                     if let p = v.percent { Text("\(p)%").font(.system(size: 10, weight: .semibold)).foregroundStyle(ink.opacity(0.7)) }
                 }
                 Spacer(minLength: 2)
-                Text(v.name).font(.system(size: 11.5, weight: .medium)).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.8)
-                Text(v.tile).font(.system(size: 9)).foregroundStyle(ink.opacity(0.6)).lineLimit(1)
+                Text(v.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(ink).lineLimit(2)
+                Text(v.tile).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
             }
-            .padding(9).frame(maxWidth: .infinity, minHeight: 64, alignment: .topLeading)
+            .padding(9).frame(maxWidth: .infinity, alignment: .topLeading).frame(height: 92)
             .background(v.on ? ink.opacity(0.13) : ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))
-        }.buttonStyle(.plain)
+        return Group {
+            if v.available {
+                Button(intent: LightToggleIntent(v.id, on: !v.on)) { label }.buttonStyle(.plain)
+            } else {
+                label.accessibilityLabel("\(v.name), Unavailable")
+            }
+        }
     }
 }

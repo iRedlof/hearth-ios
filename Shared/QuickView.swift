@@ -21,11 +21,21 @@ public struct QuickView: View {
                 }.buttonStyle(.plain)
             }
             if snap.keys.isEmpty {
-                Text("No scripts chosen").font(.system(size: 12)).foregroundStyle(ink.opacity(0.6))
+                TileStatusContent(state: snap.state, error: snap.error, choice: "Choose your scripts",
+                                  empty: "No scripts found")
             } else {
                 LazyVGrid(columns: columns, spacing: 7) {
-                    ForEach(snap.keys.prefix(6), id: \.id) { key($0) }
+                    ForEach(snap.keys.prefix(4), id: \.id) { key($0) }
                 }
+                if let error = snap.error {
+                    HStack(spacing: 6) {
+                        Text(error).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                        if snap.keys.count > 4 {
+                            Spacer(minLength: 0)
+                            TileMoreContent(count: snap.keys.count - 4)
+                        }
+                    }
+                } else if snap.keys.count > 4 { TileMoreContent(count: snap.keys.count - 4) }
             }
             Spacer(minLength: 0)
         }
@@ -35,14 +45,24 @@ public struct QuickView: View {
     }
 
     private func key(_ k: QuickKey) -> some View {
-        Button(intent: QuickRunIntent(k.id)) {
-            HStack(spacing: 6) {
+        let label = HStack(spacing: 6) {
                 Image(systemName: "play.circle.fill").font(.system(size: 14)).foregroundStyle(ink.opacity(0.85))
-                Text(k.name).font(.system(size: 12.5, weight: .medium)).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.8)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(k.name).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+                    if !k.available {
+                        Text("Unavailable").font(.system(size: 11)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                    }
+                }
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, 10).frame(height: 38).frame(maxWidth: .infinity, alignment: .leading)
             .background(ink.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-        }.buttonStyle(.plain)
+        return Group {
+            if k.available {
+                Button(intent: QuickRunIntent(k.id)) { label }.buttonStyle(.plain)
+            } else {
+                label.accessibilityLabel("\(k.name), Unavailable")
+            }
+        }
     }
 }
