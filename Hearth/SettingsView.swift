@@ -8,6 +8,7 @@ import HearthKit
 /// mutate the live one), persists it to the App-Group store, and reloads all widget timelines.
 struct SettingsView: View {
     @State private var config: HaConfig
+    @State private var editScope: String?
     @State private var cpSignedIn = CpSessionStore.load().isSignedIn
     @State private var cpAuto = CpSessionStore.loadRun().armed
     @State private var cpLocation = CpSessionStore.loadLocation()
@@ -18,6 +19,8 @@ struct SettingsView: View {
 
     init(config: HaConfig, onChange: @escaping (HaConfig) -> Void) {
         _config = State(initialValue: config)
+        let current = HaConfigStore.context()
+        _editScope = State(initialValue: haSameConnection(current?.config, config) ? current?.scope : nil)
         self.onChange = onChange
     }
 
@@ -172,8 +175,8 @@ struct SettingsView: View {
                 Section {
                     NavigationLink {
                         MultiEntityPickerView(config: config, domains: ["cover", "binary_sensor", "lock"],
-                                              title: "Doors", selected: config.doorIds) { ids in
-                            apply { $0.doorIdsJson = encodeIds(ids) }
+                                              title: "Doors", selected: config.doorIds, doorsOnly: true) { ids in
+                            apply { $0.doorIdsJson = encodeIds(ids); $0.doorsChosen = true }
                         }
                     } label: {
                         LabeledContent("Doors", value: config.doorIds.isEmpty ? "None" : "\(config.doorIds.count) selected")
@@ -181,11 +184,12 @@ struct SettingsView: View {
                 } header: {
                     Text("Doors")
                 } footer: {
-                    Text("Doors, garages and window sensors for the Doors widget. Opening the garage asks for Face ID.")
+                    Text("Doors, garages and window sensors for the Doors widget. Garage controls work with one tap.")
                 }
             }
             .navigationTitle("Settings")
-            .task { await loadNames() }
+            .task { synchronizeConfig(); await loadNames() }
+            .onAppear { synchronizeConfig() }
             .alert("Couldn't save settings", isPresented: Binding(
                 get: { saveError != nil }, set: { if !$0 { saveError = nil } }
             )) { Button("OK", role: .cancel) {} } message: { Text(saveError ?? "") }
@@ -215,12 +219,18 @@ struct SettingsView: View {
         entityNames = Dictionary(parseEntities(json).map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
     }
 
-    /// Immutable update: copy the config, set the field on the copy, persist, reload widgets.
+    private func synchronizeConfig() {
+        guard let current = HaConfigStore.context(), current.scope == editScope,
+              let latest = current.config, haSameConnection(config, latest) else { return }
+        config = latest
+        onChange(latest)
+    }
+
+    /// Apply one field edit to the current account's persisted configuration atomically.
     private func apply(_ mutate: (inout HaConfig) -> Void) {
-        var next = config
-        mutate(&next)
         do {
-            try HaConfigStore.save(next)
+            guard let editScope else { throw HaError("Your account changed. Reopen Settings to continue.") }
+            let next = try HaConfigStore.editConfig(expectedScope: editScope, mutate: mutate)
             config = next
             WidgetCenter.shared.reloadAllTimelines()
             onChange(next)

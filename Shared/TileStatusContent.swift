@@ -7,6 +7,7 @@ struct TileStatusContent: View {
     let error: String?
     let choice: String
     let empty: String
+    var ink: Color = Color(argb: BeaconSurfaceColors.inkARGB)
     private var label: String {
         switch state {
         case .setup: "Connect Home Assistant"
@@ -24,11 +25,11 @@ struct TileStatusContent: View {
                 Button(intent: HaSetupIntent(reconnect: beaconNeedsSignIn(error))) {
                     Text(state == .choose ? "Open Settings" : "Connect").font(.system(size: 14, weight: .semibold))
                         .padding(.horizontal, 16).padding(.vertical, 8)
-                        .background(Color.white.opacity(0.12), in: Capsule())
+                        .background(ink.opacity(0.12), in: Capsule())
                 }.buttonStyle(.plain)
             }
         }
-        .foregroundStyle(Color(argb: BeaconSurfaceColors.inkARGB))
+        .foregroundStyle(ink)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

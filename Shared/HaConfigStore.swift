@@ -23,6 +23,10 @@ public enum HaConfigStore {
         guard let store else { throw HaError("Shared storage is unavailable") }
         return try store.expireAlarmOperation(now: now)
     }
+    static func doorsContext(now: Date = .now) throws -> HaStoreSnapshot {
+        guard let store else { throw HaError("Shared storage is unavailable") }
+        return try store.expireDoorOperation(now: now)
+    }
 
     public static func load() -> HaConfig? {
         context()?.config
@@ -42,6 +46,15 @@ public enum HaConfigStore {
         // Kept as a one-time migration source for older installations. Reads use the file context.
         defaults.set(data, forKey: key)
         defaults.set(saved.scope, forKey: scopeKey)
+    }
+
+    public static func editConfig(expectedScope: String, mutate: (inout HaConfig) -> Void) throws -> HaConfig {
+        guard let store else { throw HaError("Shared storage is unavailable. Please reopen Hearth.") }
+        guard let saved = try store.editConfig(expectedScope: expectedScope, edit: mutate),
+              let config = saved.config else { throw HaError("Your account changed. Reopen Settings to continue.") }
+        defaults.set(try JSONEncoder().encode(config), forKey: key)
+        defaults.set(saved.scope, forKey: scopeKey)
+        return config
     }
 
     /// Stable across entity-picker edits, replaced when signing out or changing server/account.

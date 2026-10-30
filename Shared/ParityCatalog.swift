@@ -42,7 +42,7 @@ import HearthKit
     }
 
     static func all() -> [(String, AnyView)] {
-        alarm() + thermostat() + car() + chargePoint() + tiles()
+        alarm() + thermostat() + car() + chargePoint() + tiles() + collections()
     }
 
     private static func tiles() -> [(String, AnyView)] {
@@ -51,6 +51,15 @@ import HearthKit
             ("lights-" + state, AnyView(LightTileView(TileParityInputs.lights(state)))),
             ("quick-" + state, AnyView(QuickView(TileParityInputs.quick(state))))
         ] }
+    }
+    private static func collections() -> [(String, AnyView)] {
+        CollectionParityInputs.doorsStates.map {
+            ("doors-" + $0, AnyView(DoorsView(CollectionParityInputs.doors($0))))
+        } + CollectionParityInputs.activityStates.map {
+            ("activity-" + $0, AnyView(ActivityView(CollectionParityInputs.activity($0), now: CollectionParityInputs.now)))
+        } + CollectionParityInputs.batteryStates.map {
+            ("battery-" + $0, AnyView(BatteryView(CollectionParityInputs.batteries($0))))
+        }
     }
     // MARK: Alarm
     private static func alarm() -> [(String, AnyView)] {

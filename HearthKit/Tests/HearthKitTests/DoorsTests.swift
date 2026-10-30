@@ -24,8 +24,8 @@ final class DoorsTests: XCTestCase {
         XCTAssertNil(sensor.action); XCTAssertEqual(sensor.open, true)   // sensors read-only
     }
 
-    func testNeedsConfirmOnlyGarageOpen() {
-        XCTAssertTrue(DoorAction.open.needsConfirm)
+    func testDoorActionsAreDirectTaps() {
+        XCTAssertFalse(DoorAction.open.needsConfirm)
         XCTAssertFalse(DoorAction.close.needsConfirm)
         XCTAssertFalse(DoorAction.lock.needsConfirm)
     }
@@ -47,5 +47,25 @@ final class DoorsTests: XCTestCase {
                                          since: now.addingTimeInterval(-40 * 60))], now: now)
         XCTAssertEqual(openOld.tone, .alert)   // open >= 30 min → forgotten
         XCTAssertEqual(openOld.headline, "Garage open")
+    }
+
+    func testGarageAndGateKeepDistinctFriendlyNames() {
+        XCTAssertEqual(doorFromState(#"{"entity_id":"cover.east","state":"closed","attributes":{"device_class":"garage","friendly_name":"East Garage"}}"#)?.name, "East Garage")
+        XCTAssertEqual(doorFromState(#"{"entity_id":"cover.side","state":"open","attributes":{"device_class":"gate","friendly_name":"Side Gate"}}"#)?.name, "Side Gate")
+    }
+
+    func testUnrelatedCoversAndSensorsCannotBecomeDoorRows() {
+        XCTAssertNil(doorFromState(#"{"entity_id":"cover.blind","state":"closed","attributes":{"device_class":"blind"}}"#))
+        XCTAssertNil(doorFromState(#"{"entity_id":"binary_sensor.motion","state":"off","attributes":{"device_class":"motion"}}"#))
+    }
+
+    func testMalformedStateTypesAndEmptyIdentityAreRejected() {
+        XCTAssertNil(doorFromState(#"{"entity_id":"cover.garage","state":1,"attributes":{"device_class":"garage"}}"#))
+        XCTAssertNil(doorFromState(#"{"entity_id":"cover.","state":"closed","attributes":{"device_class":"garage"}}"#))
+        XCTAssertNil(doorFromState(#"{"entity_id":"lock.front","state":null,"attributes":{}}"#))
+    }
+
+    func testGarageOpenIsOneTap() {
+        XCTAssertFalse(DoorAction.open.needsConfirm)
     }
 }

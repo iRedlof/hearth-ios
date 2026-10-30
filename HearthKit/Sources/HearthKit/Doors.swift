@@ -1,13 +1,20 @@
 import Foundation
+import CoreFoundation
 
 /// Doors / garages / locks for the Doors widget. Ported from Android `DoorsState.kt` (`DoorsTone`
-/// lives in Car.swift). Garage Open is the one risky action — gated behind Face ID.
+/// lives in Car.swift). Every garage action is a direct tap.
 public enum DoorKind: String, Sendable, Equatable { case sensor, garage, lock }
 
 public struct Door: Sendable, Equatable {
     public let id: String; public let name: String; public let kind: DoorKind; public let state: String; public let since: Date?
-    public init(id: String, name: String, kind: DoorKind, state: String, since: Date?) {
+    public let checkedAt: Date?; public let error: String?
+    /// nil is a missing legacy mask; false is explicit unsupported or malformed present telemetry.
+    public let supportsStop: Bool?
+    public init(id: String, name: String, kind: DoorKind, state: String, since: Date?,
+                checkedAt: Date? = nil, error: String? = nil, supportsStop: Bool? = nil) {
         self.id = id; self.name = name; self.kind = kind; self.state = state; self.since = since
+        self.checkedAt = checkedAt; self.error = error
+        self.supportsStop = supportsStop
     }
 }
 
@@ -21,8 +28,17 @@ public enum DoorAction: String, Sendable, Equatable {
         case .stop: ("cover", "stop_cover"); case .lock: ("lock", "lock")
         }
     }
-    /// Only opening the garage is confirmed (Android ConfirmActivity → iOS Face ID gate).
-    public var needsConfirm: Bool { self == .open }
+    public var needsConfirm: Bool { false }
+
+    /// A successful Stop requires a positively known resting position.
+    public func done(_ state: String?) -> Bool {
+        switch self {
+        case .open: state == "open"
+        case .close: state == "closed"
+        case .lock: state == "locked"
+        case .stop: state == "open" || state == "closed"
+        }
+    }
 }
 
 public struct DoorView: Sendable, Equatable {
@@ -42,6 +58,15 @@ public struct DoorsSummary: Sendable, Equatable {
 private let DOOR_NO_SIGNAL: Set<String> = ["unavailable", "unknown", "none", ""]
 
 public func doorView(_ d: Door, now: Date, zone: TimeZone = .current, locale: Locale = .current) -> DoorView {
+    if d.error != nil {
+        let status: String
+        if d.checkedAt != nil || (!DOOR_NO_SIGNAL.contains(d.state) && validDoorState(d.kind, d.state)) {
+            let previous = Door(id: d.id, name: d.name, kind: d.kind, state: d.state, since: d.since,
+                supportsStop: d.supportsStop)
+            status = "Last known · \(doorView(previous, now: now, zone: zone, locale: locale).status)"
+        } else { status = "No reading" }
+        return DoorView(id: d.id, name: d.name, status: status, open: nil, action: nil)
+    }
     let since = sinceLabel(d.since, now: now, zone: zone, locale: locale)
     func shut(_ word: String) -> String { [word, since].compactMap { $0 }.joined(separator: " · ") }
     func openFor() -> String { d.since.map { "Open · \(howLong(now.timeIntervalSince($0)))" } ?? "Open" }
@@ -117,22 +142,30 @@ public func doorsSummary(_ doors: [Door], now: Date, zone: TimeZone = .current, 
     return DoorsSummary(headline: headline, tone: tone, lockLine: lockLine, rows: rows)
 }
 
-/// "Main Door Sensor" → "Main Door"; a garage cover → "Garage".
+/// "Main Door Sensor" → "Main Door"; garage and gate friendly names remain distinguishable.
 public func doorName(_ friendly: String, _ kind: DoorKind) -> String {
-    kind == .garage ? "Garage" : (friendly.hasSuffix(" Sensor") ? String(friendly.dropLast(7)) : friendly).trimmingCharacters(in: .whitespaces)
+    (kind == .sensor && friendly.hasSuffix(" Sensor") ? String(friendly.dropLast(7)) : friendly)
+        .trimmingCharacters(in: .whitespacesAndNewlines)
 }
 
 /// A door from its `GET /api/states/<id>` body (nil if not a door Hearth shows).
 public func doorFromState(_ json: String) -> Door? {
     guard let data = json.data(using: .utf8),
           let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-          let id = obj["entity_id"] as? String else { return nil }
-    let kind: DoorKind
-    if id.hasPrefix("lock.") { kind = .lock }
-    else if id.hasPrefix("cover.") { kind = .garage }
-    else if id.hasPrefix("binary_sensor.") { kind = .sensor }
-    else { return nil }
+          let id = obj["entity_id"] as? String, let kind = doorKindForID(id),
+          isDoorEligibleObject(obj), let state = obj["state"] as? String,
+          validDoorState(kind, state) else { return nil }
     let friendly = (obj["attributes"] as? [String: Any])?["friendly_name"] as? String
+    let supportsStop: Bool?
+    if kind == .garage, let attributes = obj["attributes"] as? [String: Any],
+       let raw = attributes["supported_features"] {
+        if let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() {
+            let value = number.doubleValue
+            supportsStop = value.isFinite && value >= 0 && value < Double(Int.max) &&
+                value.rounded(.towardZero) == value && (Int(value) & 8 != 0)
+        } else { supportsStop = false }
+    } else { supportsStop = nil }
     return Door(id: id, name: doorName(friendly?.isEmpty == false ? friendly! : id, kind),
-                kind: kind, state: (obj["state"] as? String) ?? "", since: parseOffsetDateTime(obj["last_changed"] as? String))
+                kind: kind, state: state, since: parseOffsetDateTime(obj["last_changed"] as? String),
+                supportsStop: supportsStop)
 }

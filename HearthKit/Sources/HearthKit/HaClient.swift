@@ -98,11 +98,13 @@ public struct HaClient: Sendable {
     /// Call a Home Assistant service: `POST /api/services/{domain}/{service}` with `{entity_id}`.
     /// Every widget action (arm/disarm, lock/unlock, climate set, button.press) goes through here.
     public func callService(domain: String, service: String, entityId: String, data: [String: Any] = [:],
-                            isAuthorized: (@Sendable () -> Bool)? = nil) async throws {
+                            isAuthorized: (@Sendable () -> Bool)? = nil,
+                            serviceGate: HaDoorServiceGate? = nil) async throws {
         var payload = data
         payload["entity_id"] = entityId
         let body = try JSONSerialization.data(withJSONObject: payload)
-        _ = try await request("POST", "/api/services/\(domain)/\(service)", body, isAuthorized: isAuthorized)
+        _ = try await request("POST", "/api/services/\(domain)/\(service)", body,
+            isAuthorized: isAuthorized, serviceGate: serviceGate)
     }
 
     public func allStatesJson() async throws -> String { try await request("GET", "/api/states", nil) }
@@ -121,7 +123,7 @@ public struct HaClient: Sendable {
     }
 
     private func request(_ method: String, _ path: String, _ body: Data?,
-                         isAuthorized: (@Sendable () -> Bool)? = nil) async throws -> String {
+                         isAuthorized: (@Sendable () -> Bool)? = nil, serviceGate: HaDoorServiceGate? = nil) async throws -> String {
         let token = try await bearer()
         guard let url = URL(string: config.baseUrl.trimmedTrailingSlash + path) else { throw HaError("Bad URL") }
         var req = URLRequest(url: url)
@@ -133,7 +135,16 @@ public struct HaClient: Sendable {
         // Bearer renewal can suspend. Revoke old operations at the actual dispatch boundary.
         try Task.checkCancellation()
         guard isAuthorized?() != false else { throw HaError("Configuration changed · Refresh to check") }
-        let (data, resp) = try await transport(req)
+        let request = req
+        let result: (Data, URLResponse)
+        if let serviceGate {
+            result = try await serviceGate.dispatch(isAuthorized: { isAuthorized?() != false }) {
+                try await transport(request)
+            }
+        } else {
+            result = try await transport(request)
+        }
+        let (data, resp) = result
         let code = (resp as? HTTPURLResponse)?.statusCode ?? 0
         if code == 401 {
             await HaAuth.shared.forget()

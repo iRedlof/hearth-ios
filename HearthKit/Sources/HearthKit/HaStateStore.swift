@@ -11,6 +11,24 @@ public struct HaStateFailure: Codable, Sendable, Equatable {
     public let checkedAt: Date
 }
 
+/// A failed attempt preserves the successful payload and its original observation time.
+public struct HaCollectionCache: Codable, Sendable, Equatable {
+    public let payload: String?
+    public let observedAt: Date?
+    public let error: String?
+    public let attemptedAt: Date
+}
+
+public struct HaCollectionReadOwner: Sendable, Equatable {
+    public let kind: String
+    public let scope: String
+    public let revision: String
+    public let readID: String
+    public init(kind: String, scope: String, revision: String, readID: String) {
+        self.kind = kind; self.scope = scope; self.revision = revision; self.readID = readID
+    }
+}
+
 public struct HaStoreSnapshot: Sendable {
     public let config: HaConfig?
     public let scope: String
@@ -20,6 +38,10 @@ public struct HaStoreSnapshot: Sendable {
     public let alarmRevision: String
     public let alarmOperation: AlarmOperation?
     public let failures: [String: HaStateFailure]
+    public let collectionRevision: String
+    public let collectionCaches: [String: HaCollectionCache]
+    public let doorOperation: DoorOperation?
+    public let doorActionRevision: String
 }
 
 /// All readers and writers lock a permanent sidecar. The JSON file may then be replaced atomically
@@ -38,17 +60,30 @@ public struct HaStateStore: Sendable {
         var alarmRevision: String
         var alarmOperation: AlarmOperation?
         var failures: [String: HaStateFailure]
+        var collectionRevision: String
+        var collectionCaches: [String: HaCollectionCache]
+        var collectionReads: [String: String]
+        var doorOperation: DoorOperation?
+        var doorActionRevision: String
         init(config: HaConfig?, scope: String, readings: [String: HaStateReading],
              climateRevision: String = UUID().uuidString, climateOperation: ClimateOperation? = nil,
              alarmRevision: String = UUID().uuidString, alarmOperation: AlarmOperation? = nil,
-             failures: [String: HaStateFailure] = [:]) {
+             failures: [String: HaStateFailure] = [:],
+             collectionRevision: String = UUID().uuidString, collectionCaches: [String: HaCollectionCache] = [:],
+             collectionReads: [String: String] = [:], doorOperation: DoorOperation? = nil,
+             doorActionRevision: String = UUID().uuidString) {
             self.config = config; self.scope = scope; self.readings = readings
             self.climateRevision = climateRevision; self.climateOperation = climateOperation
             self.alarmRevision = alarmRevision; self.alarmOperation = alarmOperation
             self.failures = failures
+            self.collectionRevision = collectionRevision; self.collectionCaches = collectionCaches
+            self.collectionReads = collectionReads
+            self.doorOperation = doorOperation
+            self.doorActionRevision = doorActionRevision
         }
         private enum CodingKeys: String, CodingKey {
             case version, config, scope, readings, climateRevision, climateOperation, alarmRevision, alarmOperation, failures
+            case collectionRevision, collectionCaches, collectionReads, doorOperation, doorActionRevision
         }
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -61,11 +96,22 @@ public struct HaStateStore: Sendable {
             alarmRevision = try values.decodeIfPresent(String.self, forKey: .alarmRevision) ?? "legacy"
             alarmOperation = try values.decodeIfPresent(AlarmOperation.self, forKey: .alarmOperation)
             failures = try values.decodeIfPresent([String: HaStateFailure].self, forKey: .failures) ?? [:]
+            collectionRevision = try values.decodeIfPresent(String.self, forKey: .collectionRevision) ?? "legacy"
+            collectionCaches = try values.decodeIfPresent([String: HaCollectionCache].self, forKey: .collectionCaches) ?? [:]
+            collectionReads = try values.decodeIfPresent([String: String].self, forKey: .collectionReads) ?? [:]
+            doorOperation = try values.decodeIfPresent(DoorOperation.self, forKey: .doorOperation)
+            // A deterministic legacy value remains stable across processes and is persisted on the next mutation.
+            // Old collection-revision callbacks do not accidentally become fresh command origins.
+            doorActionRevision = try values.decodeIfPresent(String.self, forKey: .doorActionRevision)
+                ?? "door-action-legacy:\(scope):\(collectionRevision)"
+            guard !doorActionRevision.isEmpty else { throw CocoaError(.fileReadCorruptFile) }
         }
         var snapshot: HaStoreSnapshot {
             HaStoreSnapshot(config: config, scope: scope, readings: readings,
                 climateRevision: climateRevision, climateOperation: climateOperation,
-                alarmRevision: alarmRevision, alarmOperation: alarmOperation, failures: failures)
+                alarmRevision: alarmRevision, alarmOperation: alarmOperation, failures: failures,
+                collectionRevision: collectionRevision, collectionCaches: collectionCaches, doorOperation: doorOperation,
+                doorActionRevision: doorActionRevision)
         }
     }
 
@@ -77,30 +123,63 @@ public struct HaStateStore: Sendable {
         try locked { try read().snapshot }
     }
 
+    public func doorServiceGate(entityID: String) -> HaDoorServiceGate {
+        HaDoorServiceGate(directory: directory, entityID: entityID)
+    }
+
+    /// Network and discovery failures settle only their captured read, exactly like successful replies.
+    public func failCollectionRead(_ owner: HaCollectionReadOwner, error: String, now: Date) throws -> HaStoreSnapshot? {
+        try mergeCollection(owner.kind, reply: .failure(HaError(error)), expectedScope: owner.scope,
+            expectedRevision: owner.revision, readID: owner.readID, now: now)
+    }
+
+    /// Apply a Settings field edit to the current account record, preserving concurrent discovery.
+    public func editConfig(expectedScope: String, edit: (inout HaConfig) -> Void) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, var config = stored.config else { return nil }
+            edit(&config)
+            applyConfig(config, to: &stored)
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+
     /// Account changes rotate the persisted generation even when signing back into the same account.
     /// Picker edits preserve the account scope and independently cached entity readings.
     @discardableResult public func saveConfig(_ config: HaConfig?) throws -> HaStoreSnapshot {
         try locked {
             var stored = try read()
-            if config == nil || !haSameConnection(stored.config, config) {
-                stored.scope = UUID().uuidString
-                stored.readings = [:]
-                stored.failures = [:]
-            }
-            if stored.config?.climateId != config?.climateId || stored.config?.resumeId != config?.resumeId
-                || config == nil || !haSameConnection(stored.config, config) {
-                stored.climateRevision = UUID().uuidString
-                stored.climateOperation = nil
-            }
-            if stored.config?.entityId != config?.entityId || stored.config?.lockId != config?.lockId
-                || config == nil || !haSameConnection(stored.config, config) {
-                stored.alarmRevision = UUID().uuidString
-                stored.alarmOperation = nil
-            }
-            stored.config = config
+            applyConfig(config, to: &stored)
             try write(stored)
             return stored.snapshot
         }
+    }
+
+    private func applyConfig(_ config: HaConfig?, to stored: inout Stored) {
+        if config == nil || !haSameConnection(stored.config, config) {
+            stored.scope = UUID().uuidString
+            stored.readings = [:]
+            stored.failures = [:]
+        }
+        if stored.config?.climateId != config?.climateId || stored.config?.resumeId != config?.resumeId
+            || config == nil || !haSameConnection(stored.config, config) {
+            stored.climateRevision = UUID().uuidString
+            stored.climateOperation = nil
+        }
+        if stored.config?.entityId != config?.entityId || stored.config?.lockId != config?.lockId
+            || config == nil || !haSameConnection(stored.config, config) {
+            stored.alarmRevision = UUID().uuidString
+            stored.alarmOperation = nil
+        }
+        if config == nil || haCollectionSelectionChanged(stored.config, config) {
+            stored.collectionRevision = UUID().uuidString
+            stored.collectionCaches = [:]
+            stored.collectionReads = [:]
+            stored.doorOperation = nil
+            stored.doorActionRevision = UUID().uuidString
+        }
+        stored.config = config
     }
 
     /// Explicit sign-out/recovery discards an unreadable record and revokes every older request.
@@ -116,11 +195,13 @@ public struct HaStateStore: Sendable {
     /// nil explicitly means an obsolete request. It never activates the requesting generation.
     public func merge(_ readings: [String: HaStateReading], expectedScope: String,
                       expectedClimateRevision: String? = nil, expectedAlarmRevision: String? = nil,
+                      expectedCollectionRevision: String? = nil,
                       failures: [String: String] = [:],
                       checkedAt: Date = .now) throws -> HaStoreSnapshot? {
         try locked {
             var stored = try read()
             guard stored.scope == expectedScope else { return nil }
+            guard expectedCollectionRevision.map({ $0 == stored.collectionRevision }) ?? true else { return nil }
             let rejectClimate = stored.climateOperation?.pending == true
                 || expectedClimateRevision.map({ $0 != stored.climateRevision }) == true
             let rejectAlarm = stored.alarmOperation?.pending == true
@@ -144,6 +225,153 @@ public struct HaStateStore: Sendable {
                 stored.failures[id] = HaStateFailure(message: message, checkedAt: checkedAt)
             }
             try write(stored)
+            return stored.snapshot
+        }
+    }
+
+    public func beginCollectionRead(_ kind: String, expectedScope: String, expectedRevision: String) throws -> String? {
+        try locked {
+            var stored = try read()
+            guard ["doors", "activity", "batteries"].contains(kind),
+                  stored.scope == expectedScope, stored.collectionRevision == expectedRevision else { return nil }
+            guard kind != "doors" || stored.doorOperation?.pending != true else { return nil }
+            let readID = UUID().uuidString
+            stored.collectionReads[kind] = readID
+            try write(stored)
+            return readID
+        }
+    }
+
+    public func adoptDoorDiscovery(_ ids: [String], expectedScope: String, expectedRevision: String,
+                                   readID: String) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, stored.collectionRevision == expectedRevision,
+                  !readID.isEmpty, stored.collectionReads["doors"] == readID,
+                  var config = stored.config, config.carReady,
+                  !config.doorsChosen, config.doorIds.isEmpty else { return nil }
+            var seen = Set<String>()
+            let selected = ids.filter { doorKindForID($0) != nil && seen.insert($0).inserted }
+            guard !selected.isEmpty else { return stored.snapshot }
+            config.doorIdsJson = String(data: try JSONEncoder().encode(selected), encoding: .utf8) ?? "[]"
+            stored.config = config
+            stored.collectionRevision = UUID().uuidString
+            stored.doorActionRevision = UUID().uuidString
+            stored.collectionCaches = [:]
+            // Keep this request alive under the exact context it adopted. All other reads are revoked.
+            stored.collectionReads = ["doors": readID]
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+
+    public func mergeCollection(_ kind: String, reply: Result<String, HaError>, expectedScope: String,
+                                expectedRevision: String, readID: String, now: Date = .now) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, stored.collectionRevision == expectedRevision,
+                  !readID.isEmpty, stored.collectionReads[kind] == readID else { return nil }
+            let previous = stored.collectionCaches[kind]
+            switch reply {
+            case .success(let payload):
+                stored.collectionCaches[kind] = HaCollectionCache(payload: payload, observedAt: now, error: nil, attemptedAt: now)
+            case .failure(let failure):
+                stored.collectionCaches[kind] = HaCollectionCache(payload: previous?.payload, observedAt: previous?.observedAt,
+                    error: failure.message.isEmpty ? "Couldn't read your home" : failure.message, attemptedAt: now)
+            }
+            // A completion is single use; duplicate delivery cannot restamp the same observation.
+            stored.collectionReads.removeValue(forKey: kind)
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+
+    public func beginDoorOperation(expectedScope: String, expectedRevision: String, entityID: String,
+                                   action: String, replacingID: String? = nil, now: Date = .now) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, stored.doorActionRevision == expectedRevision,
+                  let config = stored.config, config.carReady, doorsSelectedIDs(config).contains(entityID),
+                  let action = DoorAction(rawValue: action),
+                  (action == .lock ? doorKindForID(entityID) == .lock : doorKindForID(entityID) == .garage)
+            else { return nil }
+            if let pending = stored.doorOperation, pending.pending {
+                guard action == .stop, pending.entityID == entityID,
+                      replacingID == pending.id,
+                      ["open", "close"].contains(pending.action),
+                      now.timeIntervalSince(pending.startedAt) >= 0,
+                      now.timeIntervalSince(pending.startedAt) <= 90 else { return nil }
+            } else if replacingID != nil { return nil }
+            if var counterpart = stored.alarmOperation, counterpart.pending, counterpart.entityID == entityID {
+                let age = now.timeIntervalSince(counterpart.startedAt)
+                guard age > 90 || age < 0 else { return nil }
+                counterpart.error = "Update interrupted · Refresh to check"
+                stored.alarmOperation = counterpart
+                stored.alarmRevision = UUID().uuidString
+            }
+            stored.doorActionRevision = UUID().uuidString
+            stored.doorOperation = DoorOperation(entityID: entityID, action: action.rawValue, startedAt: now,
+                actionRevision: stored.doorActionRevision)
+            stored.collectionReads.removeValue(forKey: "doors")
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+    public func claimDoorDispatch(expectedScope: String, operationID: String) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, var operation = stored.doorOperation,
+                  operation.id == operationID, operation.pending, !operation.delivered,
+                  operation.actionRevision == stored.doorActionRevision else { return nil }
+            operation.delivered = true
+            stored.doorOperation = operation
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+    public func observeDoorOperation(expectedScope: String, operationID: String,
+                                     reading: HaStateReading) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, let operation = stored.doorOperation, operation.pending,
+                  operation.id == operationID, reading.entityID == operation.entityID,
+                  reading.checkedAt >= operation.startedAt,
+                  let parsed = doorFromState(reading.json), parsed.id == operation.entityID,
+                  stored.config.map({ doorsSelectedIDs($0).contains(operation.entityID) }) == true else { return nil }
+            if stored.readings[reading.entityID].map({ $0.checkedAt <= reading.checkedAt }) ?? true {
+                stored.readings[reading.entityID] = reading
+                if stored.failures[reading.entityID].map({ $0.checkedAt <= reading.checkedAt }) ?? false {
+                    stored.failures.removeValue(forKey: reading.entityID)
+                }
+            }
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+    public func finishDoorOperation(expectedScope: String, operationID: String, error: String?,
+                                    now: Date = .now) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard stored.scope == expectedScope, var operation = stored.doorOperation,
+                  operation.id == operationID, operation.pending else { return nil }
+            operation.endedAt = now
+            operation.error = error.map { $0.isEmpty ? "Couldn't confirm · Refresh to check" : $0 }
+            stored.doorOperation = operation
+            try write(stored)
+            return stored.snapshot
+        }
+    }
+    public func expireDoorOperation(now: Date = .now) throws -> HaStoreSnapshot {
+        try locked {
+            var stored = try read()
+            if var operation = stored.doorOperation, operation.pending,
+               now.timeIntervalSince(operation.startedAt) > 90 || now < operation.startedAt {
+                operation.endedAt = now
+                operation.error = "Update interrupted · Refresh to check"
+                stored.doorOperation = operation
+                stored.collectionReads.removeValue(forKey: "doors")
+                try write(stored)
+            }
             return stored.snapshot
         }
     }
@@ -205,6 +433,14 @@ public struct HaStateStore: Sendable {
                   let config = stored.config, config.isComplete, stored.alarmOperation?.pending != true,
                   (AlarmAction(rawValue: action) != nil && config.entityId == entityID)
                     || (LockAction(rawValue: action) != nil && config.hasLock && config.lockId == entityID) else { return nil }
+            if var counterpart = stored.doorOperation, counterpart.pending, counterpart.entityID == entityID {
+                let age = now.timeIntervalSince(counterpart.startedAt)
+                guard age > 90 || age < 0 else { return nil }
+                counterpart.endedAt = now
+                counterpart.error = "Update interrupted · Refresh to check"
+                stored.doorOperation = counterpart
+                stored.collectionReads.removeValue(forKey: "doors")
+            }
             stored.alarmOperation = AlarmOperation(entityID: entityID, action: action, startedAt: now)
             stored.alarmRevision = UUID().uuidString
             try write(stored)

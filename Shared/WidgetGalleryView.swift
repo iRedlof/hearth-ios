@@ -20,7 +20,10 @@ struct WidgetGalleryView: View {
         ("Smallest iPhone · large", 329, 345),
     ]
     private let tallKinds: Set<String> = ["battery", "activity", "lights", "favourites", "doors"]
-    private var sizes: [(label: String, w: CGFloat, h: CGFloat)] { tallKinds.contains(kind) ? largeSizes : mediumSizes }
+    private var sizes: [(label: String, w: CGFloat, h: CGFloat)] {
+        if kind == "battery" { return mediumSizes + largeSizes }
+        return tallKinds.contains(kind) ? largeSizes : mediumSizes
+    }
 
     var body: some View {
         VStack(spacing: 0) {

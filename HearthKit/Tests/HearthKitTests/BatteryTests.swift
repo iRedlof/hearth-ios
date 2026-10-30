@@ -2,7 +2,7 @@ import XCTest
 @testable import HearthKit
 
 final class BatteryTests: XCTestCase {
-    func testParsesCleansAndClamps() {
+    func testParsesCleansAndPreservesInvalidReadingAsUnavailable() {
         let json = """
         [{"id":"sensor.a_battery","name":"Living Area Motion Sensor Battery","level":55.4},
          {"id":"sensor.b","name":"Temperature Humidity Sensor: Master Bedroom Battery","level":8},
@@ -14,7 +14,7 @@ final class BatteryTests: XCTestCase {
         XCTAssertEqual(b[0].level, 55)                                // rounded
         XCTAssertEqual(b[1].name, "Master Bedroom sensor")            // "X: Y Battery" → "Y x"
         XCTAssertEqual(b[2].name, "sensor.c")                         // blank name → id
-        XCTAssertEqual(b[2].level, 100)                               // clamped
+        XCTAssertNil(b[2].level)                                     // invalid, never clamped
     }
 
     func testGarbageYieldsNone() {

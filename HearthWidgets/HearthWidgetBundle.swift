@@ -25,7 +25,9 @@ struct BatteryEntry: TimelineEntry { let date: Date; let snap: BatterySnapshot }
 struct BatteryProvider: TimelineProvider {
     func placeholder(in context: Context) -> BatteryEntry { BatteryEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (BatteryEntry) -> Void) {
-        completion(BatteryEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(BatteryEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(BatteryEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<BatteryEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -36,15 +38,17 @@ struct BatteryProvider: TimelineProvider {
         }
     }
     private static func fetch() async -> BatterySnapshot {
-        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
-        return await fetchBatterySnapshot(cfg)
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "battery") != nil { return .loading }
+        #endif
+        return await CollectionLiveSnapshots.batteries()
     }
 }
 
 struct BatteryWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.battery", provider: BatteryProvider()) { entry in
-            BatteryView(entry.snap)
+            ParityWidgetContent(prefix: "battery") { BatteryView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: entry.snap.summary.tone.fillARGB) }
         }
         .configurationDisplayName("Batteries")
@@ -61,7 +65,9 @@ struct ActivityEntry: TimelineEntry { let date: Date; let snap: ActivitySnapshot
 struct ActivityProvider: TimelineProvider {
     func placeholder(in context: Context) -> ActivityEntry { ActivityEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (ActivityEntry) -> Void) {
-        completion(ActivityEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(ActivityEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(ActivityEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ActivityEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -72,15 +78,17 @@ struct ActivityProvider: TimelineProvider {
         }
     }
     private static func fetch() async -> ActivitySnapshot {
-        guard let cfg = HaConfigStore.load() else { return .sample }
-        return await fetchActivitySnapshot(cfg)
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "activity") != nil { return .loading }
+        #endif
+        return await CollectionLiveSnapshots.activity()
     }
 }
 
 struct ActivityWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.activity", provider: ActivityProvider()) { entry in
-            ActivityView(entry.snap)
+            ParityWidgetContent(prefix: "activity") { ActivityView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: DoorsTone.unknown.fillARGB) }
         }
         .configurationDisplayName("Activity")
@@ -217,7 +225,9 @@ struct DoorsEntry: TimelineEntry { let date: Date; let snap: DoorsSnapshot }
 struct DoorsProvider: TimelineProvider {
     func placeholder(in context: Context) -> DoorsEntry { DoorsEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (DoorsEntry) -> Void) {
-        completion(DoorsEntry(date: .now, snap: .sample))
+        if context.isPreview { completion(DoorsEntry(date: .now, snap: .sample)); return }
+        nonisolated(unsafe) let completion = completion
+        Task { completion(DoorsEntry(date: .now, snap: await Self.fetch())) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<DoorsEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
@@ -228,15 +238,17 @@ struct DoorsProvider: TimelineProvider {
         }
     }
     private static func fetch() async -> DoorsSnapshot {
-        guard let cfg = HaConfigStore.load(), cfg.baseUrl.hasPrefix("https://"), cfg.hasAuth else { return .sample }
-        return await fetchDoorsSnapshot(cfg)
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "doors") != nil { return .loading }
+        #endif
+        return await CollectionLiveSnapshots.doors()
     }
 }
 
 struct DoorsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.doors", provider: DoorsProvider()) { entry in
-            DoorsView(entry.snap)
+            ParityWidgetContent(prefix: "doors") { DoorsView(entry.snap) }
                 .containerBackground(for: .widget) { Color(argb: entry.snap.summary.tone.fillARGB) }
         }
         .configurationDisplayName("Doors")
