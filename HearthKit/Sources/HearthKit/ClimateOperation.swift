@@ -1,5 +1,9 @@
 import Foundation
 
+public enum ClimateOperationFailureKind: String, Codable, Sendable, Equatable {
+    case generic, interrupted
+}
+
 /// Command feedback is separate from telemetry: service acknowledgement is not a temperature reading.
 public struct ClimateOperation: Codable, Sendable, Equatable {
     public var id: String
@@ -7,11 +11,24 @@ public struct ClimateOperation: Codable, Sendable, Equatable {
     public var action: String
     public var startedAt: Date
     public var error: String?
+    public var failureKind: ClimateOperationFailureKind?
     public var pending: Bool { error == nil }
     public init(entityID: String, action: String, startedAt: Date, id: String = UUID().uuidString,
-                error: String? = nil) {
+                error: String? = nil, failureKind: ClimateOperationFailureKind? = nil) {
         self.id = id; self.entityID = entityID; self.action = action
         self.startedAt = startedAt; self.error = error
+        self.failureKind = error == nil ? nil : failureKind ?? .generic
+    }
+    private enum CodingKeys: String, CodingKey { case id, entityID, action, startedAt, error, failureKind }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        id = try values.decode(String.self, forKey: .id)
+        entityID = try values.decode(String.self, forKey: .entityID)
+        action = try values.decode(String.self, forKey: .action)
+        startedAt = try values.decode(Date.self, forKey: .startedAt)
+        error = try values.decodeIfPresent(String.self, forKey: .error)
+        let kind = try values.decodeIfPresent(ClimateOperationFailureKind.self, forKey: .failureKind)
+        failureKind = error == nil ? nil : kind ?? .generic
     }
 }
 

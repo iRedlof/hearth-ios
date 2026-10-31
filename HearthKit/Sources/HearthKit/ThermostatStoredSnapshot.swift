@@ -16,6 +16,8 @@ public func thermostatStoredSnapshot(_ context: HaStoreSnapshot, now: Date = .no
         result = ThermostatFetchResult(setup: true)
     }
     var snapshot = result.snapshot(now: now, zone: zone, locale: locale)
+    // Legacy transient copy stays formatting-only; new recovery comes from the actual loader branch.
+    snapshot.evidence = thermostatEnvelope(context, now: now).evidence
     snapshot.requestScope = context.scope
     snapshot.climateRevision = context.climateRevision
     return climateApplyingOperation(snapshot, context.climateOperation)

@@ -8,9 +8,12 @@ enum HaReadingsStore {
         return saved.readings
     }
     static func merge(_ readings: [String: HaStateReading], scope: String,
-                      climateRevision: String, failures: [String: String], checkedAt: Date) throws -> HaStoreSnapshot? {
+                      climateRevision: String, failures: [String: String], checkedAt: Date,
+                      thermostatSelectionRevision: String? = nil,
+                      failureReasons: [String: HaReadingFailureReason] = [:]) throws -> HaStoreSnapshot? {
         guard let store = HaConfigStore.store else { throw HaError("Shared storage is unavailable") }
         return try store.merge(readings, expectedScope: scope, expectedClimateRevision: climateRevision,
-            failures: failures, checkedAt: checkedAt)
+            expectedThermostatSelectionRevision: thermostatSelectionRevision,
+            failures: failures, failureReasons: failureReasons, checkedAt: checkedAt)
     }
 }

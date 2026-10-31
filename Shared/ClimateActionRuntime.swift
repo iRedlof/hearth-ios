@@ -62,7 +62,8 @@ enum ClimateActionRuntime {
             let message = error is CancellationError ? "Update interrupted · Refresh to check" : friendlyError(error)
             let settled: HaStoreSnapshot?
             do {
-                settled = try store.finishClimateOperation(expectedScope: scope, operationID: operation.id, error: message)
+                settled = try store.finishClimateOperation(expectedScope: scope, operationID: operation.id,
+                    error: message, failureKind: error is CancellationError ? .interrupted : .generic)
             } catch {
                 await notify()
                 throw error

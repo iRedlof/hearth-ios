@@ -45,6 +45,8 @@ public struct ThermostatSnapshot: Sendable, Equatable {
     public var commandPending: Bool = false
     public var commandFeedback: String?
     public var commandError: String?
+    /// Raw opening evidence survives snapshot-only publication without reconstructing its origin.
+    public var evidence: ThermostatRawEvidence?
 
     public init(name: String, checkedAt: String, roomTemp: String, roomSub: String, humidity: String?,
                 status: String, tone: BeaconTone, heatSetpoint: String?, coolSetpoint: String?,

@@ -9,6 +9,17 @@ import Glibc
 public struct HaStateFailure: Codable, Sendable, Equatable {
     public let message: String
     public let checkedAt: Date
+    public let reason: HaReadingFailureReason
+    public init(message: String, checkedAt: Date, reason: HaReadingFailureReason = .other) {
+        self.message = message; self.checkedAt = checkedAt; self.reason = reason
+    }
+    private enum CodingKeys: String, CodingKey { case message, checkedAt, reason }
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        message = try values.decode(String.self, forKey: .message)
+        checkedAt = try values.decode(Date.self, forKey: .checkedAt)
+        reason = try values.decodeIfPresent(HaReadingFailureReason.self, forKey: .reason) ?? .other
+    }
 }
 
 /// A failed attempt preserves the successful payload and its original observation time.
@@ -45,6 +56,7 @@ public struct HaStoreSnapshot: Sendable {
     public let scope: String
     public let readings: [String: HaStateReading]
     public let climateRevision: String
+    public let thermostatSelectionRevision: String?
     public let climateOperation: ClimateOperation?
     public let alarmRevision: String
     public let alarmOperation: AlarmOperation?
@@ -60,13 +72,14 @@ public struct HaStoreSnapshot: Sendable {
                 alarmRevision: String = "initial", alarmOperation: AlarmOperation? = nil,
                 failures: [String: HaStateFailure] = [:], collectionRevision: String = "initial",
                 collectionCaches: [String: HaCollectionCache] = [:], doorOperation: DoorOperation? = nil,
-                doorActionRevision: String = "initial") {
+                doorActionRevision: String = "initial", thermostatSelectionRevision: String? = nil) {
         self.config = config; self.scope = scope; self.readings = readings
         self.climateRevision = climateRevision; self.climateOperation = climateOperation
         self.alarmRevision = alarmRevision; self.alarmOperation = alarmOperation
         self.failures = failures; self.collectionRevision = collectionRevision
         self.collectionCaches = collectionCaches; self.doorOperation = doorOperation
         self.doorActionRevision = doorActionRevision
+        self.thermostatSelectionRevision = thermostatSelectionRevision
     }
 }
 
@@ -101,6 +114,7 @@ public struct HaStateStore: Sendable {
         var scope: String
         var readings: [String: HaStateReading]
         var climateRevision: String
+        var thermostatSelectionRevision: String?
         var climateOperation: ClimateOperation?
         var alarmRevision: String
         var alarmOperation: AlarmOperation?
@@ -121,6 +135,7 @@ public struct HaStateStore: Sendable {
              doorActionRevision: String = UUID().uuidString) {
             self.config = config; self.scope = scope; self.readings = readings
             self.climateRevision = climateRevision; self.climateOperation = climateOperation
+            self.thermostatSelectionRevision = UUID().uuidString
             self.alarmRevision = alarmRevision; self.alarmOperation = alarmOperation
             self.failures = failures
             self.collectionRevision = collectionRevision; self.collectionCaches = collectionCaches
@@ -131,7 +146,7 @@ public struct HaStateStore: Sendable {
             self.doorActionRevision = doorActionRevision
         }
         private enum CodingKeys: String, CodingKey {
-            case version, config, scope, readings, climateRevision, climateOperation, alarmRevision, alarmOperation, failures
+            case version, config, scope, readings, climateRevision, thermostatSelectionRevision, climateOperation, alarmRevision, alarmOperation, failures
             case collectionRevision, collectionCaches, collectionReads, carRouteReadPrefix, carReadLease, doorOperation, doorActionRevision
         }
         init(from decoder: Decoder) throws {
@@ -141,6 +156,11 @@ public struct HaStateStore: Sendable {
             scope = try values.decode(String.self, forKey: .scope)
             readings = try values.decode([String: HaStateReading].self, forKey: .readings)
             climateRevision = try values.decodeIfPresent(String.self, forKey: .climateRevision) ?? "legacy"
+            if values.contains(.thermostatSelectionRevision) {
+                let revision = try values.decode(String.self, forKey: .thermostatSelectionRevision)
+                guard UUID(uuidString: revision) != nil else { throw CocoaError(.fileReadCorruptFile) }
+                thermostatSelectionRevision = revision
+            } else { thermostatSelectionRevision = nil }
             climateOperation = try values.decodeIfPresent(ClimateOperation.self, forKey: .climateOperation)
             alarmRevision = try values.decodeIfPresent(String.self, forKey: .alarmRevision) ?? "legacy"
             alarmOperation = try values.decodeIfPresent(AlarmOperation.self, forKey: .alarmOperation)
@@ -162,7 +182,7 @@ public struct HaStateStore: Sendable {
                 climateRevision: climateRevision, climateOperation: climateOperation,
                 alarmRevision: alarmRevision, alarmOperation: alarmOperation, failures: failures,
                 collectionRevision: collectionRevision, collectionCaches: collectionCaches, doorOperation: doorOperation,
-                doorActionRevision: doorActionRevision)
+                doorActionRevision: doorActionRevision, thermostatSelectionRevision: thermostatSelectionRevision)
         }
     }
 
@@ -221,6 +241,10 @@ public struct HaStateStore: Sendable {
 
     private func applyConfig(_ config: HaConfig?, to stored: inout Stored) {
         let connectionChanged = config == nil || !haSameConnection(stored.config, config)
+        if connectionChanged || stored.config?.climateId != config?.climateId
+            || stored.config?.resumeId != config?.resumeId || stored.config?.sensorIds != config?.sensorIds {
+            stored.thermostatSelectionRevision = UUID().uuidString
+        }
         if connectionChanged {
             stored.scope = UUID().uuidString
             stored.readings = [:]
@@ -263,11 +287,15 @@ public struct HaStateStore: Sendable {
     public func merge(_ readings: [String: HaStateReading], expectedScope: String,
                       expectedClimateRevision: String? = nil, expectedAlarmRevision: String? = nil,
                       expectedCollectionRevision: String? = nil,
+                      expectedThermostatSelectionRevision: String? = nil,
                       failures: [String: String] = [:],
+                      failureReasons: [String: HaReadingFailureReason] = [:],
                       checkedAt: Date = .now) throws -> HaStoreSnapshot? {
         try locked {
             var stored = try read()
             guard stored.scope == expectedScope else { return nil }
+            guard expectedThermostatSelectionRevision.map({ $0 == stored.thermostatSelectionRevision }) ?? true
+                else { return nil }
             guard expectedCollectionRevision.map({ $0 == stored.collectionRevision }) ?? true else { return nil }
             let rejectClimate = stored.climateOperation?.pending == true
                 || expectedClimateRevision.map({ $0 != stored.climateRevision }) == true
@@ -289,7 +317,8 @@ public struct HaStateStore: Sendable {
                 if alarmEntities.contains(id) && rejectAlarm { continue }
                 guard stored.readings[id].map({ $0.checkedAt <= checkedAt }) ?? true,
                       stored.failures[id].map({ $0.checkedAt <= checkedAt }) ?? true else { continue }
-                stored.failures[id] = HaStateFailure(message: message, checkedAt: checkedAt)
+                stored.failures[id] = HaStateFailure(message: message, checkedAt: checkedAt,
+                    reason: failureReasons[id] ?? .other)
             }
             try write(stored)
             return stored.snapshot
@@ -610,13 +639,14 @@ public struct HaStateStore: Sendable {
     }
 
     public func finishClimateOperation(expectedScope: String, operationID: String,
-                                       error: String?) throws -> HaStoreSnapshot? {
+                                       error: String?, failureKind: ClimateOperationFailureKind = .generic) throws -> HaStoreSnapshot? {
         try locked {
             var stored = try read()
             guard stored.scope == expectedScope, var operation = stored.climateOperation,
                   operation.id == operationID, operation.pending else { return nil }
             if let error {
                 operation.error = error.isEmpty ? "Couldn't update thermostat" : error
+                operation.failureKind = failureKind
                 stored.climateOperation = operation
             } else { stored.climateOperation = nil }
             stored.climateRevision = UUID().uuidString
@@ -632,6 +662,7 @@ public struct HaStateStore: Sendable {
             if var operation = stored.climateOperation, operation.pending,
                now.timeIntervalSince(operation.startedAt) > 90 {
                 operation.error = "Update interrupted · Refresh to check"
+                operation.failureKind = .interrupted
                 stored.climateOperation = operation
                 stored.climateRevision = UUID().uuidString
                 try write(stored)
@@ -746,8 +777,13 @@ public struct HaStateStore: Sendable {
             try write(initial)
             return initial
         }
-        let stored = try JSONDecoder().decode(Stored.self, from: Data(contentsOf: file))
+        var stored = try JSONDecoder().decode(Stored.self, from: Data(contentsOf: file))
         guard stored.version == 1 else { throw CocoaError(.fileReadCorruptFile) }
+        // Only a missing legacy key migrates. Persist under the same lock before exporting an origin.
+        if stored.thermostatSelectionRevision == nil {
+            stored.thermostatSelectionRevision = UUID().uuidString
+            try write(stored)
+        }
         return stored
     }
     #if DEBUG

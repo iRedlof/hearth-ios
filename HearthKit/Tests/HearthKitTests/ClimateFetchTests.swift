@@ -16,6 +16,32 @@ final class ClimateFetchTests: XCTestCase {
         #"{"entity_id":"\#(id)","state":"\#(value)","attributes":{"friendly_name":"\#(id)","unit_of_measurement":"°F"}}"#
     }
 
+    func testTypedFailureClassificationDoesNotParseFriendlyMessage() async {
+        let cases: [(any Error, HaReadingFailureReason)] = [
+            (HaError("arbitrary", code: 401), .authentication),
+            (HaError("Sign in", code: 404), .entityNotFound),
+            (URLError(.timedOut), .transport),
+            (CancellationError(), .interrupted)
+        ]
+        for (error, expected) in cases {
+            let result = await fetchHaStateReadings(config, ids: [config.climateId], now: now) { _ in throw error }
+            XCTAssertEqual(result.failureReasons[config.climateId], expected)
+        }
+    }
+
+    func testMalformedWholeReplyIsFailureButMalformedRoomInValidReplyIsSuccessfulEvidence() async {
+        let malformed = await fetchHaStateReadings(config, ids: [config.climateId], now: now) { _ in "{}" }
+        XCTAssertNil(malformed.readings[config.climateId])
+        XCTAssertEqual(malformed.failureReasons[config.climateId], .malformed)
+        let valid = await fetchHaStateReadings(config, ids: [config.climateId], now: now) { _ in
+            Self.state(current: "true")
+        }
+        XCTAssertTrue(valid.errors.isEmpty)
+        XCTAssertTrue(valid.failureReasons.isEmpty)
+        XCTAssertEqual(valid.readings[config.climateId]?.checkedAt, now)
+        XCTAssertNil(valid.readings[config.climateId].flatMap { ClimateState.fromJson($0.json) }?.current)
+    }
+
     func testSetupNeverFetchesOrShowsSample() async {
         let result = await fetchThermostatReadings(nil, now: now) { _ in
             XCTFail("No request in setup"); return Self.state()

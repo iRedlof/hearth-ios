@@ -5,13 +5,16 @@ public struct ThermostatFetchResult: Sendable {
     public let sensorIDs: [String]
     public let readings: [String: HaStateReading]
     public let errors: [String: String]
+    public let failureReasons: [String: HaReadingFailureReason]
     public let setup: Bool
     public let resumeID: String
 
     public init(entityID: String = "", sensorIDs: [String] = [], readings: [String: HaStateReading] = [:],
-                errors: [String: String] = [:], setup: Bool = false, resumeID: String = "") {
+                errors: [String: String] = [:], setup: Bool = false, resumeID: String = "",
+                failureReasons: [String: HaReadingFailureReason] = [:]) {
         self.entityID = entityID; self.sensorIDs = sensorIDs; self.readings = readings
         self.errors = errors; self.setup = setup; self.resumeID = resumeID
+        self.failureReasons = failureReasons
     }
 
     public func snapshot(now: Date = .now, zone: TimeZone = .current,
@@ -55,7 +58,8 @@ public func fetchThermostatReadings(_ config: HaConfig?, previous: [String: HaSt
     let result = await fetchHaStateReadings(config, ids: [config.climateId] + sensors,
         previous: previous, now: now, request: request)
     return ThermostatFetchResult(entityID: config.climateId, sensorIDs: sensors,
-        readings: result.readings, errors: result.errors, resumeID: config.resumeId)
+        readings: result.readings, errors: result.errors, resumeID: config.resumeId,
+        failureReasons: result.failureReasons)
 }
 
 public func fetchThermostatSnapshot(_ config: HaConfig, now: Date = .now) async -> ThermostatSnapshot {
