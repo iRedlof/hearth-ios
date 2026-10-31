@@ -144,8 +144,9 @@ struct HaSettingsSections: View {
     /// Resolve entity_id → friendly name once (from `/api/states`), so the single-entity rows show
     /// human-readable names instead of raw ids. Falls back to the id when unknown or offline.
     private func loadNames() async {
-        guard config.isSignedIn, entityNames.isEmpty,
-              let json = try? await HaClient(config).allStatesJson() else { return }
+        guard config.hasAuth, entityNames.isEmpty,
+              let json = try? await settingsDiscoveryJson(config: config, scope: editScope,
+                current: { HaConfigStore.context() }, read: { try await HaClient($0).allStatesJson() }) else { return }
         entityNames = Dictionary(parseEntities(json).map { ($0.id, $0.name) }, uniquingKeysWith: { first, _ in first })
     }
 

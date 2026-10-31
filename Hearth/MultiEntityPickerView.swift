@@ -69,6 +69,10 @@ struct MultiEntityPickerView: View {
 
     private func row(_ e: HaEntity) -> some View {
         Button {
+            guard settingsDiscoveryCurrent(config: config, scope: requestScope, current: HaConfigStore.context()) else {
+                phase = .failed("Your account changed. Reopen Settings to continue.")
+                return
+            }
             let edit = selectionAfterToggle(selectedOrder, id: e.id, available: entities.map(\.id), limit: limit)
             limitBlocked = edit.blockedByLimit
             guard !edit.blockedByLimit else { return }
@@ -106,11 +110,8 @@ struct MultiEntityPickerView: View {
     private func load() async {
         phase = .loading
         do {
-            guard let current = HaConfigStore.context(), current.scope == requestScope,
-                  let latest = current.config, haSameConnection(latest, config) else {
-                throw HaError("Your account changed. Reopen Settings to continue.")
-            }
-            let json = try await HaClient(latest).allStatesJson()
+            let json = try await settingsDiscoveryJson(config: config, scope: requestScope,
+                current: { HaConfigStore.context() }, read: { try await HaClient($0).allStatesJson() })
             guard let completed = HaConfigStore.context(), completed.scope == requestScope,
                   let currentConfig = completed.config, haSameConnection(currentConfig, config) else {
                 throw HaError("Your account changed. Reopen Settings to continue.")
@@ -131,6 +132,8 @@ struct MultiEntityPickerView: View {
                 selected = Set(selectedOrder)
             }
             phase = .loaded
+        } catch is CancellationError {
+            return
         } catch {
             phase = .failed(friendlyError(error))
         }

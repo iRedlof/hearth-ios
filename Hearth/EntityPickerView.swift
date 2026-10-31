@@ -14,12 +14,21 @@ struct EntityPickerView: View {
     let allowNone: Bool
     let selected: String
     let onPick: (HaEntity) -> Void
+    private let requestScope: String?
 
     @Environment(\.dismiss) private var dismiss
     @State private var entities: [HaEntity] = []
     @State private var phase: Phase = .loading
 
     private enum Phase: Equatable { case loading, loaded, failed(String) }
+
+    init(config: HaConfig, domain: String, title: String, allowNone: Bool,
+         selected: String, onPick: @escaping (HaEntity) -> Void) {
+        self.config = config; self.domain = domain; self.title = title
+        self.allowNone = allowNone; self.selected = selected; self.onPick = onPick
+        let current = HaConfigStore.context()
+        requestScope = haSameConnection(current?.config, config) ? current?.scope : nil
+    }
 
     var body: some View {
         List {
@@ -48,6 +57,10 @@ struct EntityPickerView: View {
 
     @ViewBuilder private func row(id: String, name: String) -> some View {
         Button {
+            guard settingsDiscoveryCurrent(config: config, scope: requestScope, current: HaConfigStore.context()) else {
+                phase = .failed("Your account changed. Reopen Settings to continue.")
+                return
+            }
             onPick(HaEntity(id: id, name: name))
             dismiss()
         } label: {
@@ -69,9 +82,12 @@ struct EntityPickerView: View {
     private func load() async {
         phase = .loading
         do {
-            let json = try await HaClient(config).allStatesJson()
+            let json = try await settingsDiscoveryJson(config: config, scope: requestScope,
+                current: { HaConfigStore.context() }, read: { try await HaClient($0).allStatesJson() })
             entities = entitiesInDomain(parseEntities(json), domain)
             phase = .loaded
+        } catch is CancellationError {
+            return
         } catch {
             phase = .failed(friendlyError(error))
         }
