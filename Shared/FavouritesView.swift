@@ -29,9 +29,9 @@ public struct FavouritesView: View {
                     Text(error).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
                 }
                 LazyVGrid(columns: columns, spacing: 8) { ForEach(snap.items.prefix(4), id: \.id) { tile($0) } }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                 if snap.items.count > 4 { TileMoreContent(count: snap.items.count - 4) }
             }
-            Spacer(minLength: 0)
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -47,6 +47,7 @@ public struct FavouritesView: View {
                 }
                 Spacer(minLength: 2)
                 Text(f.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(ink).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(!f.available ? "Unavailable" : f.domain == "script" ? "Run" : (f.on ? "On" : "Off"))
                     .font(.system(size: 12)).foregroundStyle(ink.opacity(0.8))
             }

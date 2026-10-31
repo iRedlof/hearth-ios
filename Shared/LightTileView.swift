@@ -21,25 +21,27 @@ public struct LightTileView: View {
             if snap.state == .setup || snap.state == .loading || snap.state == .failed {
                 TileStatusContent(state: snap.state, error: snap.error, choice: "", empty: "No lights found")
             } else {
-            if !visibleOn.isEmpty {
-                LazyVGrid(columns: columns, spacing: 8) { ForEach(visibleOn, id: \.id) { tile($0) } }
-            }
-            if !visiblePinned.isEmpty {
-                Text("ALWAYS SHOW").font(.system(size: 9, weight: .semibold)).tracking(0.5)
-                    .foregroundStyle(ink.opacity(0.45)).padding(.top, 2)
-                LazyVGrid(columns: columns, spacing: 8) {
-                    ForEach(visiblePinned, id: \.id) { tile($0) }
+                VStack(alignment: .leading, spacing: 8) {
+                    if !visibleOn.isEmpty {
+                        LazyVGrid(columns: columns, spacing: 8) { ForEach(visibleOn, id: \.id) { tile($0) } }
+                    }
+                    if !visiblePinned.isEmpty {
+                        Text("ALWAYS SHOW").font(.system(size: 11, weight: .semibold)).tracking(0.5)
+                            .foregroundStyle(ink.opacity(0.7)).padding(.top, 2)
+                        LazyVGrid(columns: columns, spacing: 8) {
+                            ForEach(visiblePinned, id: \.id) { tile($0) }
+                        }
+                    }
+                    if snap.summary.on.isEmpty && snap.summary.pinned.isEmpty {
+                        Text(snap.summary.offCount > 0 ? "\(snap.summary.offCount) off" : "No lights")
+                            .font(.system(size: 13)).foregroundStyle(ink.opacity(0.6)).padding(.top, 4)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                if page.hiddenCount > 0 {
+                    TileMoreContent(count: page.hiddenCount)
                 }
             }
-            if page.hiddenCount > 0 {
-                TileMoreContent(count: page.hiddenCount)
-            }
-            if snap.summary.on.isEmpty && snap.summary.pinned.isEmpty {
-                Text(snap.summary.offCount > 0 ? "\(snap.summary.offCount) off" : "No lights")
-                    .font(.system(size: 13)).foregroundStyle(ink.opacity(0.6)).padding(.top, 4)
-            }
-            }
-            Spacer(minLength: 0)
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -70,6 +72,7 @@ public struct LightTileView: View {
                 }
                 Spacer(minLength: 2)
                 Text(v.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(ink).lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(v.tile).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
             }
             .padding(9).frame(maxWidth: .infinity, alignment: .topLeading).frame(height: 92)
