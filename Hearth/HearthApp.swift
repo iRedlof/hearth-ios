@@ -13,7 +13,8 @@ struct HearthApp: App {
     var body: some Scene {
         WindowGroup {
             #if DEBUG
-            if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
+            if let concept = Self.accessibleFixture() { AccessibleBeaconFixtureScreen(concept: concept) }
+            else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
             else if let id = Self.parityState() { ParityStateScreen(id: id) }
             else { ContentView() }
             #else
@@ -24,6 +25,12 @@ struct HearthApp: App {
     }
 
     #if DEBUG
+    private static func accessibleFixture() -> AccessibleBeaconConcept? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-accessibleFixture"), index + 1 < args.count else { return nil }
+        return AccessibleBeaconConceptCatalog.concept(args[index + 1])
+    }
+
     private static func settingsFixture() -> SettingsFixtureCase? {
         let args = ProcessInfo.processInfo.arguments
         guard let i = args.firstIndex(of: "-settingsFixture") else { return nil }

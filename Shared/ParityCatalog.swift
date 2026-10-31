@@ -64,6 +64,13 @@ struct ParityWidgetSelection: Sendable {
                           "timestamp": Date().timeIntervalSince1970], forKey: "parityWidgetRendered")
         fixtureStore.synchronize()
     }
+    static func recordReadableTextFrame(_ id: String, size: CGSize) {
+        guard let selection = widgetSelection(prefix: "readable"), selection.id == id else { return }
+        fixtureStore.set(["id": id, "run": selection.run, "width": size.width, "height": size.height,
+                          "processID": ProcessInfo.processInfo.processIdentifier,
+                          "timestamp": Date().timeIntervalSince1970], forKey: "parityReadableTextFrame")
+        fixtureStore.synchronize()
+    }
     #endif
     static func view(_ id: String) -> AnyView? {
         all().first { $0.0 == id }?.1
@@ -72,7 +79,13 @@ struct ParityWidgetSelection: Sendable {
     static func all() -> [(String, AnyView)] {
         #if DEBUG
         let small = SmallWidgetConceptCatalog.concepts.map { ($0.id, AnyView(SmallWidgetConceptView(concept: $0))) }
-        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + small
+        let readable = AccessibleBeaconConceptCatalog.concepts.map {
+            ($0.id, AnyView(AccessibleBeaconConceptView(concept: $0)))
+        }
+        let nativeReadable = AccessibleBeaconConceptCatalog.concepts.map {
+            ($0.nativeID, AnyView(AccessibleBeaconConceptView(concept: $0)))
+        }
+        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + small + readable + nativeReadable
         #else
         alarm() + thermostat() + car() + chargePoint() + tiles() + collections()
         #endif
