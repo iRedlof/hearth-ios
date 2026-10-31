@@ -22,7 +22,7 @@ final class CarReadingsStoreTests: XCTestCase {
     func testSuccessfulCarReplyIsAnOwnedAtomicCacheRecord() throws {
         let store = try store(), start = try store.snapshot()
         let read = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         let stored = try XCTUnwrap(store.mergeCollection("car", reply: .success(Self.reply("84")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: read, now: first))
         let payload = try XCTUnwrap(stored.collectionCaches["car"]?.payload)
@@ -40,11 +40,11 @@ final class CarReadingsStoreTests: XCTestCase {
     func testSameVehicleUnknownReplyRetainsCommittedHistory() throws {
         let store = try store(), start = try store.snapshot()
         let firstRead = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         _ = try store.mergeCollection("car", reply: .success(Self.reply("84")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: firstRead, now: first)
         let read = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first.addingTimeInterval(60)))
         let stored = try XCTUnwrap(store.mergeCollection("car", reply: .success(Self.reply("unknown")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: read,
             now: first.addingTimeInterval(60)))
@@ -59,9 +59,9 @@ final class CarReadingsStoreTests: XCTestCase {
     func testOverlappingOlderCarReplyCannotReplaceNewerRead() throws {
         let store = try store(), start = try store.snapshot()
         let old = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         let newer = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first.addingTimeInterval(1)))
         XCTAssertNil(try store.mergeCollection("car", reply: .success(Self.reply("84")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: old, now: first))
         let stored = try XCTUnwrap(store.mergeCollection("car", reply: .success(Self.reply("unknown")),
@@ -77,7 +77,7 @@ final class CarReadingsStoreTests: XCTestCase {
     func testAccountReplacementRevokesCarReplyEvenWhenCredentialsReturn() throws {
         let store = try store(), start = try store.snapshot()
         let read = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         _ = try store.saveConfig(nil)
         let restored = try store.saveConfig(config)
         XCTAssertNil(try store.mergeCollection("car", reply: .success(Self.reply("84")),
@@ -90,11 +90,11 @@ final class CarReadingsStoreTests: XCTestCase {
     func testCarFailureKeepsCommittedPayloadAndOriginalObservation() throws {
         let store = try store(), start = try store.snapshot()
         let read = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         let good = try XCTUnwrap(store.mergeCollection("car", reply: .success(Self.reply("84")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: read, now: first))
         let next = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first.addingTimeInterval(60)))
         let failed = try XCTUnwrap(store.mergeCollection("car", reply: .failure(HaError("Offline")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: next,
             now: first.addingTimeInterval(60)))
@@ -108,11 +108,11 @@ final class CarReadingsStoreTests: XCTestCase {
     func testMalformedCarReplySettlesAsFailureWithoutReplacingTelemetry() throws {
         let store = try store(), start = try store.snapshot()
         let read = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         let good = try XCTUnwrap(store.mergeCollection("car", reply: .success(Self.reply("84")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: read, now: first))
         let next = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first.addingTimeInterval(60)))
         let failed = try XCTUnwrap(store.mergeCollection("car", reply: .success(#"{"found":true}"#),
             expectedScope: start.scope, expectedRevision: start.scope, readID: next,
             now: first.addingTimeInterval(60)))
@@ -128,7 +128,7 @@ final class CarReadingsStoreTests: XCTestCase {
     func testUnrelatedPickerEditPreservesCarCache() throws {
         let store = try store(), start = try store.snapshot()
         let read = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         let good = try XCTUnwrap(store.mergeCollection("car", reply: .success(Self.reply("84")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: read, now: first))
         var edited = config
@@ -146,7 +146,7 @@ final class CarReadingsStoreTests: XCTestCase {
     func testUnrelatedPickerEditPreservesInFlightCarReadOwnership() throws {
         let store = try store(), start = try store.snapshot()
         let read = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         var edited = config
         edited.entityId = "alarm_control_panel.other"
         edited.doorIdsJson = #"["cover.garage"]"#
@@ -161,11 +161,11 @@ final class CarReadingsStoreTests: XCTestCase {
     func testDoorDiscoveryKeepsCarHistoryAndInFlightRefresh() throws {
         let store = try store(), start = try store.snapshot()
         let firstRead = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first))
         let good = try XCTUnwrap(store.mergeCollection("car", reply: .success(Self.reply("84")),
             expectedScope: start.scope, expectedRevision: start.scope, readID: firstRead, now: first))
         let carRead = try XCTUnwrap(store.beginCollectionRead("car", expectedScope: start.scope,
-            expectedRevision: start.scope))
+            expectedRevision: start.scope, now: first.addingTimeInterval(60)))
         let doorRead = try XCTUnwrap(store.beginCollectionRead("doors", expectedScope: start.scope,
             expectedRevision: start.collectionRevision))
         let adopted = try XCTUnwrap(store.adoptDoorDiscovery(["cover.garage"], expectedScope: start.scope,

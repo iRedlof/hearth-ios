@@ -20,6 +20,41 @@ final class CarLiveEnvelopeTests: XCTestCase, @unchecked Sendable {
         """
     }
 
+    // Discovery shares the same bounded ownership budget as the exact route.
+    func testExpiredDiscoverySuccessAndFailureDoNotCommitOrRestampExistingReadings() async throws {
+        for fails in [false, true] {
+            let store = store(), context = try store.snapshot(), first = first
+            _ = await fetchOwnedCarEnvelope(store: store, context: context, now: first,
+                request: { Self.reply("84") }, observedNow: { first })
+            let original = try store.snapshot().collectionCaches["car"]
+            let envelope = await fetchOwnedCarEnvelope(store: store, context: context, now: first,
+                request: {
+                    if fails { throw HaError("Offline") }
+                    return Self.reply("23")
+                }, observedNow: { first.addingTimeInterval(60) })
+            XCTAssertEqual(envelope.origin.status, .obsolete)
+            XCTAssertFalse(envelope.origin.isOperating)
+            XCTAssertNil(envelope.origin.observedAt)
+            XCTAssertEqual(try store.snapshot().collectionCaches["car"], original)
+        }
+    }
+
+    // Discovery must reject invalid clocks before issuing a persisted owner or requesting HA.
+    func testNonfiniteDiscoveryStartClocksDoNotRequestOrChangeRecord() async throws {
+        for interval in [Double.nan, .infinity, -.infinity] {
+            let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            let store = store(directory: directory), context = try store.snapshot()
+            let file = directory.appendingPathComponent("ha-state.json"), original = try Data(contentsOf: file)
+            let envelope = await fetchOwnedCarEnvelope(store: store, context: context,
+                now: Date(timeIntervalSince1970: interval),
+                request: { XCTFail("Invalid start clock requested"); return Self.reply("23") },
+                observedNow: { self.first })
+            XCTAssertEqual(envelope.origin.status, .storageUnavailable)
+            XCTAssertNil(envelope.requestReply)
+            XCTAssertEqual(try Data(contentsOf: file), original)
+        }
+    }
+
     // Fetch origin must be derived from the same committed raw reply, not a display name or history.
     func testSuccessfulEnvelopeBindsExactScopePrefixAndFullRawReadings() async throws {
         let store = store(), context = try store.snapshot(), finished = first.addingTimeInterval(5)
@@ -142,9 +177,10 @@ final class CarLiveEnvelopeTests: XCTestCase, @unchecked Sendable {
     // A delayed response must format time-sensitive charge information at completion, not request start.
     func testDelayedResponseDoesNotShowAlreadyElapsedChargeETA() async throws {
         let store = store(), context = try store.snapshot(), first = first
-        let finished = first.addingTimeInterval(5_000)
+        let finished = first.addingTimeInterval(30)
         let envelope = await fetchOwnedCarEnvelope(store: store, context: context, now: first,
-            request: { Self.reply("79") }, observedNow: { finished })
+            request: { Self.reply("79").replacingOccurrences(of: "2027-01-15T09:15:00Z", with: "2027-01-15T08:00:20Z") },
+            observedNow: { finished })
         XCTAssertEqual(envelope.origin.observedAt, finished)
         XCTAssertFalse(envelope.snapshot.chargeLine.hasPrefix("Full by "))
         XCTAssertTrue(envelope.snapshot.chargeLine.hasPrefix("Charging"))

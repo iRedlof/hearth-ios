@@ -51,8 +51,22 @@ The native evidence uses real app screens, native HID taps/scrolls, original PNG
 - Test real WidgetKit-to-app cold and warm intent execution. Direct fixture invocation of `CarReadingsIntent.perform()` proves only the in-app gate path.
 - Finish native original-record disclosure, sheet replacement while work is pending, external-app/scene return, setup return and VoiceOver traversal. A Sign in again transition opens the real sign-in screen; no successful login or authentication persistence race is claimed.
 - Finish the reviewed full-destination presentation, including the Premium car image below the primary state, before replacing any production summary or removing ordinary actions.
-- Route-read claims currently have no automatic lease expiry. Explicit ordinary refresh/discovery can supersede a stranded claim; process-death recovery needs its own acceptance before production route wiring.
+- Car reads now have bounded persisted lease recovery, verified with deterministic reopened-store tests. Actual app termination/relaunch recovery still needs native acceptance before the destination rollout.
 - Add complete origin-bound Alarm, Thermostat and ChargePoint destinations and command ownership before production accessibility summaries.
 - Keep the broader native/state/performance release gates open. The Android performance candidate remains failed; this tranche does not bump a version or publish a release.
 
 The implementation plan remains in `docs/superpowers/plans/2026-10-31-accessible-beacon-readings.md`. Local raw tests, manifests, independent reviews and native captures are retained under `/tmp/hearth-ios-car-route/`; published evidence must carry the same build hashes and scope.
+
+## Production entry prerequisites — 31 October 2026
+
+The next implementation plan is `docs/superpowers/plans/2026-10-31-car-production-readings.md`.
+
+Car discovery and exact-route reads now share a persisted 60-second lease. Exact Refresh recovers expired, backward-clock and legacy abandoned owners under the shared lock. Late success, failure and cancellation cannot commit, even without a replacement request. Revocation clears ownership metadata while preserving cached readings and their actual times. Nonfinite clocks fail before transport or storage mutation. Unrelated picker/door changes preserve the lease; account replacement clears it. Existing non-Car and command timeout behavior remains unchanged.
+
+`bindCarReadingsEntry` saves one ticket from the supplied coherent envelope before publishing its UUID. Construction/storage failure keeps the envelope's displayed snapshot and yields a stateless storage-unavailable destination. It never adopts a newer account, cache or existing ticket. Placeholder construction can explicitly produce an inert payload.
+
+The pure `hearth://car-readings/<UUID>` parser/encoder accepts only an opaque ticket or the reserved `unavailable` explanation, and emits no URL for inert entries. It rejects malformed authorities, credentials, ports, queries/fragments, escaped or extra path segments and unrelated authentication callbacks without consuming/logging them. App URL registration, scene handling and production provider binding are still pending.
+
+The exact stable prerequisite source passed **580 HearthKit tests, zero failures and zero warning/error diagnostics**. Independent task reviews passed both specification and quality: 59 lease/store tests and 62 entry/URL/ticket/store tests. Thirty-one additional malformed URL inputs produced no unexpected acceptance. Meaningful RED evidence preceded implementation. Existing success/cancellation/ETA fixtures use explicit issuance clocks within the active lease; separate boundary tests verify exclusive expiry at 60 seconds.
+
+These are core source tests and source reviews, not new app/WidgetKit captures. Earlier V1/V2/V3 native images remain frozen at their own build hashes. Production entry/scene wiring, explicit sample isolation, a private DEBUG actual WidgetKit launch probe, complete destination/return/VoiceOver acceptance, other widget routes and the wider performance/release gates remain open.

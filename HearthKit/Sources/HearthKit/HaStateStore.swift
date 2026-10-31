@@ -76,6 +76,22 @@ public struct HaStateStore: Sendable {
     private let directory: URL
     private let initialConfig: HaConfig?
     private let initialScope: String
+    private static let carReadLeaseDuration: TimeInterval = 60
+    private struct CarReadLease: Codable {
+        // Missing legacy metadata is abandoned ownership; unreadable field types remain corruption.
+        var readID: String?
+        var startedAt: Date?
+        var expiresAt: Date?
+
+        func isActive(readID: String, now: Date) -> Bool {
+            guard !readID.isEmpty, self.readID == readID,
+                  let startedAt, let expiresAt,
+                  startedAt.timeIntervalSinceReferenceDate.isFinite,
+                  expiresAt.timeIntervalSinceReferenceDate.isFinite,
+                  expiresAt.timeIntervalSince(startedAt) == HaStateStore.carReadLeaseDuration else { return false }
+            return startedAt <= now && now < expiresAt
+        }
+    }
     private struct Stored: Codable {
         var version = 1
         var config: HaConfig?
@@ -90,6 +106,7 @@ public struct HaStateStore: Sendable {
         var collectionCaches: [String: HaCollectionCache]
         var collectionReads: [String: String]
         var carRouteReadPrefix: String?
+        var carReadLease: CarReadLease?
         var doorOperation: DoorOperation?
         var doorActionRevision: String
         init(config: HaConfig?, scope: String, readings: [String: HaStateReading],
@@ -106,12 +123,13 @@ public struct HaStateStore: Sendable {
             self.collectionRevision = collectionRevision; self.collectionCaches = collectionCaches
             self.collectionReads = collectionReads
             self.carRouteReadPrefix = carRouteReadPrefix
+            self.carReadLease = nil
             self.doorOperation = doorOperation
             self.doorActionRevision = doorActionRevision
         }
         private enum CodingKeys: String, CodingKey {
             case version, config, scope, readings, climateRevision, climateOperation, alarmRevision, alarmOperation, failures
-            case collectionRevision, collectionCaches, collectionReads, carRouteReadPrefix, doorOperation, doorActionRevision
+            case collectionRevision, collectionCaches, collectionReads, carRouteReadPrefix, carReadLease, doorOperation, doorActionRevision
         }
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -128,6 +146,7 @@ public struct HaStateStore: Sendable {
             collectionCaches = try values.decodeIfPresent([String: HaCollectionCache].self, forKey: .collectionCaches) ?? [:]
             collectionReads = try values.decodeIfPresent([String: String].self, forKey: .collectionReads) ?? [:]
             carRouteReadPrefix = try values.decodeIfPresent(String.self, forKey: .carRouteReadPrefix)
+            carReadLease = try values.decodeIfPresent(CarReadLease.self, forKey: .carReadLease)
             doorOperation = try values.decodeIfPresent(DoorOperation.self, forKey: .doorOperation)
             // A deterministic legacy value remains stable across processes and is persisted on the next mutation.
             // Old collection-revision callbacks do not accidentally become fresh command origins.
@@ -208,7 +227,7 @@ public struct HaStateStore: Sendable {
             stored.collectionRevision = UUID().uuidString
             stored.collectionCaches = carCache.map { ["car": $0] } ?? [:]
             stored.collectionReads = carRead.map { ["car": $0] } ?? [:]
-            if connectionChanged { stored.carRouteReadPrefix = nil }
+            if connectionChanged { clearCarRead(&stored) }
             stored.doorOperation = nil
             stored.doorActionRevision = UUID().uuidString
         }
@@ -262,8 +281,10 @@ public struct HaStateStore: Sendable {
         }
     }
 
-    public func beginCollectionRead(_ kind: String, expectedScope: String, expectedRevision: String) throws -> String? {
-        try locked {
+    public func beginCollectionRead(_ kind: String, expectedScope: String, expectedRevision: String,
+                                    now: Date = .now) throws -> String? {
+        if kind == "car" { try requireFiniteCarReadClock(now) }
+        return try locked {
             var stored = try read()
             // Auto-discovered Car has no alarm/door selection; only its account generation owns it.
             let revision = kind == "car" ? stored.scope : stored.collectionRevision
@@ -272,7 +293,10 @@ public struct HaStateStore: Sendable {
             guard kind != "doors" || stored.doorOperation?.pending != true else { return nil }
             let readID = UUID().uuidString
             stored.collectionReads[kind] = readID
-            if kind == "car" { stored.carRouteReadPrefix = nil }
+            if kind == "car" {
+                stored.carRouteReadPrefix = nil
+                stored.carReadLease = try newCarReadLease(readID: readID, now: now)
+            }
             try write(stored)
             return readID
         }
@@ -289,17 +313,21 @@ public struct HaStateStore: Sendable {
         }
     }
 
-    /// Does not displace an in-flight widget discovery or another route. Ordinary discovery can
-    /// supersede this owner, after which its reply is rejected rather than rebinding the route.
-    public func beginCarRouteRead(expectedScope: String, expectedVehiclePrefix: String) throws -> HaCarRouteReadOwner? {
-        try locked {
+    /// Does not displace an active widget discovery or route lease; abandoned ownership is recovered
+    /// under the lock. Ordinary discovery can supersede this owner without rebinding the route.
+    public func beginCarRouteRead(expectedScope: String, expectedVehiclePrefix: String,
+                                 now: Date = .now) throws -> HaCarRouteReadOwner? {
+        try requireFiniteCarReadClock(now)
+        return try locked {
             var stored = try read()
             guard let prefix = normalizedCarVehiclePrefix(expectedVehiclePrefix),
-                  carRouteMatches(stored, scope: expectedScope, prefix: prefix),
-                  stored.collectionReads["car"] == nil else { return nil }
+                  carRouteMatches(stored, scope: expectedScope, prefix: prefix) else { return nil }
+            try recoverAbandonedCarRead(&stored, now: now)
+            guard stored.collectionReads["car"] == nil else { return nil }
             let readID = UUID().uuidString
             stored.collectionReads["car"] = readID
             stored.carRouteReadPrefix = prefix
+            stored.carReadLease = try newCarReadLease(readID: readID, now: now)
             try write(stored)
             return HaCarRouteReadOwner(scope: expectedScope, vehiclePrefix: prefix, readID: readID)
         }
@@ -309,12 +337,15 @@ public struct HaStateStore: Sendable {
     /// point. An invalid target reply settles as a failure while keeping only same-target history.
     public func mergeCarRouteRead(_ owner: HaCarRouteReadOwner, reply: Result<String, HaError>,
                                  now: Date = .now) throws -> HaStoreSnapshot? {
-        try locked {
+        try requireFiniteCarReadClock(now)
+        return try locked {
             var stored = try read()
             guard normalizedCarVehiclePrefix(owner.vehiclePrefix) == owner.vehiclePrefix,
                   carRouteMatches(stored, scope: owner.scope, prefix: owner.vehiclePrefix),
                   !owner.readID.isEmpty, stored.collectionReads["car"] == owner.readID,
                   stored.carRouteReadPrefix == owner.vehiclePrefix else { return nil }
+            try recoverAbandonedCarRead(&stored, now: now)
+            guard stored.collectionReads["car"] == owner.readID else { return nil }
             let checkedReply: Result<String, HaError>
             if case .success(let raw) = reply {
                 if let identity = carReplyIdentity(raw) {
@@ -348,6 +379,35 @@ public struct HaStateStore: Sendable {
         return true
     }
 
+    private func requireFiniteCarReadClock(_ now: Date) throws {
+        guard now.timeIntervalSinceReferenceDate.isFinite else { throw HaError("Invalid Car refresh time") }
+    }
+
+    private func newCarReadLease(readID: String, now: Date) throws -> CarReadLease {
+        let expiresAt = now.addingTimeInterval(Self.carReadLeaseDuration)
+        guard expiresAt.timeIntervalSinceReferenceDate.isFinite,
+              expiresAt.timeIntervalSince(now) == Self.carReadLeaseDuration else {
+            throw HaError("Invalid Car refresh time")
+        }
+        return CarReadLease(readID: readID, startedAt: now, expiresAt: expiresAt)
+    }
+
+    private func clearCarRead(_ stored: inout Stored) {
+        stored.collectionReads.removeValue(forKey: "car")
+        stored.carRouteReadPrefix = nil
+        stored.carReadLease = nil
+    }
+
+    /// Recovery changes ownership only, leaving successful telemetry and all observation dates intact.
+    private func recoverAbandonedCarRead(_ stored: inout Stored, now: Date) throws {
+        if let readID = stored.collectionReads["car"],
+           stored.carReadLease?.isActive(readID: readID, now: now) == true { return }
+        guard stored.collectionReads["car"] != nil || stored.carRouteReadPrefix != nil
+            || stored.carReadLease != nil else { return }
+        clearCarRead(&stored)
+        try write(stored)
+    }
+
     public func adoptDoorDiscovery(_ ids: [String], expectedScope: String, expectedRevision: String,
                                    readID: String) throws -> HaStoreSnapshot? {
         try locked {
@@ -376,12 +436,17 @@ public struct HaStateStore: Sendable {
 
     public func mergeCollection(_ kind: String, reply: Result<String, HaError>, expectedScope: String,
                                 expectedRevision: String, readID: String, now: Date = .now) throws -> HaStoreSnapshot? {
-        try locked {
+        if kind == "car" { try requireFiniteCarReadClock(now) }
+        return try locked {
             var stored = try read()
             let revision = kind == "car" ? stored.scope : stored.collectionRevision
             guard stored.scope == expectedScope, revision == expectedRevision,
                   !readID.isEmpty, stored.collectionReads[kind] == readID,
                   kind != "car" || stored.carRouteReadPrefix == nil else { return nil }
+            if kind == "car" {
+                try recoverAbandonedCarRead(&stored, now: now)
+                guard stored.collectionReads["car"] == readID else { return nil }
+            }
             try settleCollection(kind, reply: reply, stored: &stored, now: now)
             return stored.snapshot
         }
@@ -418,7 +483,7 @@ public struct HaStateStore: Sendable {
         }
         // A completion is single use; duplicate delivery cannot restamp the same observation.
         stored.collectionReads.removeValue(forKey: kind)
-        if kind == "car" { stored.carRouteReadPrefix = nil }
+        if kind == "car" { clearCarRead(&stored) }
         try write(stored)
     }
 

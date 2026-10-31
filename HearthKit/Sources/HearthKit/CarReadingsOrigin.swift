@@ -101,6 +101,7 @@ private func obsoleteCarEnvelope(context: HaStoreSnapshot, now: Date,
 public func fetchOwnedCarEnvelope(store: HaStateStore, context: HaStoreSnapshot, now: Date = .now,
                                   request: (@Sendable () async throws -> String)? = nil,
                                   observedNow: @Sendable () -> Date = { .now }) async -> CarLiveEnvelope {
+    guard now.timeIntervalSinceReferenceDate.isFinite else { return .storageUnavailable() }
     guard let config = context.config, config.carReady else {
         return carEnvelope(context: context, result: CarFetchResult(cache: nil, setup: true),
             attemptedAt: now, now: now, requestReply: nil)
@@ -113,7 +114,7 @@ public func fetchOwnedCarEnvelope(store: HaStateStore, context: HaStoreSnapshot,
         guard current.scope == context.scope,
               haSameConnection(current.config, config),
               let readID = try store.beginCollectionRead("car", expectedScope: context.scope,
-                expectedRevision: context.scope) else {
+                expectedRevision: context.scope, now: now) else {
             return obsoleteCarEnvelope(context: context, now: now, requestReply: nil)
         }
         owner = HaCollectionReadOwner(kind: "car", scope: context.scope,
@@ -164,6 +165,7 @@ public func fetchOwnedCarRouteEnvelope(store: HaStateStore, context: HaStoreSnap
                                        expectedVehiclePrefix: String, now: Date = .now,
                                        request: (@Sendable () async throws -> String)? = nil,
                                        observedNow: @Sendable () -> Date = { .now }) async -> CarLiveEnvelope {
+    guard now.timeIntervalSinceReferenceDate.isFinite else { return .storageUnavailable() }
     guard let config = context.config, config.carReady else {
         return carEnvelope(context: context, result: CarFetchResult(cache: nil, setup: true),
             attemptedAt: now, now: now, requestReply: nil)
@@ -184,7 +186,7 @@ public func fetchOwnedCarRouteEnvelope(store: HaStateStore, context: HaStoreSnap
             return obsoleteCarEnvelope(context: context, now: now, requestReply: nil)
         }
         guard let readOwner = try store.beginCarRouteRead(expectedScope: context.scope,
-            expectedVehiclePrefix: prefix) else {
+            expectedVehiclePrefix: prefix, now: now) else {
             return try rejectedCarRouteEnvelope(store: store, context: context, prefix: prefix,
                 now: now, requestReply: nil, sameTargetMessage: "Another Car refresh is in progress · Try again")
         }
@@ -205,7 +207,7 @@ public func fetchOwnedCarRouteEnvelope(store: HaStateStore, context: HaStoreSnap
             ? .failure(HaError("Refresh interrupted")) : reply
         guard let committed = try store.mergeCarRouteRead(readOwner, reply: committedReply, now: completedAt) else {
             return try rejectedCarRouteEnvelope(store: store, context: context, prefix: prefix,
-                now: completedAt, requestReply: reply, sameTargetMessage: "Refresh superseded · Try again")
+                now: completedAt, requestReply: reply, sameTargetMessage: "This refresh is no longer active · Try again")
         }
         return carEnvelope(context: context, result: carStoredResult(committed),
             attemptedAt: completedAt, now: completedAt, requestReply: reply)
@@ -215,7 +217,7 @@ public func fetchOwnedCarRouteEnvelope(store: HaStateStore, context: HaStoreSnap
                 guard let failed = try store.failCarRouteRead(owner,
                     error: "Can't save readings · Refresh to retry", now: completedAt) else {
                     return try rejectedCarRouteEnvelope(store: store, context: context, prefix: prefix,
-                        now: completedAt, requestReply: reply, sameTargetMessage: "Refresh superseded · Try again")
+                        now: completedAt, requestReply: reply, sameTargetMessage: "This refresh is no longer active · Try again")
                 }
                 return carEnvelope(context: context, result: carStoredResult(failed),
                     attemptedAt: completedAt, now: completedAt, requestReply: reply, override: .failed)
@@ -233,7 +235,7 @@ private func rejectedCarRouteEnvelope(store: HaStateStore, context: HaStoreSnaps
     guard try store.carRouteContext(expectedScope: context.scope, expectedVehiclePrefix: prefix) != nil else {
         return obsoleteCarEnvelope(context: context, now: now, requestReply: requestReply)
     }
-    // A newer refresh invalidates the former request, not the former vehicle's immutable reading.
+    // Rejection does not establish whether another refresh happened; keep the feedback neutral.
     return carEnvelope(context: context, result: CarFetchResult(cache: nil, error: sameTargetMessage),
         attemptedAt: now, now: now, requestReply: requestReply, override: .obsolete)
 }
