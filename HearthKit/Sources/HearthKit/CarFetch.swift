@@ -6,9 +6,16 @@ public struct CarReadingsCache: Sendable, Equatable, Codable {
     public let current: String
     public let lastGood: String?
     public let checkedAt: Date
+    public let lastGoodCheckedAt: Date?
 
-    public init(current: String, lastGood: String?, checkedAt: Date) {
+    public init(current: String, lastGood: String?, checkedAt: Date, lastGoodCheckedAt: Date? = nil) {
         self.current = current; self.lastGood = lastGood; self.checkedAt = checkedAt
+        self.lastGoodCheckedAt = lastGoodCheckedAt
+    }
+
+    /// Legacy records can prove a historical time only when the two raw responses are identical.
+    public var historicalObservedAt: Date? {
+        lastGoodCheckedAt ?? (lastGood != nil && lastGood == current ? checkedAt : nil)
     }
 }
 
@@ -16,6 +23,15 @@ private struct CarReplyShape: Decodable {
     let found: Bool
     let prefix: String?
     let s: [String: String]?
+
+    private enum CodingKeys: String, CodingKey { case found, prefix, s }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        found = try values.decode(Bool.self, forKey: .found)
+        prefix = (try? values.decode(String.self, forKey: .prefix))?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        s = try values.decodeIfPresent([String: String].self, forKey: .s)
+    }
 }
 
 private func carReply(_ json: String) throws -> CarReplyShape {
@@ -25,15 +41,31 @@ private func carReply(_ json: String) throws -> CarReplyShape {
     return reply
 }
 
+/// Vehicle attribution comes only from a valid current template response, never its display name.
+public struct CarReplyIdentity: Sendable, Equatable {
+    public let found: Bool
+    public let vehiclePrefix: String?
+}
+
+public func carReplyIdentity(_ json: String?) -> CarReplyIdentity? {
+    guard let json, let reply = try? carReply(json) else { return nil }
+    let prefix = reply.prefix.flatMap { carUnknownStates.contains($0.lowercased()) ? nil : $0 }
+    return CarReplyIdentity(found: reply.found, vehiclePrefix: reply.found ? prefix : nil)
+}
+
 /// Apply a successful response to the latest cache. Call again after suspension when app and
 /// extension refreshes overlap, so an unknown reading cannot replace a newer last-good response.
 public func carReadingsAfterReply(_ json: String, previous: CarReadingsCache?, checkedAt: Date) throws -> CarReadingsCache {
-    let reply = try carReply(json)
-    let sameVehicle = reply.prefix?.isEmpty == false &&
-        reply.prefix == previous.flatMap { try? carReply($0.current).prefix }
-    let lastGood: String? = carFromTemplate(json)?.battery != nil ? json
-        : (reply.found && sameVehicle ? previous?.lastGood : nil)
-    return CarReadingsCache(current: json, lastGood: lastGood, checkedAt: checkedAt)
+    _ = try carReply(json)
+    guard let identity = carReplyIdentity(json) else { throw HaError("Couldn't read car data") }
+    let sameVehicle = identity.vehiclePrefix != nil &&
+        identity.vehiclePrefix == carReplyIdentity(previous?.current)?.vehiclePrefix &&
+        identity.vehiclePrefix == carReplyIdentity(previous?.lastGood)?.vehiclePrefix
+    let freshGood = carFromTemplate(json)?.battery != nil && identity.vehiclePrefix != nil
+    let lastGood: String? = freshGood ? json
+        : (identity.found && sameVehicle ? previous?.lastGood : nil)
+    return CarReadingsCache(current: json, lastGood: lastGood, checkedAt: checkedAt,
+        lastGoodCheckedAt: freshGood ? checkedAt : (lastGood != nil ? previous?.historicalObservedAt : nil))
 }
 
 public struct CarFetchResult: Sendable, Equatable {
@@ -45,10 +77,22 @@ public struct CarFetchResult: Sendable, Equatable {
         self.cache = cache; self.error = error; self.setup = setup
     }
 
+    public var currentCar: Car? { carFromTemplate(cache?.current) }
+
+    public var shownCar: CarShown? {
+        let prefix = carReplyIdentity(cache?.current)?.vehiclePrefix
+        let sameVehicle = prefix != nil && prefix == carReplyIdentity(cache?.lastGood)?.vehiclePrefix
+        return carToShow(currentCar, sameVehicle ? carFromTemplate(cache?.lastGood) : nil)
+    }
+
+    public var displayedObservedAt: Date? {
+        guard let shown = shownCar else { return nil }
+        return shown.stale ? cache?.historicalObservedAt : cache?.checkedAt
+    }
+
     public func snapshot(now: Date = .now, zone: TimeZone = .current,
                          locale: Locale = .current) -> CarSnapshot {
-        let current = carFromTemplate(cache?.current)
-        let shown = carToShow(current, carFromTemplate(cache?.lastGood))
+        let shown = shownCar
         var value = carSnapshot(shown?.car, now: now,
             stale: error != nil || shown?.stale == true, checkedAt: cache?.checkedAt,
             zone: zone, locale: locale)
