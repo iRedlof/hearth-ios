@@ -114,9 +114,12 @@ enum CollectionParityInputs {
         case "unavailable": return [
             event("cover.garage", state: "unavailable", at: observed.addingTimeInterval(-300)),
             event("lock.front", state: "locking", at: observed.addingTimeInterval(-600))]
-        case "overflow": return (0..<18).map { index in
-            event("cover.garage", state: index % 2 == 0 ? "closed" : "open",
-                  at: observed.addingTimeInterval(-300 - Double(index) * 420), routine: index % 3 == 0)
+        case "overflow": return (0..<18).map { (index: Int) -> [String: Any] in
+            let eventState: String = index % 2 == 0 ? "closed" : "open"
+            let offset: TimeInterval = -300 - Double(index) * 420
+            let date: Date = observed.addingTimeInterval(offset)
+            let routine: Bool = index % 3 == 0
+            return event("cover.garage", state: eventState, at: date, routine: routine)
         }
         case "boundary": return [
             event("cover.garage", state: "closed", at: now),

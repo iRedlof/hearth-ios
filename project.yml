@@ -55,6 +55,8 @@ targets:
       path: HearthWidgets/Info.plist
       properties:
         CFBundleDisplayName: Hearth
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSExtension:
           NSExtensionPointIdentifier: com.apple.widgetkit-extension
     entitlements:
