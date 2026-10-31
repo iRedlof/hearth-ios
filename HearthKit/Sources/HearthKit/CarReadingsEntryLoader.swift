@@ -17,13 +17,13 @@ public func loadCarReadingsEntry(
 ) async -> CarReadingsEntryPayload {
     if selection == .inert {
         return CarReadingsEntryPayload(entryID: UUID(), date: now(), snapshot: sample,
-            destination: .inert)
+            destination: .inert, primary: sample.battery.map { .battery(Double($0)) } ?? .noReading)
     }
     let envelope = await fetchEnvelope()
     let date = now()
     guard allowsLivePublication() else {
         return CarReadingsEntryPayload(entryID: UUID(), date: date, snapshot: sample,
-            destination: .inert)
+            destination: .inert, primary: sample.battery.map { .battery(Double($0)) } ?? .noReading)
     }
     return bindCarReadingsEntry(envelope, date: date) { ticket in
         try persist(ticket, date)

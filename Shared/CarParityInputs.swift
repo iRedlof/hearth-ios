@@ -31,6 +31,46 @@ enum CarParityInputs {
         return CarFetchResult(cache: cache, error: error).snapshot(now: now, zone: zone, locale: locale)
     }
 
+    #if DEBUG
+    static let compactOpeningStates = ["windows_open", "mixed_open", "port_open", "partial_open",
+                                       "historical_open", "save_failed_open"]
+
+    /// Coherent inert examples for the shared production presentation; no ticket or provider work.
+    static func productionPayload(_ state: String,
+                                  destination: CarReadingsDestination = .inert) -> CarReadingsEntryPayload {
+        let setup = state == "setup"
+        let signedOut = ["auth_failed", "auth_history"].contains(state)
+        let error = signedOut ? "Signed out: sign in again"
+            : ["offline", "stale_sentry", "first_failure"].contains(state) ? "Can't reach Home Assistant" : nil
+        let cache: CarReadingsCache? = ["setup", "auth_failed", "first_failure"].contains(state) ? nil
+            : CarReadingsCache(current: reply(state), lastGood: reply(state == "old_reading" ? "parked"
+                : state == "historical_open" ? "mixed_open" : state),
+                checkedAt: checked, lastGoodCheckedAt: checked.addingTimeInterval(-900))
+        let result = CarFetchResult(cache: cache, error: error, setup: setup)
+        let status: CarOriginStatus = setup ? .setup : signedOut ? .authenticationFailure
+            : error != nil ? .failed : state == "no_car" ? .noCar
+            : result.shownCar?.stale == true ? .history
+            : result.currentCar?.battery == nil ? .noReading : .readings
+        // The origin's production initializer remains inside HearthKit. Decode the controlled
+        // Codable fixture here instead of adding a fixture-only constructor to its public API.
+        let record: [String: Any] = [
+            "requestScope": "inert-example", "readRevision": "inert-example",
+            "vehiclePrefix": cache == nil || state == "no_car" ? NSNull() : "stargate",
+            "status": status.rawValue, "configReady": !setup,
+            "observedAt": cache.map { $0.checkedAt.timeIntervalSinceReferenceDate as Any } ?? NSNull(),
+            "displayedObservedAt": result.displayedObservedAt.map { $0.timeIntervalSinceReferenceDate as Any } ?? NSNull(),
+            "attemptedAt": now.timeIntervalSinceReferenceDate,
+            "historical": result.shownCar?.stale == true || error != nil
+        ]
+        let origin = try! JSONDecoder().decode(CarReadingOrigin.self,
+            from: JSONSerialization.data(withJSONObject: record))
+        return CarReadingsEntryPayload(entryID: UUID(), date: now,
+            snapshot: result.snapshot(now: now, zone: zone, locale: locale), destination: destination,
+            primary: carReadingsPrimary(origin: origin, cache: cache, error: error, setup: setup),
+            readingsUnavailable: ["save_failed", "save_failed_open"].contains(state))
+    }
+    #endif
+
     private static func reply(_ state: String) -> String {
         if state == "no_car" { return #"{"found":false}"# }
         let noReading = state == "no_reading"
@@ -55,6 +95,18 @@ enum CarParityInputs {
         for cover in ["frunk", "trunk", "windows", "charge_port_door"] {
             s["cover.\(cover)"] = state == "open" && cover == "trunk" ? "open" : "closed"
         }
+        switch state {
+        case "windows_open": s["cover.windows"] = "open"
+        case "port_open": s["cover.charge_port_door"] = "open"
+        case "partial_open":
+            s["cover.trunk"] = "open"; s["binary_sensor.front_driver_door"] = "unknown"
+        case "mixed_open", "historical_open", "save_failed_open":
+            s["binary_sensor.front_driver_door"] = "on"
+            for cover in ["frunk", "trunk", "windows", "charge_port_door"] {
+                s["cover.\(cover)"] = "open"
+            }
+        default: break
+        }
         let pressures = state == "tires" ? [38, 39, 31, 40] : [38, 39, 40, 40]
         for (i, wheel) in ["front_left", "front_right", "rear_left", "rear_right"].enumerated() {
             s["sensor.tire_pressure_\(wheel)"] = String(pressures[i])
@@ -64,12 +116,13 @@ enum CarParityInputs {
             s["sensor.charger_power"] = "11.5"; s["sensor.time_to_full_charge"] = "2026-10-21T07:40:00Z"
         }
         if noReading { s = s.mapValues { _ in "unknown" } }
-        if state == "old_reading" { s["sensor.battery_level"] = "unknown" }
+        if ["old_reading", "historical_open"].contains(state) { s["sensor.battery_level"] = "unknown" }
         if state == "unknown_security" {
             s["switch.sentry_mode"] = "unknown"; s["lock.lock"] = "unknown"
             s["cover.trunk"] = "unavailable"; s["binary_sensor.charge_cable"] = "unavailable"
         }
-        let raw: [String: Any] = ["found": true, "prefix": "stargate", "name": "Stargate",
+        let name = state == "long_names" ? "Stargate Premium — a long vehicle name for the full readings view" : "Stargate"
+        let raw: [String: Any] = ["found": true, "prefix": "stargate", "name": name,
             "s": s, "unit": "mi", "tempUnit": "°F", "pressureUnit": "psi",
             "statusSince": noReading ? NSNull() : "2026-10-20T05:33:00Z"]
         return String(data: try! JSONSerialization.data(withJSONObject: raw), encoding: .utf8)!

@@ -137,13 +137,20 @@ struct WidgetGalleryView: View {
             Text("Home Screen dimensions and rounded corners are applied by WidgetKit and may differ from this in-app example.")
                 .font(.body).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+            if kind == .car {
+                Text("At larger text sizes, Car prioritizes its main status and Readings. The photo, detailed readings and controls are in the readings screen.")
+                    .font(.body).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
         .accessibilityIdentifier("widget.preview.example")
     }
 
     @ViewBuilder private func widget(for kind: WidgetPreviewKind) -> some View {
         switch kind {
-        case .car: CarBeaconView(.sample, interactionMode: .inert)
+        case .car:
+            CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
+                snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
         case .alarm: AlarmBeaconView(.sample)
         case .thermostat: ThermostatBeaconView(.sample)
         case .chargepoint: CpBeaconView(.sample)

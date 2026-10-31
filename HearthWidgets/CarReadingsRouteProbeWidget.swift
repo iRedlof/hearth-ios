@@ -119,63 +119,8 @@ private struct CarReadingsRouteProbeView: View {
     var body: some View {
         let currentEntry = entry.currentInteractionEntry
         let _ = CarRouteProbeWidgetReceipts.widgetRendered(entry: currentEntry)
-        content(currentEntry)
-            .widgetURL(carReadingsURL(for: currentEntry.payload.destination))
-    }
-
-    private func content(_ entry: CarEntry) -> some View {
-        VStack(alignment: .leading, spacing: 5) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("DEBUG Car route \(slot.rawValue)")
-                    .font(.system(size: 15, weight: .bold))
-                Spacer(minLength: 4)
-                Text(entry.snap.battery.map { "\($0)%" } ?? "—")
-                    .font(.system(size: 24, weight: .heavy))
-            }
-            Text(entry.snap.name)
-                .font(.system(size: 13, weight: .medium))
-                .lineLimit(2)
-            Text("Run \(short(entry.probeIdentity?.run.runID)) · Build \(build(entry))")
-                .font(.system(size: 10, design: .monospaced))
-                .lineLimit(1)
-            Text("Entry \(short(entry.payload.entryID)) · Ticket \(ticket(entry))")
-                .font(.system(size: 10, design: .monospaced))
-                .lineLimit(1)
-            Spacer(minLength: 0)
-            Text(actionTitle(entry.payload.destination))
-                .font(.system(size: 13, weight: .semibold))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.vertical, 7)
-                .padding(.horizontal, 9)
-                .background(.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 8))
-        }
-        .foregroundStyle(Color(argb: BeaconSurfaceColors.inkARGB))
-        .padding(12)
-        .accessibilityIdentifier("car-route-probe-\(slot.rawValue)")
-    }
-
-    private func short(_ id: UUID?) -> String {
-        id.map { String($0.uuidString.prefix(8)) } ?? "—"
-    }
-
-    private func build(_ entry: CarEntry) -> String {
-        String((entry.probeIdentity?.run.buildMarker ?? CarRouteProbeBuild.marker).suffix(12))
-    }
-
-    private func ticket(_ entry: CarEntry) -> String {
-        switch entry.payload.destination {
-        case .ticket(let id): short(id)
-        case .storageUnavailable: "unavailable"
-        case .inert: "none"
-        }
-    }
-
-    private func actionTitle(_ destination: CarReadingsDestination) -> String {
-        switch destination {
-        case .ticket: "Open this saved reading"
-        case .storageUnavailable: "Open save-failure explanation"
-        case .inert: "Inactive — no saved route"
-        }
+        CarWidgetPresentation(payload: currentEntry.payload, family: .systemMedium)
+            .accessibilityIdentifier("car-route-probe-\(slot.rawValue)")
     }
 }
 #endif

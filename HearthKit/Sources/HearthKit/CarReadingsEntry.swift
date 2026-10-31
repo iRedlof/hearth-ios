@@ -11,14 +11,25 @@ public struct CarReadingsEntryPayload: Sendable, Equatable {
     public let date: Date
     public let snapshot: CarSnapshot
     public let destination: CarReadingsDestination
+    public let primary: CarReadingsPrimary
+    public let readingsUnavailable: Bool
 
     /// Allows preview and placeholder callers to create an inert payload without persistence.
     public init(entryID: UUID, date: Date, snapshot: CarSnapshot,
-                destination: CarReadingsDestination) {
+                destination: CarReadingsDestination, primary: CarReadingsPrimary = .noReading,
+                readingsUnavailable: Bool? = nil) {
         self.entryID = entryID
         self.date = date
         self.snapshot = snapshot
         self.destination = destination
+        self.primary = primary
+        self.readingsUnavailable = destination == .storageUnavailable || readingsUnavailable == true
+    }
+
+    /// Preserve the chosen reading when an entry loses permission to publish executable controls.
+    public func disablingInteractions() -> CarReadingsEntryPayload {
+        CarReadingsEntryPayload(entryID: entryID, date: date, snapshot: snapshot,
+            destination: .inert, primary: primary, readingsUnavailable: readingsUnavailable)
     }
 }
 
@@ -42,5 +53,6 @@ public func bindCarReadingsEntry(
         destination = .storageUnavailable
     }
     return CarReadingsEntryPayload(entryID: entryID, date: date, snapshot: envelope.snapshot,
-        destination: destination)
+        destination: destination, primary: carReadingsPrimary(origin: envelope.origin,
+            cache: envelope.result.cache, error: envelope.result.error, setup: envelope.result.setup))
 }

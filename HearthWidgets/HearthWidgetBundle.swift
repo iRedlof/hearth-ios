@@ -297,8 +297,7 @@ struct CarEntry: TimelineEntry {
     /// Strip stale route metadata as well as executable controls before constructing the card.
     var currentInteractionEntry: CarEntry {
         if allowsInteractions { return self }
-        let inert = CarReadingsEntryPayload(entryID: payload.entryID, date: date, snapshot: snap,
-            destination: .inert)
+        let inert = payload.disablingInteractions()
         #if DEBUG
         return CarEntry(payload: inert, interactionGeneration: interactionGeneration,
             probeIdentity: probeIdentity)
@@ -316,7 +315,7 @@ struct CarProvider: TimelineProvider, Sendable {
 
     func placeholder(in context: Context) -> CarEntry {
         CarEntry(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now, snapshot: .sample,
-            destination: .inert))
+            destination: .inert, primary: .battery(72)))
     }
     func getSnapshot(in context: Context, completion: @escaping (CarEntry) -> Void) {
         let isPreview = context.isPreview
@@ -344,7 +343,7 @@ struct CarProvider: TimelineProvider, Sendable {
             guard !inert, case .armed(let run) = CarRouteProbe.selection(),
                   let probe = try? CarRouteProbe.dependencies(run: run, slot: probeSlot) else {
                 return CarEntry(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
-                    snapshot: .sample, destination: .inert), interactionGeneration: generation)
+                    snapshot: .sample, destination: .inert, primary: .battery(72)), interactionGeneration: generation)
             }
             let persisted = CarRouteProbePersistedTicket()
             let payload = await CarLiveSnapshot.loadEntry(selection: .live, probe: probe,
@@ -378,8 +377,7 @@ struct CarWidget: Widget {
         StaticConfiguration(kind: "com.rohit.hearth.car", provider: CarProvider()) { originalEntry in
             ParityWidgetContent(prefix: "car") {
                 let entry = originalEntry.currentInteractionEntry
-                CarBeaconView(entry.snap, interactionMode: entry.payload.destination == .inert ? .inert : .live)
-                    .widgetURL(carReadingsURL(for: entry.payload.destination))
+                CarWidgetPresentation(payload: entry.payload, family: .systemMedium)
             }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }

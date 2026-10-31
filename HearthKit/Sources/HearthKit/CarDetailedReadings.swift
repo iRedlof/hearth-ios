@@ -39,9 +39,26 @@ public struct CarDetailedReadingCohort: Sendable, Equatable, Identifiable {
     public let sections: [CarDetailedReadingSection]
 }
 
+/// Machine-readable priority from the same coherent reply and attribution as the detail rows.
+public enum CarReadingsPrimary: Sendable, Equatable {
+    case setup, signIn, noCar, changed, storageUnavailable, unidentified, identityMismatch, readFailed
+    case lastKnown(authenticationRequired: Bool)
+    case openings, unlocked, tireWarning, lowBattery
+    case charging(starting: Bool)
+    case battery(Double)
+    case noReading
+}
+
 public struct CarDetailedReadingAttention: Sendable, Equatable {
     public let title: String
     public let message: String?
+    public let primary: CarReadingsPrimary
+
+    init(title: String, message: String?, primary: CarReadingsPrimary) {
+        self.title = title
+        self.message = message
+        self.primary = primary
+    }
 }
 
 /// UI-free, read-only detail rows derived from the coherent raw cache, never formatted Beacon strings.
@@ -84,6 +101,12 @@ public struct CarDetailedReadings: Sendable, Equatable {
         ]
         attention = selection.attention
     }
+}
+
+/// Selects the compact answer without formatting all of the full screen's rows and dates.
+public func carReadingsPrimary(origin: CarReadingOrigin, cache: CarReadingsCache?,
+                               error: String? = nil, setup: Bool = false) -> CarReadingsPrimary {
+    CarDetailSelection(origin: origin, cache: cache, error: error, setup: setup).attention.primary
 }
 
 private struct CarDetailRawReply {
@@ -148,21 +171,21 @@ private struct CarDetailSelection {
     let attention: CarDetailedReadingAttention
 
     init(origin: CarReadingOrigin, cache: CarReadingsCache?, error: String?, setup: Bool) {
-        let recovery: (String, String)?
+        let recovery: (String, String, CarReadingsPrimary)?
         if setup || origin.status == .setup {
-            recovery = ("Setup required", "Connect Home Assistant")
+            recovery = ("Setup required", "Connect Home Assistant", .setup)
         } else {
             recovery = switch origin.status {
-            case .noCar: ("No car found", "No car found")
-            case .obsolete: ("Widget reading changed", "Widget reading changed")
-            case .storageUnavailable: ("Storage unavailable", "Readings storage unavailable")
+            case .noCar: ("No car found", "No car found", .noCar)
+            case .obsolete: ("Widget reading changed", "Widget reading changed", .changed)
+            case .storageUnavailable: ("Storage unavailable", "Readings storage unavailable", .storageUnavailable)
             default: nil
             }
         }
         if let recovery {
             replies = []
             statusLabel = recovery.0
-            attention = CarDetailedReadingAttention(title: recovery.1, message: error)
+            attention = CarDetailedReadingAttention(title: recovery.1, message: error, primary: recovery.2)
             return
         }
         guard let cache, let current = CarDetailRawReply(cache.current) else {
@@ -171,7 +194,10 @@ private struct CarDetailSelection {
                 : origin.status == .unidentified ? "Car could not be identified"
                 : error != nil ? "Read failed" : "No reading available"
             statusLabel = headline
-            attention = CarDetailedReadingAttention(title: headline, message: error)
+            let primary: CarReadingsPrimary = origin.status == .authenticationFailure ? .signIn
+                : origin.status == .unidentified ? .unidentified
+                : error != nil ? .readFailed : .noReading
+            attention = CarDetailedReadingAttention(title: headline, message: error, primary: primary)
             return
         }
         let expectedPrefix = origin.vehiclePrefix?
@@ -181,7 +207,8 @@ private struct CarDetailSelection {
             replies = []
             statusLabel = "Reading identity mismatch"
             attention = CarDetailedReadingAttention(title: statusLabel,
-                message: "The stored reply does not belong to this widget reading's vehicle.")
+                message: "The stored reply does not belong to this widget reading's vehicle.",
+                primary: .identityMismatch)
             return
         }
         guard let expectedPrefix, expectedPrefix.isEmpty == false,
@@ -190,7 +217,8 @@ private struct CarDetailSelection {
                 title: "Latest Home Assistant reply · Vehicle unidentified",
                 attribution: .unidentified, observedAt: cache.checkedAt)]
             statusLabel = "Vehicle unidentified"
-            attention = CarDetailedReadingAttention(title: "Car could not be identified", message: error)
+            attention = CarDetailedReadingAttention(title: "Car could not be identified", message: error,
+                primary: .unidentified)
             return
         }
 
@@ -212,7 +240,9 @@ private struct CarDetailSelection {
             ]
             statusLabel = "Last known"
             attention = CarDetailedReadingAttention(title: "Last known",
-                message: error ?? "The latest reply has no battery reading. Last-known readings and the latest reply are shown separately.")
+                message: error ?? "The latest reply has no battery reading. Last-known readings and the latest reply are shown separately.",
+                primary: .lastKnown(authenticationRequired:
+                    origin.status == .authenticationFailure || beaconNeedsSignIn(error)))
         } else {
             let historical = origin.historical || error != nil ||
                 [.history, .failed, .authenticationFailure].contains(origin.status)
@@ -221,7 +251,9 @@ private struct CarDetailSelection {
                 attribution: historical ? .historical : .current, observedAt: cache.checkedAt)]
             statusLabel = historical ? "Last known" : origin.status == .noReading ? "No battery reading" : "Current reply"
             if historical {
-                attention = CarDetailedReadingAttention(title: "Last known", message: error)
+                attention = CarDetailedReadingAttention(title: "Last known", message: error,
+                    primary: .lastKnown(authenticationRequired:
+                        origin.status == .authenticationFailure || beaconNeedsSignIn(error)))
             } else {
                 attention = Self.freshAttention(current)
             }
@@ -244,28 +276,33 @@ private struct CarDetailSelection {
             raw.state("binary_sensor.charge_cable") == "off" ? ["Charge port"] : []
         let warningOpenings = openings + chargePort
         if !warningOpenings.isEmpty {
-            return CarDetailedReadingAttention(title: "Openings reported", message: warningOpenings.joined(separator: " · "))
+            return CarDetailedReadingAttention(title: "Openings reported",
+                message: warningOpenings.joined(separator: " · "), primary: .openings)
         }
         if ["unlocked", "open"].contains(raw.state("lock.lock") ?? "") {
-            return CarDetailedReadingAttention(title: "Unlocked", message: nil)
+            return CarDetailedReadingAttention(title: "Unlocked", message: nil, primary: .unlocked)
         }
         if ["front_left", "front_right", "rear_left", "rear_right"]
             .contains(where: { raw.state("binary_sensor.tire_pressure_warning_\($0)") == "on" }) {
-            return CarDetailedReadingAttention(title: "Tire warning", message: "See individual wheel readings and warnings below.")
+            return CarDetailedReadingAttention(title: "Tire warning",
+                message: "See individual wheel readings and warnings below.", primary: .tireWarning)
         }
         if let battery = raw.batteryPercentage, battery <= 20,
            raw.state("binary_sensor.charge_cable") == "off" {
-            return CarDetailedReadingAttention(title: "Low battery", message: "\(raw.states["sensor.battery_level"]!)%")
+            return CarDetailedReadingAttention(title: "Low battery",
+                message: "\(raw.states["sensor.battery_level"]!)%", primary: .lowBattery)
         }
         if ["charging", "starting"].contains(raw.state("sensor.charging") ?? "") {
             return CarDetailedReadingAttention(title: raw.state("sensor.charging") == "starting" ? "Charging starting" : "Charging",
-                message: raw.batteryPercentage != nil ? "\(raw.states["sensor.battery_level"]!)% battery" : "Battery reading unavailable")
+                message: raw.batteryPercentage != nil ? "\(raw.states["sensor.battery_level"]!)% battery" : "Battery reading unavailable",
+                primary: .charging(starting: raw.state("sensor.charging") == "starting"))
         }
-        if raw.batteryPercentage != nil {
-            return CarDetailedReadingAttention(title: "\(raw.states["sensor.battery_level"]!)% battery", message: nil)
+        if let battery = raw.batteryPercentage {
+            return CarDetailedReadingAttention(title: "\(raw.states["sensor.battery_level"]!)% battery",
+                message: nil, primary: .battery(battery))
         }
         return CarDetailedReadingAttention(title: "No battery reading",
-            message: "Other reported vehicle states remain available below.")
+            message: "Other reported vehicle states remain available below.", primary: .noReading)
     }
 }
 

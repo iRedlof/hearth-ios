@@ -96,7 +96,20 @@ struct ParityWidgetSelection: Sendable {
         let nativeReadable = AccessibleBeaconConceptCatalog.concepts.map {
             ($0.nativeID, AnyView(AccessibleBeaconConceptView(concept: $0)))
         }
-        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + small + readable + nativeReadable
+        let productionCar = (CarParityInputs.states + ["save_failed", "long_names", "auth_history"]
+            + CarParityInputs.compactOpeningStates).map {
+            ("car-production-" + $0, AnyView(CarWidgetPresentation(
+                payload: CarParityInputs.productionPayload($0), family: .systemMedium)))
+        }
+        // Fabricated immutable destination for visual disclosure fit only. No ticket is persisted;
+        // the direct parity screen disables hit testing and does not prove navigation.
+        let disclosureCar = [
+            ("car-production-mixed_open-ticket", AnyView(CarWidgetPresentation(
+                payload: CarParityInputs.productionPayload("mixed_open",
+                    destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)),
+                family: .systemMedium)))
+        ]
+        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + small + readable + nativeReadable + productionCar + disclosureCar
         #else
         alarm() + thermostat() + car() + chargePoint() + tiles() + collections()
         #endif
