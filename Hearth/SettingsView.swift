@@ -1,16 +1,19 @@
 import SwiftUI
-import WidgetKit
 import HearthKit
 
 /// Each provider has independent setup and account ownership. Settings itself is always available.
+@MainActor
 struct SettingsView: View {
     @State private var config: HaConfig?
     @State private var connectingHa = false
     @State private var signOutError: String?
+    let runtime: any SettingsRuntime
     let onChange: (HaConfig?) -> Void
 
-    init(config: HaConfig?, onChange: @escaping (HaConfig?) -> Void) {
+    init(config: HaConfig?, runtime: any SettingsRuntime = LiveSettingsRuntime.shared,
+         onChange: @escaping (HaConfig?) -> Void) {
         _config = State(initialValue: config)
+        self.runtime = runtime
         self.onChange = onChange
     }
 
@@ -18,7 +21,7 @@ struct SettingsView: View {
         NavigationStack {
             Form {
                 if let config, haSettingsReady(config) {
-                    HaSettingsSections(config: config) { next in
+                    HaSettingsSections(config: config, runtime: runtime) { next in
                         self.config = next
                         onChange(next)
                     }
@@ -35,14 +38,14 @@ struct SettingsView: View {
                         Text("Connect to configure your home widgets. ChargePoint uses its own account.")
                     }
                 }
-                CpSettingsSection()
+                CpSettingsSection(runtime: runtime)
             }
             .navigationTitle("Settings")
             .accessibilityIdentifier("settings.root")
             .sheet(isPresented: $connectingHa) {
                 NavigationStack {
-                    SignInView(initialURL: config?.baseUrl) {
-                        config = HaConfigStore.load()
+                    SettingsSetupScreen(route: .haSignIn, runtime: runtime, initialURL: config?.baseUrl) {
+                        config = runtime.loadHa()?.config
                         onChange(config)
                         connectingHa = false
                     }
@@ -61,11 +64,9 @@ struct SettingsView: View {
 
     private func signOutHa() {
         do {
-            try HaConfigStore.clear()
-            Task { await HaAuth.shared.forget() }
-            WidgetCenter.shared.reloadAllTimelines()
-            config = nil
-            onChange(nil)
+            config = try runtime.saveHaEdit(expectedScope: runtime.loadHa()?.scope, edit: .signOut)
+            runtime.refreshWidgets(kinds: [])
+            onChange(config)
         } catch { signOutError = friendlyError(error) }
     }
 }

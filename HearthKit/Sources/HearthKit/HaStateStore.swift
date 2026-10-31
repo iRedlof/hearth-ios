@@ -42,6 +42,21 @@ public struct HaStoreSnapshot: Sendable {
     public let collectionCaches: [String: HaCollectionCache]
     public let doorOperation: DoorOperation?
     public let doorActionRevision: String
+
+    /// Also permits an in-memory Settings runtime to supply a coherent, empty-cache context.
+    public init(config: HaConfig?, scope: String, readings: [String: HaStateReading] = [:],
+                climateRevision: String = "initial", climateOperation: ClimateOperation? = nil,
+                alarmRevision: String = "initial", alarmOperation: AlarmOperation? = nil,
+                failures: [String: HaStateFailure] = [:], collectionRevision: String = "initial",
+                collectionCaches: [String: HaCollectionCache] = [:], doorOperation: DoorOperation? = nil,
+                doorActionRevision: String = "initial") {
+        self.config = config; self.scope = scope; self.readings = readings
+        self.climateRevision = climateRevision; self.climateOperation = climateOperation
+        self.alarmRevision = alarmRevision; self.alarmOperation = alarmOperation
+        self.failures = failures; self.collectionRevision = collectionRevision
+        self.collectionCaches = collectionCaches; self.doorOperation = doorOperation
+        self.doorActionRevision = doorActionRevision
+    }
 }
 
 /// All readers and writers lock a permanent sidecar. The JSON file may then be replaced atomically

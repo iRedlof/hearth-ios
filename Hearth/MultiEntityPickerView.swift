@@ -2,11 +2,13 @@ import SwiftUI
 import HearthKit
 
 /// Multi-select entity picker. Saved order and missing IDs survive another toggle.
+@MainActor
 struct MultiEntityPickerView: View {
     let config: HaConfig
     let domains: [String]
     let title: String
-    let onChange: ([String]) -> Void
+    let runtime: any SettingsRuntime
+    let onChange: ([String]) throws -> Void
     let doorsOnly: Bool
     let limit: Int?
     private let requestScope: String?
@@ -16,16 +18,19 @@ struct MultiEntityPickerView: View {
     @State private var entities: [HaEntity] = []
     @State private var phase: Phase = .loading
     @State private var limitBlocked = false
+    @State private var saveError: String?
 
     private enum Phase: Equatable { case loading, loaded, failed(String) }
 
     init(config: HaConfig, domains: [String], title: String, selected: [String],
          doorsOnly: Bool = false, limit: Int? = nil,
-         onChange: @escaping ([String]) -> Void) {
+         runtime: any SettingsRuntime = LiveSettingsRuntime.shared,
+         onChange: @escaping ([String]) throws -> Void) {
         self.config = config; self.domains = domains; self.title = title; self.onChange = onChange
         self.doorsOnly = doorsOnly
         self.limit = limit
-        let current = HaConfigStore.context()
+        self.runtime = runtime
+        let current = runtime.loadHa()
         requestScope = haSameConnection(current?.config, config) ? current?.scope : nil
         _selected = State(initialValue: Set(selected))
         _selectedOrder = State(initialValue: preserveSelectionOrder(selected, selected: Set(selected), available: []))
@@ -65,20 +70,25 @@ struct MultiEntityPickerView: View {
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
         .task { await load() }
+        .alert("Couldn't save settings", isPresented: Binding(
+            get: { saveError != nil }, set: { if !$0 { saveError = nil } }
+        )) { Button("OK", role: .cancel) {} } message: { Text(saveError ?? "") }
     }
 
     private func row(_ e: HaEntity) -> some View {
         Button {
-            guard settingsDiscoveryCurrent(config: config, scope: requestScope, current: HaConfigStore.context()) else {
+            guard settingsDiscoveryCurrent(config: config, scope: requestScope, current: runtime.loadHa()) else {
                 phase = .failed("Your account changed. Reopen Settings to continue.")
                 return
             }
             let edit = selectionAfterToggle(selectedOrder, id: e.id, available: entities.map(\.id), limit: limit)
             limitBlocked = edit.blockedByLimit
             guard !edit.blockedByLimit else { return }
-            selectedOrder = edit.ids
-            selected = Set(edit.ids)
-            onChange(selectedOrder)
+            do {
+                try onChange(edit.ids)
+                selectedOrder = edit.ids
+                selected = Set(edit.ids)
+            } catch { saveError = friendlyError(error) }
         } label: {
             HStack {
                 VStack(alignment: .leading, spacing: 2) {
@@ -110,13 +120,13 @@ struct MultiEntityPickerView: View {
     private func load() async {
         phase = .loading
         do {
-            let json = try await settingsDiscoveryJson(config: config, scope: requestScope,
-                current: { HaConfigStore.context() }, read: { try await HaClient($0).allStatesJson() })
-            guard let completed = HaConfigStore.context(), completed.scope == requestScope,
+            let discovery = try await runtime.discoverHa(config: config, scope: requestScope,
+                purpose: .entities(domains, doorsOnly: doorsOnly))
+            guard let completed = runtime.loadHa(), completed.scope == requestScope,
                   let currentConfig = completed.config, haSameConnection(currentConfig, config) else {
                 throw HaError("Your account changed. Reopen Settings to continue.")
             }
-            guard let data = json.data(using: .utf8),
+            guard let data = discovery.statesJSON.data(using: .utf8),
                   let rows = try JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 throw HaError("Unexpected entity list")
             }

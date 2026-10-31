@@ -53,7 +53,7 @@ struct BatteryWidget: Widget {
         }
         .configurationDisplayName("Batteries")
         .description("Every battery you replace, lowest first.")
-        .supportedFamilies([.systemLarge, .systemMedium])
+        .supportedFamilies([.systemMedium])
         .contentMarginsDisabled()
     }
 }

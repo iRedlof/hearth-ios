@@ -6,15 +6,32 @@ import HearthKit
 struct HearthApp: App {
     init() {
         #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("-parityLive") { ParityCatalog.deactivateWidget() }
+        if Self.settingsFixture() == nil,
+           ProcessInfo.processInfo.arguments.contains("-parityLive") { ParityCatalog.deactivateWidget() }
         #endif
     }
     var body: some Scene {
         WindowGroup {
+            #if DEBUG
+            if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
+            else if let id = Self.parityState() { ParityStateScreen(id: id) }
+            else { ContentView() }
+            #else
             if let id = Self.parityState() { ParityStateScreen(id: id) }
             else { ContentView() }
+            #endif
         }
     }
+
+    #if DEBUG
+    private static func settingsFixture() -> SettingsFixtureCase? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let i = args.firstIndex(of: "-settingsFixture") else { return nil }
+        guard i + 1 < args.count else { return .fresh }
+        // An invalid debug selector still stays on the inert branch.
+        return SettingsFixtureCase(rawValue: args[i + 1]) ?? .fresh
+    }
+    #endif
 
     /// `-parityState <id>` renders a single Beacon state full-screen for the parity-gallery
     /// screenshot script (docs/parity-comparison). No effect in normal use.
