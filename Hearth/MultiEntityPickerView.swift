@@ -1,36 +1,49 @@
 import SwiftUI
 import HearthKit
 
-/// Multi-select entity picker (e.g. room sensors across `sensor` + `binary_sensor`). Reports the
-/// Existing selection order and missing IDs survive another toggle.
+/// Multi-select entity picker. Saved order and missing IDs survive another toggle.
 struct MultiEntityPickerView: View {
     let config: HaConfig
     let domains: [String]
     let title: String
     let onChange: ([String]) -> Void
     let doorsOnly: Bool
+    let limit: Int?
     private let requestScope: String?
 
     @State private var selected: Set<String>
     @State private var selectedOrder: [String]
     @State private var entities: [HaEntity] = []
     @State private var phase: Phase = .loading
+    @State private var limitBlocked = false
 
     private enum Phase: Equatable { case loading, loaded, failed(String) }
 
     init(config: HaConfig, domains: [String], title: String, selected: [String],
-         doorsOnly: Bool = false,
+         doorsOnly: Bool = false, limit: Int? = nil,
          onChange: @escaping ([String]) -> Void) {
         self.config = config; self.domains = domains; self.title = title; self.onChange = onChange
         self.doorsOnly = doorsOnly
+        self.limit = limit
         let current = HaConfigStore.context()
         requestScope = haSameConnection(current?.config, config) ? current?.scope : nil
         _selected = State(initialValue: Set(selected))
-        _selectedOrder = State(initialValue: selected)
+        _selectedOrder = State(initialValue: preserveSelectionOrder(selected, selected: Set(selected), available: []))
     }
 
     var body: some View {
         List {
+            Section {
+                Text(selectionCount)
+                    .accessibilityIdentifier("settings.picker.count")
+                if let limit, selected.count >= limit {
+                    Text("Remove a selected item before adding another. Existing selections stay until you remove them.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                } else if limitBlocked {
+                    Text("Remove a selected item before adding another.")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+            }
             switch phase {
             case .loading:
                 HStack(spacing: 10) { ProgressView(); Text("Loading entities…") }.foregroundStyle(.secondary)
@@ -42,11 +55,10 @@ struct MultiEntityPickerView: View {
             case .loaded:
                 if entities.isEmpty { Text("No matching entities found").foregroundStyle(.secondary) }
                 ForEach(entities) { row($0) }
-                let missing = selectedOrder.filter { id in selected.contains(id) && !entities.contains { $0.id == id } }
-                if !missing.isEmpty {
-                    Section("Not currently found") {
-                        ForEach(missing, id: \.self) { id in row(HaEntity(id: id, name: id)) }
-                    }
+            }
+            if !missingSelections.isEmpty {
+                Section(phase == .loaded ? "Not currently found" : "Saved selections") {
+                    ForEach(missingSelections, id: \.self) { id in row(HaEntity(id: id, name: id)) }
                 }
             }
         }
@@ -57,8 +69,11 @@ struct MultiEntityPickerView: View {
 
     private func row(_ e: HaEntity) -> some View {
         Button {
-            if selected.contains(e.id) { selected.remove(e.id) } else { selected.insert(e.id) }
-            selectedOrder = preserveSelectionOrder(selectedOrder, selected: selected, available: entities.map(\.id))
+            let edit = selectionAfterToggle(selectedOrder, id: e.id, available: entities.map(\.id), limit: limit)
+            limitBlocked = edit.blockedByLimit
+            guard !edit.blockedByLimit else { return }
+            selectedOrder = edit.ids
+            selected = Set(edit.ids)
             onChange(selectedOrder)
         } label: {
             HStack {
@@ -71,6 +86,20 @@ struct MultiEntityPickerView: View {
                     Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(.tint)
                 }
             }
+        }
+        .accessibilityIdentifier("settings.picker.\(e.id)")
+        .accessibilityValue(selected.contains(e.id) ? "Selected" : "Not selected")
+    }
+
+    private var selectionCount: String {
+        guard let limit else { return "\(selected.count) selected" }
+        return selected.count > limit ? "\(selected.count) selected · Limit \(limit)" :
+            "\(selected.count) of \(limit) selected"
+    }
+
+    private var missingSelections: [String] {
+        selectedOrder.filter { id in
+            selected.contains(id) && (phase != .loaded || !entities.contains { $0.id == id })
         }
     }
 

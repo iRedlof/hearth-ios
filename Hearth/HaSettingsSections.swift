@@ -83,8 +83,8 @@ struct HaSettingsSections: View {
             Section {
                 NavigationLink {
                     MultiEntityPickerView(config: config, domains: ["script"], title: "Scripts",
-                                          selected: config.scriptIds) { ids in
-                        apply { $0.scriptIdsJson = encodeIds(Array(ids.prefix(6))) }
+                                              selected: config.scriptIds, limit: 6) { ids in
+                            apply { $0.scriptIdsJson = encodeIds(ids) }
                     }
                 } label: {
                     LabeledContent("Scripts", value: config.scriptIds.isEmpty ? "None" : "\(config.scriptIds.count) selected")
@@ -98,8 +98,8 @@ struct HaSettingsSections: View {
                 NavigationLink {
                     MultiEntityPickerView(config: config,
                                           domains: ["switch", "light", "fan", "input_boolean", "script"],
-                                          title: "Tiles", selected: config.favouriteIds) { ids in
-                        apply { $0.favouriteIdsJson = encodeIds(Array(ids.prefix(12))) }
+                                              title: "Tiles", selected: config.favouriteIds, limit: 12) { ids in
+                            apply { $0.favouriteIdsJson = encodeIds(ids) }
                     }
                 } label: {
                     LabeledContent("Tiles", value: config.favouriteIds.isEmpty ? "None" : "\(config.favouriteIds.count) selected")
@@ -123,7 +123,7 @@ struct HaSettingsSections: View {
             } footer: {
                 Text("Doors, garages and window sensors for the Doors widget. Garage controls work with one tap.")
             }
-    }
+        }
     }
 
     private var confirmBinding: Binding<String> {
