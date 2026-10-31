@@ -228,14 +228,6 @@ struct CarReadingsScreen: View {
                             ? "The reading this widget opened." : "Refreshed reading. The original widget record is retained below.")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
-                    Section {
-                        Image("CarPremium")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(maxWidth: .infinity, maxHeight: 160)
-                            .accessibilityHidden(true)
-                    }
-                    readingSources(detail)
                 }
                 if model.status != .current {
                     Section("Reading availability") {
@@ -253,7 +245,17 @@ struct CarReadingsScreen: View {
                 if let feedback = model.feedback {
                     Section("Result") { Text(feedback).fixedSize(horizontal: false, vertical: true) }
                 }
-                if let detail = model.detail { readingSections(detail) }
+                if let detail = model.detail {
+                    Section {
+                        Image("CarPremium")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: 160)
+                            .accessibilityHidden(true)
+                    }
+                    readingSources(detail)
+                    readingSections(detail)
+                }
                 if let original = model.openingTicket, original.id != model.session?.shownTicket.id {
                     Section("Original widget record") {
                         Text("Refresh shows a newer reading above. The widget's opening record is retained below.")
