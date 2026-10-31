@@ -24,6 +24,39 @@ public let CAR_TEMPLATE = """
 {%- endif -%}
 """
 
+/// A route prefix is an HA object-ID component, not a friendly name or a VIN. Restricting its
+/// alphabet before interpolation prevents either template injection or an unexpected entity path.
+/// Discovery still accepts its existing reply shape; unsafe legacy IDs cannot authorize a route.
+public func normalizedCarVehiclePrefix(_ raw: String) -> String? {
+    let prefix = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !prefix.isEmpty, !carUnknownStates.contains(prefix),
+          prefix.utf8.allSatisfy({ (97...122).contains($0) || (48...57).contains($0) || $0 == 95 }) else {
+        return nil
+    }
+    return prefix
+}
+
+/// Reads only the captured vehicle's entities. It cannot select a second reporting car, and a
+/// removed range/lock pair reports no car rather than returning another integration's prefix.
+public func carTargetedTemplate(vehiclePrefix rawPrefix: String) throws -> String {
+    guard let prefix = normalizedCarVehiclePrefix(rawPrefix) else {
+        throw HaError("Car could not be identified · Refresh the widget to check")
+    }
+    return """
+    {%- set p = '\(prefix)' -%}
+    {%- set ids = states | map(attribute='entity_id') | list -%}
+    {%- if ('sensor.' ~ p ~ '_battery_range') not in ids or ('lock.' ~ p ~ '_lock') not in ids -%}
+    {{ {'found': false} | to_json }}
+    {%- else -%}
+    {%- set keys = ['sensor.battery_level', 'sensor.battery_range', 'sensor.charging', 'sensor.charger_power', 'sensor.time_to_full_charge', 'sensor.inside_temperature', 'binary_sensor.status', 'binary_sensor.charge_cable', 'binary_sensor.front_driver_door', 'binary_sensor.front_passenger_door', 'binary_sensor.rear_driver_door', 'binary_sensor.rear_passenger_door', 'binary_sensor.tire_pressure_warning_front_left', 'binary_sensor.tire_pressure_warning_front_right', 'binary_sensor.tire_pressure_warning_rear_left', 'binary_sensor.tire_pressure_warning_rear_right', 'cover.frunk', 'cover.trunk', 'cover.windows', 'cover.charge_port_door', 'lock.lock', 'switch.sentry_mode', 'device_tracker.location', 'number.charge_limit', 'sensor.tire_pressure_front_left', 'sensor.tire_pressure_front_right', 'sensor.tire_pressure_rear_left', 'sensor.tire_pressure_rear_right', 'sensor.outside_temperature', 'sensor.odometer', 'sensor.charge_energy_added', 'climate.climate'] -%}
+    {%- set out = namespace(s={}) -%}
+    {%- for k in keys -%}{%- set e = k.split('.')[0] ~ '.' ~ p ~ '_' ~ k.split('.')[1] -%}{%- set out.s = dict(out.s, **{k: states(e)}) -%}{%- endfor -%}
+    {%- set st = 'binary_sensor.' ~ p ~ '_status' -%}
+    {{ {'found': true, 'prefix': p, 'name': (state_attr('sensor.' ~ p ~ '_battery_level', 'friendly_name') or p) | replace(' Battery level', '') | replace(' battery level', ''), 'unit': state_attr('sensor.' ~ p ~ '_battery_range', 'unit_of_measurement') or 'mi', 'tempUnit': state_attr('sensor.' ~ p ~ '_inside_temperature', 'unit_of_measurement') or '', 'pressureUnit': state_attr('sensor.' ~ p ~ '_tire_pressure_front_left', 'unit_of_measurement') or '', 'statusSince': (states[st].last_changed.isoformat() if states[st] is defined and states[st] else none), 's': out.s} | to_json }}
+    {%- endif -%}
+    """
+}
+
 let carUnknownStates: Set<String> = ["unknown", "unavailable", "none", ""]
 
 /// ISO-8601 with offset, tolerating fractional seconds of any precision (HA emits microseconds).
@@ -60,7 +93,10 @@ public func carFromTemplate(_ json: String?) -> Car? {
         return carUnknownStates.contains(t.lowercased()) ? nil : t
     }
     func num(_ k: String) -> Double? {
-        guard let r = raw(k), let d = Double(r), d.isFinite else { return nil }
+        // The compact Car model/formatters convert these readings to whole Int values. A finite
+        // Double can still overflow that conversion; keep unsupported magnitudes in the raw reply
+        // while treating the compact numeric reading as unavailable.
+        guard let r = raw(k), let d = Double(r), d.isFinite, Int(exactly: d.rounded()) != nil else { return nil }
         return d
     }
     func on(_ k: String) -> Bool { raw(k) == "on" }

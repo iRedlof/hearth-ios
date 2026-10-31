@@ -29,6 +29,17 @@ public struct HaCollectionReadOwner: Sendable, Equatable {
     }
 }
 
+/// A read-only Car route owns both the connection generation and one validated integration prefix.
+/// It is deliberately separate from discovery, whose reply is allowed to choose a new vehicle.
+public struct HaCarRouteReadOwner: Sendable, Equatable {
+    public let scope: String
+    public let vehiclePrefix: String
+    public let readID: String
+    public init(scope: String, vehiclePrefix: String, readID: String) {
+        self.scope = scope; self.vehiclePrefix = vehiclePrefix; self.readID = readID
+    }
+}
+
 public struct HaStoreSnapshot: Sendable {
     public let config: HaConfig?
     public let scope: String
@@ -78,6 +89,7 @@ public struct HaStateStore: Sendable {
         var collectionRevision: String
         var collectionCaches: [String: HaCollectionCache]
         var collectionReads: [String: String]
+        var carRouteReadPrefix: String?
         var doorOperation: DoorOperation?
         var doorActionRevision: String
         init(config: HaConfig?, scope: String, readings: [String: HaStateReading],
@@ -85,7 +97,7 @@ public struct HaStateStore: Sendable {
              alarmRevision: String = UUID().uuidString, alarmOperation: AlarmOperation? = nil,
              failures: [String: HaStateFailure] = [:],
              collectionRevision: String = UUID().uuidString, collectionCaches: [String: HaCollectionCache] = [:],
-             collectionReads: [String: String] = [:], doorOperation: DoorOperation? = nil,
+             collectionReads: [String: String] = [:], carRouteReadPrefix: String? = nil, doorOperation: DoorOperation? = nil,
              doorActionRevision: String = UUID().uuidString) {
             self.config = config; self.scope = scope; self.readings = readings
             self.climateRevision = climateRevision; self.climateOperation = climateOperation
@@ -93,12 +105,13 @@ public struct HaStateStore: Sendable {
             self.failures = failures
             self.collectionRevision = collectionRevision; self.collectionCaches = collectionCaches
             self.collectionReads = collectionReads
+            self.carRouteReadPrefix = carRouteReadPrefix
             self.doorOperation = doorOperation
             self.doorActionRevision = doorActionRevision
         }
         private enum CodingKeys: String, CodingKey {
             case version, config, scope, readings, climateRevision, climateOperation, alarmRevision, alarmOperation, failures
-            case collectionRevision, collectionCaches, collectionReads, doorOperation, doorActionRevision
+            case collectionRevision, collectionCaches, collectionReads, carRouteReadPrefix, doorOperation, doorActionRevision
         }
         init(from decoder: Decoder) throws {
             let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -114,6 +127,7 @@ public struct HaStateStore: Sendable {
             collectionRevision = try values.decodeIfPresent(String.self, forKey: .collectionRevision) ?? "legacy"
             collectionCaches = try values.decodeIfPresent([String: HaCollectionCache].self, forKey: .collectionCaches) ?? [:]
             collectionReads = try values.decodeIfPresent([String: String].self, forKey: .collectionReads) ?? [:]
+            carRouteReadPrefix = try values.decodeIfPresent(String.self, forKey: .carRouteReadPrefix)
             doorOperation = try values.decodeIfPresent(DoorOperation.self, forKey: .doorOperation)
             // A deterministic legacy value remains stable across processes and is persisted on the next mutation.
             // Old collection-revision callbacks do not accidentally become fresh command origins.
@@ -194,6 +208,7 @@ public struct HaStateStore: Sendable {
             stored.collectionRevision = UUID().uuidString
             stored.collectionCaches = carCache.map { ["car": $0] } ?? [:]
             stored.collectionReads = carRead.map { ["car": $0] } ?? [:]
+            if connectionChanged { stored.carRouteReadPrefix = nil }
             stored.doorOperation = nil
             stored.doorActionRevision = UUID().uuidString
         }
@@ -257,9 +272,80 @@ public struct HaStateStore: Sendable {
             guard kind != "doors" || stored.doorOperation?.pending != true else { return nil }
             let readID = UUID().uuidString
             stored.collectionReads[kind] = readID
+            if kind == "car" { stored.carRouteReadPrefix = nil }
             try write(stored)
             return readID
         }
+    }
+
+    /// One locked context check for route opening/reactivation. A newer same-car observation is
+    /// compatible; account, missing/unidentified Car and different vehicle contexts are not.
+    public func carRouteContext(expectedScope: String, expectedVehiclePrefix: String) throws -> HaStoreSnapshot? {
+        try locked {
+            let stored = try read()
+            guard let prefix = normalizedCarVehiclePrefix(expectedVehiclePrefix),
+                  carRouteMatches(stored, scope: expectedScope, prefix: prefix) else { return nil }
+            return stored.snapshot
+        }
+    }
+
+    /// Does not displace an in-flight widget discovery or another route. Ordinary discovery can
+    /// supersede this owner, after which its reply is rejected rather than rebinding the route.
+    public func beginCarRouteRead(expectedScope: String, expectedVehiclePrefix: String) throws -> HaCarRouteReadOwner? {
+        try locked {
+            var stored = try read()
+            guard let prefix = normalizedCarVehiclePrefix(expectedVehiclePrefix),
+                  carRouteMatches(stored, scope: expectedScope, prefix: prefix),
+                  stored.collectionReads["car"] == nil else { return nil }
+            let readID = UUID().uuidString
+            stored.collectionReads["car"] = readID
+            stored.carRouteReadPrefix = prefix
+            try write(stored)
+            return HaCarRouteReadOwner(scope: expectedScope, vehiclePrefix: prefix, readID: readID)
+        }
+    }
+
+    /// Prefix validation, latest cache identity and request ownership are checked at the same commit
+    /// point. An invalid target reply settles as a failure while keeping only same-target history.
+    public func mergeCarRouteRead(_ owner: HaCarRouteReadOwner, reply: Result<String, HaError>,
+                                 now: Date = .now) throws -> HaStoreSnapshot? {
+        try locked {
+            var stored = try read()
+            guard normalizedCarVehiclePrefix(owner.vehiclePrefix) == owner.vehiclePrefix,
+                  carRouteMatches(stored, scope: owner.scope, prefix: owner.vehiclePrefix),
+                  !owner.readID.isEmpty, stored.collectionReads["car"] == owner.readID,
+                  stored.carRouteReadPrefix == owner.vehiclePrefix else { return nil }
+            let checkedReply: Result<String, HaError>
+            if case .success(let raw) = reply {
+                if let identity = carReplyIdentity(raw) {
+                    if !identity.found {
+                        checkedReply = .failure(HaError("This car was not found · Refresh the widget to check"))
+                    } else if identity.vehiclePrefix == owner.vehiclePrefix {
+                        checkedReply = reply
+                    } else {
+                        checkedReply = .failure(HaError(identity.vehiclePrefix == nil
+                            ? "Car could not be identified · Refresh the widget to check"
+                            : "Car reply did not match this widget · Refresh the widget to check"))
+                    }
+                } else { checkedReply = .failure(HaError("Couldn't read car data")) }
+            } else { checkedReply = reply }
+            try settleCollection("car", reply: checkedReply, stored: &stored, now: now)
+            return stored.snapshot
+        }
+    }
+
+    public func failCarRouteRead(_ owner: HaCarRouteReadOwner, error: String, now: Date) throws -> HaStoreSnapshot? {
+        try mergeCarRouteRead(owner, reply: .failure(HaError(error)), now: now)
+    }
+
+    private func carRouteMatches(_ stored: Stored, scope: String, prefix: String) -> Bool {
+        guard stored.scope == scope, stored.config?.carReady == true,
+              let cache = stored.collectionCaches["car"], let payload = cache.payload,
+              let readings = try? JSONDecoder().decode(CarReadingsCache.self, from: Data(payload.utf8)),
+              cache.observedAt == readings.checkedAt,
+              let identity = carReplyIdentity(readings.current), identity.found,
+              identity.vehiclePrefix == prefix else { return false }
+        return true
     }
 
     public func adoptDoorDiscovery(_ ids: [String], expectedScope: String, expectedRevision: String,
@@ -294,38 +380,46 @@ public struct HaStateStore: Sendable {
             var stored = try read()
             let revision = kind == "car" ? stored.scope : stored.collectionRevision
             guard stored.scope == expectedScope, revision == expectedRevision,
-                  !readID.isEmpty, stored.collectionReads[kind] == readID else { return nil }
-            let previous = stored.collectionCaches[kind]
-            switch reply {
-            case .success(let payload):
-                if kind == "car" {
-                    do {
-                        let previousReadings = previous?.payload.flatMap {
-                            try? JSONDecoder().decode(CarReadingsCache.self, from: Data($0.utf8))
-                        }
-                        let readings = try carReadingsAfterReply(payload, previous: previousReadings, checkedAt: now)
-                        let data = try JSONEncoder().encode(readings)
-                        guard let encoded = String(data: data, encoding: .utf8) else { throw HaError("Couldn't save car data") }
-                        stored.collectionCaches[kind] = HaCollectionCache(payload: encoded, observedAt: now, error: nil, attemptedAt: now)
-                    } catch {
-                        stored.collectionCaches[kind] = HaCollectionCache(payload: previous?.payload, observedAt: previous?.observedAt,
-                            error: friendlyError(error), attemptedAt: now)
-                    }
-                } else {
-                    stored.collectionCaches[kind] = HaCollectionCache(payload: payload, observedAt: now, error: nil, attemptedAt: now)
-                }
-            case .failure(let failure):
-                let message = failure.message.isEmpty ? "Couldn't read your home" : failure.message
-                let recoveryMessage = kind == "car" && failure.code == 401 && !beaconNeedsSignIn(message)
-                    ? "Sign-in rejected: \(message)" : message
-                stored.collectionCaches[kind] = HaCollectionCache(payload: previous?.payload, observedAt: previous?.observedAt,
-                    error: recoveryMessage, attemptedAt: now)
-            }
-            // A completion is single use; duplicate delivery cannot restamp the same observation.
-            stored.collectionReads.removeValue(forKey: kind)
-            try write(stored)
+                  !readID.isEmpty, stored.collectionReads[kind] == readID,
+                  kind != "car" || stored.carRouteReadPrefix == nil else { return nil }
+            try settleCollection(kind, reply: reply, stored: &stored, now: now)
             return stored.snapshot
         }
+    }
+
+    /// The caller has already authorized scope, read owner and any route target under the sidecar lock.
+    private func settleCollection(_ kind: String, reply: Result<String, HaError>, stored: inout Stored,
+                                  now: Date) throws {
+        let previous = stored.collectionCaches[kind]
+        switch reply {
+        case .success(let payload):
+            if kind == "car" {
+                do {
+                    let previousReadings = previous?.payload.flatMap {
+                        try? JSONDecoder().decode(CarReadingsCache.self, from: Data($0.utf8))
+                    }
+                    let readings = try carReadingsAfterReply(payload, previous: previousReadings, checkedAt: now)
+                    let data = try JSONEncoder().encode(readings)
+                    guard let encoded = String(data: data, encoding: .utf8) else { throw HaError("Couldn't save car data") }
+                    stored.collectionCaches[kind] = HaCollectionCache(payload: encoded, observedAt: now, error: nil, attemptedAt: now)
+                } catch {
+                    stored.collectionCaches[kind] = HaCollectionCache(payload: previous?.payload, observedAt: previous?.observedAt,
+                        error: friendlyError(error), attemptedAt: now)
+                }
+            } else {
+                stored.collectionCaches[kind] = HaCollectionCache(payload: payload, observedAt: now, error: nil, attemptedAt: now)
+            }
+        case .failure(let failure):
+            let message = failure.message.isEmpty ? "Couldn't read your home" : failure.message
+            let recoveryMessage = kind == "car" && failure.code == 401 && !beaconNeedsSignIn(message)
+                ? "Sign-in rejected: \(message)" : message
+            stored.collectionCaches[kind] = HaCollectionCache(payload: previous?.payload, observedAt: previous?.observedAt,
+                error: recoveryMessage, attemptedAt: now)
+        }
+        // A completion is single use; duplicate delivery cannot restamp the same observation.
+        stored.collectionReads.removeValue(forKey: kind)
+        if kind == "car" { stored.carRouteReadPrefix = nil }
+        try write(stored)
     }
 
     public func beginDoorOperation(expectedScope: String, expectedRevision: String, entityID: String,

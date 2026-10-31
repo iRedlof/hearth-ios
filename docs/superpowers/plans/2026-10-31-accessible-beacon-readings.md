@@ -67,6 +67,8 @@ Four directly launched Pro AX5 app fixtures completed scrolling and Close dismis
 - [ ] Build a full, uncapped scrolling destination from structured readings, preserving independent freshness and errors.
 - [ ] Prove Car Refresh/Open Tesla and setup return on the exact route; then add Alarm/Thermostat/ChargePoint complete contexts.
 
+Car foundation progress is documented in `docs/CAR-READINGS-ROUTE.md`. Immutable tickets, bounded locked storage, exact-target refresh, all 32 structured state rows, route-session lifetime and the native app destination are implemented. The frozen foundation passed 542 HearthKit tests and signed Debug/Release simulator builds. Controlled native app checks use newly created Pro and mini simulators. The V1 matrix covers seven opening states, exact refresh, failure and Close/reopen; a slower Pro scrolling supplement fully contains all 32 field rows. Mini coverage is recorded as overlapping fragments wherever a combined row cannot fit the viewport. V1's below-fold Tesla failure and V2's clipped mini AX5 alert remain rejected beside the focused V3 correction. V3 native AX1/AX5 captures show full recovery guidance above OK on both devices. The production `CarEntry` has not been bound to a ticket; direct fixture intent invocation is not a WidgetKit cold/warm launch pass. Original-record disclosure, route replacement/return, VoiceOver and the remaining presentation requirements retain separate acceptance bounds. The cross-widget Task 3 boxes remain open.
+
 ### Task 4: Controls and production summary
 
 **Files:** existing Alarm/Climate runtimes; CP shared atomic claim/expected-origin command entry; shared Beacon adapters and preview disclosure.
@@ -79,4 +81,4 @@ Four directly launched Pro AX5 app fixtures completed scrolling and Close dismis
 
 ## Current iteration
 
-Task 1 is committed and pushed. Task 2's bounded final native matrix and visual reviews are complete after the recorded font and state corrections. Task 2 is a design prototype, not a production accessibility pass. Tasks 3 and 4 remain required before production summary wiring or release. The Android performance gate remains failed; this tranche does not publish a release.
+Task 1 is committed and pushed. Task 2's bounded final native matrix and visual reviews are complete after the recorded font and state corrections. Task 2 is a design prototype, not a production accessibility pass. Task 3's Car route foundation is implemented with separately attributed native matrices and focused recovery corrections; production entry wiring, remaining route acceptance and the other destinations remain open. Tasks 3 and 4 remain required before production summary wiring or release. The Android performance gate remains failed; this tranche does not publish a release.
