@@ -92,10 +92,10 @@ public func cpAfterAct(_ before: CpRun, _ step: CpAutoStep, _ success: Bool) -> 
     }
 }
 
-/// Arm a fresh run only for Join-with-auto; any other command starts disarmed.
+/// Only explicit Join-with-Auto resumes the run; manual choices preserve its mode and history.
 public func cpArmForCommand(_ run: CpRun, _ command: CpCommand, autoRun: Bool, now: Int64) -> CpRun {
-    if command == .join && autoRun { return CpRun(armed: true, startedAt: now) }
-    return CpRun()
+    if command == .join && autoRun { return cpResumeRun(run, nil, now) }
+    return run
 }
 
 /// Manual waitlist commands preserve Auto. Pause and completed charging end unattended work.

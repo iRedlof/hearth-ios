@@ -43,6 +43,25 @@ final class CpWidgetCommandsTests: XCTestCase {
         XCTAssertFalse(paths.contains { $0.hasSuffix("/waitlist/join") })
     }
 
+    func testIdleAutoRejoinPreservesRetainedHistory() async throws {
+        for armed in [false, true] {
+            let log = CpRequestLog()
+            let old = CpRun(armed: armed, snoozeUsed: true, drivePushed: true, startedAt: 12,
+                            offerPushed: true, failedState: "ACCEPT_PENDING", failedUntil: 99,
+                            failedReason: "Saved failure")
+            let run = try await cpEnableAuto(old, client: client(status: #"{"user_status":{}}"#, log: log),
+                                             location: location, now: 17)
+            var expected = old
+            expected.armed = true
+            expected.failedState = ""
+            expected.failedUntil = nil
+            expected.failedReason = ""
+            XCTAssertEqual(run, expected)
+            let paths = await log.paths
+            XCTAssertEqual(paths.filter { $0.hasSuffix("/waitlist/join") }.count, 1)
+        }
+    }
+
     func testAutoCannotJoinDuringCharging() async {
         let log = CpRequestLog()
         do {

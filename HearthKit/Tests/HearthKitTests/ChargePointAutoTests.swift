@@ -130,6 +130,36 @@ final class ChargePointAutoTests: XCTestCase {
         XCTAssertTrue(recovered.snoozeUsed)
     }
     // 20,21,22
+    func testPlainJoinPreservesCompleteArmedOrPausedRun() {
+        let history = CpRun(armed: true, snoozeUsed: true, drivePushed: true, startedAt: 7,
+                            offerPushed: true, failedState: "ACCEPT_PENDING", failedUntil: 99,
+                            failedReason: "Saved failure")
+        for run in [history, cpPauseRun(history)] {
+            XCTAssertEqual(cpArmForCommand(run, .join, autoRun: false, now: 50), run)
+        }
+    }
+
+    func testJoinWithAutoResumesSpentHistory() {
+        let history = CpRun(armed: false, snoozeUsed: true, drivePushed: true, startedAt: 7,
+                            offerPushed: true, failedState: "ACCEPT_PENDING", failedUntil: 99,
+                            failedReason: "Saved failure")
+        var expected = history
+        expected.armed = true
+        expected.failedState = ""
+        expected.failedUntil = nil
+        expected.failedReason = ""
+        XCTAssertEqual(cpArmForCommand(history, .join, autoRun: true, now: 50), expected)
+    }
+
+    func testNonJoinCommandsCannotReplaceRunThroughJoinHelper() {
+        let run = CpRun(armed: true, snoozeUsed: true, startedAt: 7)
+        for auto in [false, true] {
+            for command: CpCommand in [.accept, .leave, .snooze(600), .unsnooze] {
+                XCTAssertEqual(cpArmForCommand(run, command, autoRun: auto, now: 50), run)
+            }
+        }
+    }
+
     func testArmAndEnd() {
         XCTAssertEqual(cpArmForCommand(CpRun(), .join, autoRun: true, now: 5), CpRun(armed: true, startedAt: 5))
         XCTAssertFalse(cpArmForCommand(CpRun(), .join, autoRun: false, now: 5).armed)
