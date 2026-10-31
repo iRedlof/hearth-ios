@@ -138,7 +138,7 @@ final class FixtureSettingsRuntime: ObservableObject, SettingsRuntime {
         return cp
     }
 
-    func performCpEdit(_ edit: SettingsCpEdit) async throws -> SettingsCpState {
+    func performCpEdit(_ edit: SettingsCpEdit, expected: CpSettingsOrigin?) async throws -> SettingsCpState {
         try Task.checkCancellation()
         let detail: String
         switch edit {
@@ -159,8 +159,8 @@ final class FixtureSettingsRuntime: ObservableObject, SettingsRuntime {
             cp.auto = false
             detail = "CP cleared; HA present: \(ha.config != nil)"
             refreshWidgets(kinds: [])
-        case .auto(let on):
-            cp.auto = on && cp.session.isSignedIn && cp.location != nil
+        case .auto(let desired, _):
+            cp.auto = desired != .pause && cp.session.isSignedIn && cp.location != nil
             detail = "Auto: \(cp.auto)"
             effects.record("would.refreshCp")
             if cp.auto { effects.record("would.requestNotificationPermission") }

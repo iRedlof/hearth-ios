@@ -7,23 +7,14 @@ struct CpControlIntent: AppIntent {
     static var title: LocalizedStringResource { "ChargePoint" }
     static var isDiscoverable: Bool { false }
 
-    @Parameter(title: "Action") var action: String   // "autoToggle" | "refresh"
+    @Parameter(title: "Desired mode") var action: String
+    @Parameter(title: "Rendered origin", default: "") var origin: String
 
     init() {}
-    init(_ action: String) { self.action = action }
+    init(_ action: String, origin: String) { self.action = action; self.origin = origin }
 
     @MainActor func perform() async throws -> some IntentResult {
-        if action == "autoToggle" {
-            let run = CpSessionStore.loadRun()
-            let arming = !run.armed
-            if arming {
-                await CpWidgetOperation.enableAuto()
-                if CpSessionStore.loadRun().armed { CpNotify.requestPermission() }
-            } else {
-                CpSessionStore.saveRun(cpPauseRun(run))
-            }
-        }
-        CpWidgetOperation.reload()
+        await CpWidgetOperation.setAuto(action, origin: origin)
         return .result()
     }
 }

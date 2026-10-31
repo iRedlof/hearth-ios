@@ -14,7 +14,7 @@ struct LiveDashboardView: View {
     @State private var alarm: AlarmSnapshot?
     @State private var thermostat: ThermostatSnapshot?
     @State private var cp: CpSnapshot?
-    @State private var cpSignedIn = CpSessionStore.load().isSignedIn
+    @State private var cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
     @State private var showCpSignIn = false
     @State private var loading = true
     @State private var loadID = UUID()
@@ -54,7 +54,7 @@ struct LiveDashboardView: View {
             NavigationStack {
                 CpSignInView(onSignedIn: {
                     showCpSignIn = false
-                    cpSignedIn = CpSessionStore.load().isSignedIn
+                    cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
                     Task { await load() }
                 })
             }

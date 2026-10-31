@@ -49,6 +49,7 @@ public struct CpBeaconView: View {
                 if !snap.sub.isEmpty {
                     Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
                         .lineLimit(2).minimumScaleFactor(0.85)
+                        .accessibilityLabel(snap.statusDescription ?? snap.sub)
                 }
                 ForEach(snap.railNotes, id: \.self) { note in
                     Text(note).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8)).lineLimit(1).minimumScaleFactor(0.8)
@@ -67,6 +68,7 @@ public struct CpBeaconView: View {
                 if !snap.sub.isEmpty {
                     Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
                         .lineLimit(2).minimumScaleFactor(0.8).padding(.top, snap.unit.isEmpty ? 2 : 0)
+                        .accessibilityLabel(snap.statusDescription ?? snap.sub)
                 }
             }
             Spacer(minLength: 0)
@@ -89,13 +91,15 @@ public struct CpBeaconView: View {
     }
 
     @ViewBuilder private var autoPill: some View {
-        if snap.autoControl == .disabled || (snap.working && !snap.autoOn) {
-            autoLabel.accessibilityLabel(snap.autoOn ? "Auto on. Command in progress" : "Auto off. Unavailable")
+        if snap.autoControl == .disabled || (snap.working && !snap.autoOn) || (snap.origin == nil && snap.autoControl != .signin) {
+            autoLabel.accessibilityLabel(snap.origin == nil && snap.account == "Unavailable"
+                ? "Auto status unavailable" : snap.autoOn ? "Auto on. Command in progress" : "Auto off. Unavailable")
         } else if snap.autoControl == .signin {
             Button(intent: CpSetupIntent("signin")) { autoLabel }
                 .buttonStyle(.plain).accessibilityLabel("Auto off. Sign in to start Auto")
         } else {
-            Button(intent: CpControlIntent("autoToggle")) { autoLabel }
+            Button(intent: CpControlIntent(snap.autoControl == .stop ? "pause" : snap.autoControl == .join ? "join" : "resume",
+                                          origin: CpSessionStore.encodedActionOrigin(snap.origin))) { autoLabel }
                 .buttonStyle(.plain)
                 .accessibilityLabel(snap.autoOn ? "Auto on. Stop Auto" :
                     snap.autoControl == .join ? "Auto off. Join and start Auto" : "Auto off. Resume Auto")
@@ -217,7 +221,8 @@ public struct CpBeaconView: View {
         } else if snap.actionLabel == "Open" {
             Link(destination: URL(string: "chargepoint://")!) { label }
         } else if snap.actionLabel == "Join" {
-            Button(intent: CpJoinIntent()) { label }.buttonStyle(.plain).disabled(snap.working || snap.stale)
+            Button(intent: CpJoinIntent(origin: CpSessionStore.encodedActionOrigin(snap.origin))) { label }.buttonStyle(.plain)
+                .disabled(snap.working || snap.stale || snap.origin == nil)
         } else if snap.actionLabel == "Sign in" {
             Button(intent: CpSetupIntent("signin")) { label }.buttonStyle(.plain)
         } else {
@@ -232,9 +237,11 @@ public struct CpBeaconView: View {
                 if key.command == "open" {
                     Link(destination: URL(string: "chargepoint://")!) { keyLabel(key.label) }
                 } else if key.command == "snooze" {
-                    Button(intent: CpSnoozeIntent()) { keyLabel(key.label) }.buttonStyle(.plain).disabled(snap.working || snap.stale)
+                    Button(intent: CpSnoozeIntent(origin: CpSessionStore.encodedActionOrigin(snap.origin))) { keyLabel(key.label) }.buttonStyle(.plain)
+                        .disabled(snap.working || snap.stale || snap.origin == nil)
                 } else {
-                    Button(intent: CpCommandIntent(key.command)) { keyLabel(key.label) }.buttonStyle(.plain).disabled(snap.working || snap.stale)
+                    Button(intent: CpCommandIntent(key.command, origin: CpSessionStore.encodedActionOrigin(snap.origin))) { keyLabel(key.label) }.buttonStyle(.plain)
+                        .disabled(snap.working || snap.stale || snap.origin == nil)
                 }
             }
         }

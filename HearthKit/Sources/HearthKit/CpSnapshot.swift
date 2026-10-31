@@ -31,6 +31,8 @@ public struct CpSnapshot: Sendable, Equatable, Codable {
     public var stale: Bool           // last successful reading retained after a failed check
     public var working: Bool
     public var autoControl: CpAutoControl
+    public var origin: CpRenderedOrigin? = nil
+    public var statusDescription: String? = nil
 
     public init(site: String, account: String, bigAnswer: String, unit: String, sub: String,
                 plugsFree: String?, autoOn: Bool, actionLabel: String, keys: [CpKey] = [],

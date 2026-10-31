@@ -196,11 +196,13 @@ public struct CpLegacyState: Sendable {
     public let runWire: String
     public let alerts: CpAlertPrefs
     public let udid: String?
+    public let pendingOperation: CpOperation?
 
     public init(session: CpSession? = nil, location: CpLocation? = nil, runWire: String = "",
-                alerts: CpAlertPrefs = CpAlertPrefs(), udid: String? = nil) {
+                alerts: CpAlertPrefs = CpAlertPrefs(), udid: String? = nil, pendingOperation: CpOperation? = nil) {
         self.session = session; self.location = location; self.runWire = runWire
         self.alerts = alerts; self.udid = udid
+        self.pendingOperation = pendingOperation
     }
 }
 
@@ -215,6 +217,10 @@ public struct CpStoreSnapshot: Sendable, Equatable {
     public let reading: CpStoredReading?
     public let failure: CpStateFailure?
     public let activeRead: CpReadOwner?
+    public var renderedOrigin: CpRenderedOrigin? = nil
+    public var operation: CpOwnedOperation? = nil
+    public var ownershipFeedback: CpFeedback? = nil
+    public var providerActionable: Bool? = nil
 
     public var settingsOrigin: CpSettingsOrigin { CpSettingsOrigin(context: context) }
 
@@ -236,6 +242,11 @@ public struct CpStoreSnapshot: Sendable, Equatable {
         guard now.timeIntervalSinceReferenceDate.isFinite else { throw CpStateStoreError.invalidClock }
         var display = cpSnapshot(try viewState, email: session.email,
             checkedAt: reading.map { cpClockString($0.observedAt) } ?? "—", now: now)
+        if run.snoozeUsed, case let .inLine(_, phase, _, _, _) = reading?.provider.waitlist,
+           phase == "ACCEPT_PENDING" || CP_HELD.contains(phase) {
+            // Local completed history can be newer than retained provider allowance evidence.
+            display.railNotes = [display.bigAnswer, "Snooze used"]
+        }
         if reading == nil, session.isSignedIn, !session.joinExpired, location != nil {
             display.actionLabel = "Open"
             display.showOpen = false
@@ -245,12 +256,52 @@ public struct CpStoreSnapshot: Sendable, Equatable {
         if failure != nil {
             display.stale = true
             display.sub = "Couldn't check · Refresh to retry"
+            display.statusDescription = "Couldn't check. Refresh to retry."
+        }
+        if providerActionable != nil, reading?.provider.charging == nil,
+           case .inLine(_, _, _, let offer?, _) = reading?.provider.waitlist,
+           offer.untilMs > 0, Double(offer.untilMs) <= now.timeIntervalSince1970 * 1_000 {
+            display.deadline = nil; display.goTo = nil; display.keys = []
+            display.bigAnswer = "—"; display.unit = ""
+            display.railNotes = []; display.sub = "Time\nelapsed"
+            display.statusDescription = "Time elapsed. Refresh to check."
+            if !run.armed { display.autoControl = .disabled }
+        }
+        if providerActionable == false || operation != nil {
+            display.keys = []
+            if display.actionLabel == "Join" { display.actionLabel = "Open"; display.showOpen = false }
+            if !run.armed, session.isSignedIn { display.autoControl = .disabled }
+        }
+        if let operation {
+            display.working = operation.stage != .uncertain
+            if operation.stage == .uncertain {
+                display.sub = CpFeedback.noResponse.caption
+                display.statusDescription = CpFeedback.noResponse.message
+            } else if operation.stage == .claimed || operation.stage == .preflighted {
+                display.sub = "Waiting\nto send"
+                display.statusDescription = "Waiting to send \(operation.action.rawValue)."
+            } else {
+                let labels: [CpOwnedAction: String] = [.join: "Joining…", .accept: "Accepting…", .snooze: "Snoozing…",
+                    .unsnooze: "Rejoining…", .leave: "Leaving…", .stop: "Stopping…", .still: "Answering…", .done: "Answering…"]
+                display.sub = labels[operation.action] ?? "Working…"
+                display.statusDescription = display.sub
+            }
+            display.railNotes = []
+        } else if let ownershipFeedback {
+            display.sub = ownershipFeedback.caption
+            display.statusDescription = ownershipFeedback.message
+            display.railNotes = []
+            if ownershipFeedback == .offerChanged || ownershipFeedback == .sessionChanged {
+                display.deadline = nil; display.goTo = nil; display.stats = []
+                display.bigAnswer = "—"; display.unit = ""; display.stale = true
+            }
         }
         // Chosen local mode stays visible and pausable regardless of provider readiness/content.
         if run.armed {
             display.autoOn = true
             display.autoControl = .stop
         }
+        display.origin = renderedOrigin
         return display
     }
 }
@@ -260,4 +311,5 @@ public enum CpStateStoreError: Error, Equatable {
     case corrupt
     case unsupportedVersion
     case missingAuthoritativeState
+    case ownershipUnavailable
 }

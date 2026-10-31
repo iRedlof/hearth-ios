@@ -10,10 +10,14 @@ struct CookieCaptureWebView: UIViewRepresentable {
     let cookieName: String
     let onCapture: (String) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(cookieName: cookieName, onCapture: onCapture) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(cookieName: cookieName, allowedDomain: "chargepoint.com", onCapture: onCapture)
+    }
 
     func makeUIView(context: Context) -> WKWebView {
-        let web = WKWebView(frame: .zero)
+        let configuration = WKWebViewConfiguration()
+        configuration.websiteDataStore = .nonPersistent()
+        let web = WKWebView(frame: .zero, configuration: configuration)
         web.navigationDelegate = context.coordinator
         web.configuration.websiteDataStore.httpCookieStore.add(context.coordinator)
         web.load(URLRequest(url: url))
@@ -25,19 +29,25 @@ struct CookieCaptureWebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKHTTPCookieStoreObserver {
         private let cookieName: String
         private let onCapture: (String) -> Void
-        private var captured = false
+        private let allowedDomain: String
+        private var capturedToken: String?
 
-        init(cookieName: String, onCapture: @escaping (String) -> Void) {
+        init(cookieName: String, allowedDomain: String, onCapture: @escaping (String) -> Void) {
             self.cookieName = cookieName
+            self.allowedDomain = allowedDomain
             self.onCapture = onCapture
         }
 
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
             cookieStore.getAllCookies { [weak self] cookies in
-                guard let self, !self.captured,
-                      let cookie = cookies.first(where: { $0.name == self.cookieName }),
-                      !cookie.value.isEmpty else { return }
-                self.captured = true
+                guard let self,
+                      let cookie = cookies.first(where: {
+                          let domain = $0.domain.trimmingCharacters(in: CharacterSet(charactersIn: ".")).lowercased()
+                          return $0.name == self.cookieName &&
+                              (domain == self.allowedDomain || domain.hasSuffix("." + self.allowedDomain))
+                      }),
+                      !cookie.value.isEmpty, cookie.value != self.capturedToken else { return }
+                self.capturedToken = cookie.value
                 self.onCapture(cookie.value)
             }
         }

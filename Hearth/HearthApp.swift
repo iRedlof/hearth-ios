@@ -9,6 +9,10 @@ struct HearthApp: App {
     #endif
     init() {
         #if DEBUG
+        if CpSessionStore.fixtureActive {
+            probeSelection = .inactive
+            return
+        }
         probeSelection = CarRouteProbe.resolveLaunch(arguments: ProcessInfo.processInfo.arguments)
         if case .inactive = probeSelection,
            Self.settingsFixture() == nil,
@@ -18,6 +22,9 @@ struct HearthApp: App {
     var body: some Scene {
         WindowGroup {
             #if DEBUG
+            if CpSessionStore.fixtureActive {
+                CpOwnedNativeHost()
+            } else {
             switch probeSelection {
             case .armed(let run): CarReadingsProbeHost(run: run)
             case .blocked(let reason): CarReadingsProbeBlockedHost(reason: reason)
@@ -27,6 +34,7 @@ struct HearthApp: App {
                 else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
                 else if let id = Self.parityState() { ParityStateScreen(id: id) }
                 else { ContentView() }
+            }
             }
             #else
             if let id = Self.parityState() { ParityStateScreen(id: id) }
@@ -74,8 +82,6 @@ struct ContentView: View {
     @State private var selection = ContentView.initialTab()
     @ObservedObject private var climateGate = ClimateGate.shared
     @ObservedObject private var garageGate = GarageGate.shared
-    @ObservedObject private var joinGate = CpJoinGate.shared
-    @ObservedObject private var snoozeGate = CpSnoozeGate.shared
     @ObservedObject private var cpSetup = CpSetupGate.shared
     @ObservedObject private var haSetup = HaSetupGate.shared
     @ObservedObject private var carReadings = CarReadingsGate.shared
@@ -127,23 +133,6 @@ struct ContentView: View {
         ), presenting: garageGate.confirming) { id in
             Button("Open", role: .destructive) { if !inertTabs { garageGate.confirm(id) } }
             Button("Cancel", role: .cancel) { if !inertTabs { garageGate.cancel() } }
-        }
-        .confirmationDialog("Join the ChargePoint waitlist?", isPresented: Binding(
-            get: { !inertTabs && joinGate.asking },
-            set: { if !inertTabs && !$0 { joinGate.cancel() } }
-        ), titleVisibility: .visible) {
-            Button("Join & auto-run") { if !inertTabs { joinGate.join(auto: true) } }
-            Button("Just join") { if !inertTabs { joinGate.join(auto: false) } }
-            Button("Cancel", role: .cancel) { if !inertTabs { joinGate.cancel() } }
-        }
-        .confirmationDialog("Snooze for…", isPresented: Binding(
-            get: { !inertTabs && snoozeGate.asking },
-            set: { if !inertTabs && !$0 { snoozeGate.cancel() } }
-        ), titleVisibility: .visible) {
-            Button("10 minutes") { if !inertTabs { snoozeGate.snooze(minutes: 10) } }
-            Button("30 minutes") { if !inertTabs { snoozeGate.snooze(minutes: 30) } }
-            Button("60 minutes") { if !inertTabs { snoozeGate.snooze(minutes: 60) } }
-            Button("Cancel", role: .cancel) { if !inertTabs { snoozeGate.cancel() } }
         }
         .onChange(of: cpSetup.route, initial: true) {
             guard let route = cpSetup.route else { return }

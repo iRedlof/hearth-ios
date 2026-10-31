@@ -16,10 +16,7 @@ struct WidgetRefreshIntent: AppIntent {
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        if kind == "com.rohit.hearth.chargepoint", let operation = CpSessionStore.loadOperation(),
-           operation.error != nil || Date().timeIntervalSince(operation.startedAt) >= 120 {
-            CpSessionStore.saveOperation(nil)
-        }
+        if kind == "com.rohit.hearth.chargepoint", CpSessionStore.fixtureReloadHandled() { return .result() }
         if kind.isEmpty {
             WidgetCenter.shared.reloadAllTimelines()
         } else {

@@ -8,12 +8,14 @@ import HearthKit
 struct CpJoinIntent: AppIntent {
     static var title: LocalizedStringResource { "Join ChargePoint waitlist" }
     static var isDiscoverable: Bool { false }
+    @Parameter(title: "Rendered origin", default: "") var origin: String
 
     init() {}
+    init(origin: String) { self.origin = origin }
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        await CpWidgetOperation.perform("join")
+        await CpWidgetOperation.perform("join", origin: origin)
         return .result()
     }
 }

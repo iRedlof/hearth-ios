@@ -17,7 +17,11 @@ struct CpSetupIntent: AppIntent {
     init() {}
     init(_ screen: String) { self.screen = screen }
     @MainActor func perform() async throws -> some IntentResult {
-        CpSetupGate.shared.route = screen == "location" && CpSessionStore.load().isSignedIn ? .location : .signin
+        #if DEBUG
+        // The isolated ownership harness exercises local/provider commands, never real web sign-in.
+        if CpSessionStore.fixtureActive { return .result() }
+        #endif
+        CpSetupGate.shared.route = screen == "location" && (try? CpSessionStore.context().session.isSignedIn) == true ? .location : .signin
         return .result()
     }
 }

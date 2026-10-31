@@ -26,6 +26,10 @@ struct SettingsCpState {
     var location: CpLocation?
     var auto: Bool
     var alerts: CpAlertPrefs
+    var origin: CpSettingsOrigin? = nil
+    var renderedOrigin: CpRenderedOrigin? = nil
+    var autoControl: CpAutoControl = .disabled
+    var unavailable = false
 
     var accountName: String {
         let local = session.email.split(separator: "@").first.map(String.init) ?? ""
@@ -37,7 +41,7 @@ enum SettingsCpEdit {
     case location(CpLocation?)
     case locationName(String)
     case signOut
-    case auto(Bool)
+    case auto(CpDesiredAutoAction, CpRenderedOrigin?)
     case alert(String, Bool)
 }
 
@@ -69,7 +73,7 @@ protocol SettingsRuntime: AnyObject {
     func discoverHa(config: HaConfig, scope: String?,
                     purpose: SettingsDiscoveryPurpose) async throws -> SettingsDiscovery
     func loadCp() -> SettingsCpState
-    func performCpEdit(_ edit: SettingsCpEdit) async throws -> SettingsCpState
+    func performCpEdit(_ edit: SettingsCpEdit, expected: CpSettingsOrigin?) async throws -> SettingsCpState
     func openSetupRoute(_ route: SettingsSetupRoute) -> SettingsSetupDestination
     func refreshWidgets(kinds: Set<String>)
 }
@@ -122,47 +126,73 @@ final class LiveSettingsRuntime: SettingsRuntime {
 
     func loadCp() -> SettingsCpState {
         SettingsEffectAudit.reached("storeReads")
-        return SettingsCpState(session: CpSessionStore.load(), location: CpSessionStore.loadLocation(),
-                               auto: CpSessionStore.loadRun().armed, alerts: CpSessionStore.loadAlertPrefs())
+        do {
+            let current = try CpSessionStore.context()
+            return try cpState(current)
+        } catch {
+            return SettingsCpState(session: CpSession(), location: nil, auto: false, alerts: CpAlertPrefs(), unavailable: true)
+        }
     }
 
-    func performCpEdit(_ edit: SettingsCpEdit) async throws -> SettingsCpState {
+    private func cpState(_ current: CpStoreSnapshot) throws -> SettingsCpState {
+        SettingsCpState(session: current.session, location: current.location, auto: current.run.armed,
+            alerts: current.alerts, origin: current.settingsOrigin, renderedOrigin: current.renderedOrigin,
+            autoControl: try current.displaySnapshot().autoControl)
+    }
+
+    func performCpEdit(_ edit: SettingsCpEdit, expected: CpSettingsOrigin?) async throws -> SettingsCpState {
+        guard let expected else { throw HaError("ChargePoint storage is unavailable. Reopen Settings.") }
         SettingsEffectAudit.reached("storeWrites")
+        let repository = try CpSessionStore.repository()
+        var localEdit: CpStoreEdit?
+        var accepted: CpStoreSnapshot?
         switch edit {
         case .location(let location):
-            CpSessionStore.saveLocation(location)
-            refreshWidgets(kinds: [])
+            localEdit = .location(location)
         case .locationName(let name):
-            if let location = CpSessionStore.loadLocation() {
-                CpSessionStore.saveLocation(CpLocation(name: location.name, address: location.address,
-                    deviceIds: location.deviceIds, bounds: location.bounds, city: location.city,
-                    state: location.state, label: name))
-            }
+            localEdit = .locationName(name)
         case .signOut:
-            CpSessionStore.clear()
-            refreshWidgets(kinds: [])
-        case .auto(let on):
-            if on {
-                SettingsEffectAudit.reached("transport")
-                await CpWidgetOperation.enableAuto()
-            } else {
-                CpSessionStore.saveRun(cpPauseRun(CpSessionStore.loadRun()))
-            }
-            if CpSessionStore.loadRun().armed {
-                SettingsEffectAudit.reached("notifications")
-                CpNotify.requestPermission()
+            localEdit = .signOut
+        case .auto(let desired, let origin):
+            guard let origin, origin.context == expected.context else { throw CpFeedback.detailsChanged }
+            SettingsEffectAudit.reached(desired == .pause ? "storeWrites" : "transport")
+            let result = try await CpSessionStore.runtime().setAuto(origin: origin, desired: desired)
+            let current = try repository.store.snapshot()
+            guard current.context.accountGeneration == expected.context.accountGeneration,
+                  current.context.selectionRevision == expected.context.selectionRevision,
+                  current.context.runID == expected.context.runID else { throw CpFeedback.detailsChanged }
+            accepted = current
+            if let mode = result.activatedMode {
+                _ = try repository.store.withChosenMode(expected: mode) {
+                    SettingsEffectAudit.reached("notifications")
+                    CpSessionStore.requestOwnedNotificationPermission()
+                }
             }
             // Retain the existing app RefreshSignal and CP timeline behavior.
             SettingsEffectAudit.reached("timelines")
             SettingsEffectAudit.reached("appUpdater")
             CpWidgetOperation.reload()
         case .alert(let key, let on):
-            CpSessionStore.setAlert(key, on)
+            guard let preference = CpAlertPreference(rawValue: key) else { throw HaError("Unknown ChargePoint alert") }
+            localEdit = .alert(preference, on)
         }
-        return loadCp()
+        if let localEdit {
+            guard let value = try repository.store.edit(expected: expected, edit: localEdit) else { throw CpFeedback.detailsChanged }
+            accepted = value
+            if !CpSessionStore.fixtureReloadHandled() { refreshWidgets(kinds: ["com.rohit.hearth.chargepoint"]) }
+        }
+        guard let accepted else { throw CpFeedback.detailsChanged }
+        return try cpState(accepted)
     }
 
     func openSetupRoute(_ route: SettingsSetupRoute) -> SettingsSetupDestination {
+#if DEBUG
+        // The private ChargePoint host must never construct a live WebKit or MapKit route.
+        // Keep Home Assistant navigation independent of this ChargePoint-only override.
+        if CpSessionStore.fixtureActive, route == .cpSignIn || route == .cpLocation {
+            return .fixture
+        }
+#endif
         // Record before a live sign-in/search view is constructed (it owns its existing effects).
         SettingsEffectAudit.reached("URL")
         SettingsEffectAudit.reached(route == .cpLocation ? "transport" : "auth")
@@ -183,12 +213,14 @@ struct SettingsSetupScreen: View {
     let route: SettingsSetupRoute
     let runtime: any SettingsRuntime
     var initialURL: String? = nil
+    let cpOrigin: CpSettingsOrigin?
     let onComplete: () -> Void
     @State private var destination: SettingsSetupDestination?
 
-    init(route: SettingsSetupRoute, runtime: any SettingsRuntime, initialURL: String? = nil,
+    init(route: SettingsSetupRoute, runtime: any SettingsRuntime, initialURL: String? = nil, cpOrigin: CpSettingsOrigin? = nil,
          onComplete: @escaping () -> Void) {
         self.route = route; self.runtime = runtime; self.initialURL = initialURL
+        self.cpOrigin = cpOrigin ?? (route == .haSignIn ? nil : runtime.loadCp().origin)
         self.onComplete = onComplete
         _destination = State(initialValue: nil)
     }
@@ -199,8 +231,8 @@ struct SettingsSetupScreen: View {
             case .live:
                 switch route {
                 case .haSignIn: SignInView(initialURL: initialURL, onSignedIn: onComplete)
-                case .cpSignIn: CpSignInView(onSignedIn: onComplete)
-                case .cpLocation: CpLocationSearchView(onPicked: onComplete)
+                case .cpSignIn: CpSignInView(expected: cpOrigin, onSignedIn: onComplete)
+                case .cpLocation: CpLocationSearchView(expected: cpOrigin, onPicked: onComplete)
                 }
             case .fixture:
                 List {

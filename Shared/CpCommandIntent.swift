@@ -8,13 +8,14 @@ struct CpCommandIntent: AppIntent {
     static var isDiscoverable: Bool { false }
 
     @Parameter(title: "Command") var command: String
+    @Parameter(title: "Rendered origin", default: "") var origin: String
 
     init() {}
-    init(_ command: String) { self.command = command }
+    init(_ command: String, origin: String) { self.command = command; self.origin = origin }
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        await CpWidgetOperation.perform(command)
+        await CpWidgetOperation.perform(command, origin: origin)
         return .result()
     }
 }

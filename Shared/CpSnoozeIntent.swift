@@ -7,12 +7,14 @@ import HearthKit
 struct CpSnoozeIntent: AppIntent {
     static var title: LocalizedStringResource { "Snooze ChargePoint offer" }
     static var isDiscoverable: Bool { false }
+    @Parameter(title: "Rendered origin", default: "") var origin: String
 
     init() {}
+    init(origin: String) { self.origin = origin }
 
     @MainActor
     func perform() async throws -> some IntentResult {
-        await CpWidgetOperation.perform("snooze")
+        await CpWidgetOperation.perform("snooze", origin: origin)
         return .result()
     }
 }
