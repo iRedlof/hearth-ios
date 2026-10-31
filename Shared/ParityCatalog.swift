@@ -2,6 +2,13 @@ import SwiftUI
 import WidgetKit
 import HearthKit
 
+#if DEBUG
+struct ParityWidgetSelection: Sendable {
+    let id: String
+    let run: String
+}
+#endif
+
 /// The core-state catalog for the iOS↔Android parity gallery (docs/parity-comparison).
 /// Each entry mirrors the Android BeaconFixtures scenario of the same id, so the two
 /// platforms can be compared side by side. Rendered by *displaying* `ParityStateScreen`
@@ -13,26 +20,47 @@ import HearthKit
         UserDefaults(suiteName: HaConfigStore.appGroup) ?? .standard
     }
     /// Dedicated simulator captures only. Fixture mode bypasses provider reads and real actions.
-    nonisolated static func activeWidgetID(prefix: String) -> String? {
-        guard let id = fixtureStore.string(forKey: "parityWidgetState"),
+    nonisolated static func widgetSelection(prefix: String) -> ParityWidgetSelection? {
+        guard let selection = fixtureStore.dictionary(forKey: "parityWidgetSelection"),
+              let id = selection["id"] as? String, let run = selection["run"] as? String,
               id.hasPrefix(prefix + "-") else { return nil }
-        return id
+        return ParityWidgetSelection(id: id, run: run)
+    }
+    nonisolated static func activeWidgetID(prefix: String) -> String? {
+        widgetSelection(prefix: prefix)?.id
     }
     static func activateWidget(_ id: String) {
         guard view(id) != nil, let prefix = id.split(separator: "-").first else { return }
         fixtureStore.removeObject(forKey: "parityWidgetRendered")
-        fixtureStore.set(id, forKey: "parityWidgetState")
+        let arguments = ProcessInfo.processInfo.arguments
+        let run: String
+        if let index = arguments.firstIndex(of: "-parityRun"), index + 1 < arguments.count {
+            run = arguments[index + 1]
+        } else {
+            run = ""
+        }
+        fixtureStore.set(["id": id, "run": run], forKey: "parityWidgetSelection")
         fixtureStore.synchronize()
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.\(prefix)")
     }
     static func deactivateWidget() {
         fixtureStore.removeObject(forKey: "parityWidgetState")
         fixtureStore.removeObject(forKey: "parityWidgetRendered")
+        fixtureStore.removeObject(forKey: "parityWidgetRun")
+        fixtureStore.removeObject(forKey: "parityWidgetSelection")
         fixtureStore.synchronize()
         WidgetCenter.shared.reloadAllTimelines()
     }
-    static func recordWidgetFrame(_ id: String, size: CGSize) {
-        fixtureStore.set(["id": id, "width": size.width, "height": size.height,
+    static func recordWidgetFrame(_ selection: ParityWidgetSelection, size: CGSize, dynamicType: DynamicTypeSize,
+                                  sizeCategory: ContentSizeCategory, family: WidgetFamily, bodyPoints: CGFloat) {
+        fixtureStore.set(["id": selection.id, "width": size.width, "height": size.height,
+                          "dynamicTypeSize": String(describing: dynamicType),
+                          "sizeCategory": String(describing: sizeCategory),
+                          "widgetFamily": String(describing: family),
+                          "scaledBodyPoints": bodyPoints,
+                          "run": selection.run,
+                          "bundleID": Bundle.main.bundleIdentifier ?? "",
+                          "processID": ProcessInfo.processInfo.processIdentifier,
                           "timestamp": Date().timeIntervalSince1970], forKey: "parityWidgetRendered")
         fixtureStore.synchronize()
     }
@@ -133,13 +161,20 @@ import HearthKit
 struct ParityWidgetContent<Content: View>: View {
     let prefix: String
     @ViewBuilder let content: () -> Content
+    #if DEBUG
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    @Environment(\.sizeCategory) private var sizeCategory
+    @Environment(\.widgetFamily) private var family
+    @ScaledMetric(relativeTo: .body) private var bodyPoints: CGFloat = 17
+    #endif
     var body: some View {
         #if DEBUG
-        if let id = ParityCatalog.activeWidgetID(prefix: prefix),
-           let fixture = ParityCatalog.view(id) {
+        if let selection = ParityCatalog.widgetSelection(prefix: prefix),
+           let fixture = ParityCatalog.view(selection.id) {
             GeometryReader { geometry in
-                let _ = ParityCatalog.recordWidgetFrame(id, size: geometry.size)
-                fixture.allowsHitTesting(false).accessibilityIdentifier("parity-\(id)")
+                let _ = ParityCatalog.recordWidgetFrame(selection, size: geometry.size, dynamicType: dynamicType,
+                    sizeCategory: sizeCategory, family: family, bodyPoints: bodyPoints)
+                fixture.allowsHitTesting(false).accessibilityIdentifier("parity-\(selection.id)")
             }
         } else { content() }
         #else
