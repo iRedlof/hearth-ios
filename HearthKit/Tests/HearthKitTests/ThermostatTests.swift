@@ -20,6 +20,72 @@ final class ThermostatTests: XCTestCase {
         XCTAssertTrue(s.isRange)
     }
 
+    func testJSONBooleansCannotBecomeReadingsOrTargets() throws {
+        for raw in ["false", "true"] {
+            let json = """
+            {"state":"auto","attributes":{"current_temperature":\(raw),"current_humidity":\(raw),
+            "temperature":\(raw),"target_temp_low":\(raw),"target_temp_high":\(raw)}}
+            """
+            let state = try XCTUnwrap(ClimateState.fromJson(json))
+            XCTAssertNil(state.current, raw)
+            XCTAssertNil(state.humidity, raw)
+            XCTAssertNil(state.target, raw)
+            XCTAssertNil(state.low, raw)
+            XCTAssertNil(state.high, raw)
+        }
+    }
+
+    func testBooleanBoundsAndStepUseExistingNumericFallbacks() throws {
+        for raw in ["false", "true"] {
+            let json = """
+            {"state":"heat","attributes":{"temperature":68,"min_temp":\(raw),
+            "max_temp":\(raw),"target_temp_step":\(raw)}}
+            """
+            let state = try XCTUnwrap(ClimateState.fromJson(json))
+            XCTAssertEqual(state.min, 45, raw)
+            XCTAssertEqual(state.max, 95, raw)
+            XCTAssertEqual(state.step, 1, raw)
+            XCTAssertTrue(state.canSetTemperature, raw)
+            XCTAssertEqual(climateCommand(state, entityID: "climate.thermo",
+                action: "heatUp")?.temperatures, ["temperature": 69], raw)
+        }
+    }
+
+    func testBooleanAutoEndpointsCannotAuthorizeTemperatureCommands() throws {
+        for (low, high) in [("false", "3"), ("true", "3"), ("-3", "false"), ("-3", "true")] {
+            let json = """
+            {"state":"auto","attributes":{"target_temp_low":\(low),"target_temp_high":\(high),
+            "min_temp":-5,"max_temp":5,"target_temp_step":0.5}}
+            """
+            let state = try XCTUnwrap(ClimateState.fromJson(json))
+            XCTAssertFalse(state.canSetTemperature, "\(low), \(high)")
+            for action in ["heatUp", "heatDown", "coolUp", "coolDown"] {
+                XCTAssertNil(climateCommand(state, entityID: "climate.thermo", action: action),
+                    "\(low), \(high), \(action)")
+            }
+        }
+    }
+
+    func testRealJSONNumbersPreserveZeroOneNegativeAndDecimalValues() throws {
+        let json = """
+        {"state":"auto","attributes":{"current_temperature":-2.5,"current_humidity":0,
+        "temperature":-1.5,"target_temp_low":0,"target_temp_high":1,
+        "min_temp":0,"max_temp":1,"target_temp_step":0.25}}
+        """
+        let state = try XCTUnwrap(ClimateState.fromJson(json))
+        XCTAssertEqual(state.current, -2.5)
+        XCTAssertEqual(state.humidity, 0)
+        XCTAssertEqual(state.target, -1.5)
+        XCTAssertEqual(state.low, 0)
+        XCTAssertEqual(state.high, 1)
+        XCTAssertEqual(state.min, 0)
+        XCTAssertEqual(state.max, 1)
+        XCTAssertEqual(state.step, 0.25)
+        XCTAssertTrue(state.canSetTemperature)
+        XCTAssertEqual(climateCommand(state, entityID: "climate.thermo",
+            action: "heatUp")?.temperatures, ["target_temp_low": 0.25, "target_temp_high": 1])
+    }
+
     func testSaysWhatItsDoing() {
         let s = ClimateState.fromJson(thermo)!
         XCTAssertEqual(climateViewFor(s), ClimateView("Fan only · set 64–69°", .idle))

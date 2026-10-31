@@ -1,4 +1,5 @@
 import Foundation
+import CoreFoundation
 
 /// The thermostat as Home Assistant reports it (`climate.*`): what it's set to (mode, targets, fan)
 /// and what it's doing (heating/cooling/fan/idle). Ported from Android `ClimateState.kt`.
@@ -51,9 +52,10 @@ public struct ClimateState: Sendable, Equatable {
               let mode = o["state"] as? String else { return nil }
         let a = (o["attributes"] as? [String: Any]) ?? [:]
         func num(_ k: String) -> Double? {
-            guard let v = a[k], !(v is NSNull) else { return nil }
-            let d = (v as? NSNumber)?.doubleValue
-            return (d?.isFinite == true) ? d : nil
+            guard let value = a[k] as? NSNumber,
+                  CFGetTypeID(value) != CFBooleanGetTypeID() else { return nil }
+            let d = value.doubleValue
+            return d.isFinite ? d : nil
         }
         func list(_ k: String) -> [String] { (a[k] as? [Any])?.compactMap { $0 as? String } ?? [] }
         func str(_ k: String) -> String? {
