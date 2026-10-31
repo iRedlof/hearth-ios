@@ -15,6 +15,9 @@ struct HearthWidgetBundle: WidgetBundle {
         QuickWidget()
         FavouritesWidget()
         DoorsWidget()
+        #if DEBUG
+        SmallConceptWidget()
+        #endif
     }
 }
 

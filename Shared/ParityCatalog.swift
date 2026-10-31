@@ -42,7 +42,12 @@ import HearthKit
     }
 
     static func all() -> [(String, AnyView)] {
+        #if DEBUG
+        let small = SmallWidgetConceptCatalog.concepts.map { ($0.id, AnyView(SmallWidgetConceptView(concept: $0))) }
+        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + small
+        #else
         alarm() + thermostat() + car() + chargePoint() + tiles() + collections()
+        #endif
     }
 
     private static func tiles() -> [(String, AnyView)] {
