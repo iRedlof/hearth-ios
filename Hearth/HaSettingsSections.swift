@@ -39,14 +39,10 @@ struct HaSettingsSections: View {
                           selection: config.lockId) { e in
                     try apply { $0.lockId = e.id; $0.lockName = e.id.isEmpty ? "" : e.name }
                 }
-                Picker("Disarm & unlock", selection: confirmBinding) {
-                    Text("Face ID / passcode").tag(CONFIRM_BIOMETRIC)
-                    Text("Confirm dialog").tag(CONFIRM_DIALOG)
-                }
             } header: {
                 Text("Alarm")
             } footer: {
-                Text("The panel the Alarm arms/disarms, an optional front-door lock, and how Disarm/Unlock are confirmed.")
+                Text("Choose the alarm panel and optional front-door lock. Disarm and Unlock use one tap.")
             }
 
             Section {
@@ -95,7 +91,7 @@ struct HaSettingsSections: View {
             } header: {
                 Text("Quick")
             } footer: {
-                Text("Up to 6 scripts or scenes to run from the Quick widget.")
+                Text("Up to 6 scripts to run from the Quick widget.")
             }
             Section {
                 NavigationLink {
@@ -110,7 +106,7 @@ struct HaSettingsSections: View {
             } header: {
                 Text("Favourites")
             } footer: {
-                Text("Up to 12 switches, lights, fans or scripts for the Favourites widget.")
+                Text("Up to 12 switches, lights, fans, toggle helpers or scripts for the Favourites widget.")
             }
             Section {
                 NavigationLink {
@@ -127,13 +123,6 @@ struct HaSettingsSections: View {
                 Text("Doors, garages and window sensors for the Doors widget. Garage controls work with one tap.")
             }
         }
-    }
-
-    private var confirmBinding: Binding<String> {
-        Binding(get: { config.confirmWith }, set: { v in
-            do { try apply { $0.confirmWith = v } }
-            catch { saveError = friendlyError(error) }
-        })
     }
 
     @ViewBuilder
