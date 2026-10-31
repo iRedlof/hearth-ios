@@ -80,8 +80,52 @@ Independent audit verified all **83** manifest files, **24** native PNG/AX prove
 
 Both cases used ordinary native text size and an inert controlled Settings tab on the same simulator/run. They establish no live Settings mutation, account/prefix revalidation, reconnect, AX5, VoiceOver, or delayed-success coverage. The remaining acceptance gates below stay open.
 
+## Controlled reconnect R1–R4 supplement
+
+The frozen reconnect evidence is `/tmp/hearth-ios-car-widget-probe/native-fresh-pro-authentication-v2/`, run `47EDFFB0-9604-404D-9209-CD37788610FA`. Runtime source and installed v3 binaries remain unchanged from commit `8d0a9cceb9b5d8176e691520041fd4911553bb09`; no new source implementation or build was needed. The controlled `authentication` scenario produces saved 401 authentication-failure explanations, with no successful telemetry or identified vehicle prefix.
+
+| Slot | Entry UUID | Ticket UUID | Whole-ticket digest |
+| --- | --- | --- | --- |
+| A | `0EB71B1E-0869-4CC3-8AEA-33B0C3B3770A` | `9E77788E-F2B9-45B3-9ADB-FE913B9BB663` | `bbb919abf1eb5b1bf11b0f19fd0f9dd68e39784dd0192fc234ed2f1535a570ae` |
+| B | `11ABA66A-CF1F-4D81-B3C5-0C0712BFE446` | `CC15F5B5-D49A-457A-90A5-6564D3F249C8` | `620f7929ac933f96988b406172b661d51a001189b82c6618014db6fb51962537` |
+
+Independent audit accepted four bounded native cases:
+
+- **R1 — Cancel:** actual A widget ingress, then explicit reconnect Cancel, returns A's exact saved failure record with fresh internal request `0AA0AEF6-83A3-4E95-98CC-0D34E7BB50AD`.
+- **R2 — controlled Complete:** “Complete controlled return” creates fresh request `0731792B-FD76-4FF9-8178-555C4EA4250D`, retaining the same A failure identity and explanation. Successful authentication remains untested.
+- **R3 — gesture retention:** a downward navigation-bar gesture leaves reconnect visible with Cancel and Complete available. The fallback retains the screen; no swipe dismissal or swipe return is claimed.
+- **R4 — B replacement:** an actual B widget tap replaces A's third pending reconnect with B's exact saved record. Close and subsequent native app-icon reactivation leave the controlled Live host visible, with no observed A restoration or third-transition return/cancel event. No inaccessible stale callback was injected.
+
+The audit verified **78** manifest files, **21** native PNG/AX pairs, **16** receipt deltas and **20** copied receipts. `CORRECTION.json` preserves the v1 baseline-count error: v1 incorrectly called all 21 joined records deltas; v2 subtracts the five baseline records. The 20 receipt copies contain 16 deltas plus four provider/render records, excluding the baseline armed record. All capture bytes and the command log are unchanged from v1; joined route results are unchanged apart from candidate labels. This is a corrected evidence copy, not another native execution.
+
+The [reconnect gallery](/Volumes/xHome/Github/hearth/docs/design/platform-parity/readability/car-widgetkit-reconnect/RECONNECT.html) contains 30 files, including 26 verified evidence copies and 10 full native PNGs. Browser QA is separate from that integrity audit.
+
+These ordinary-size controlled cases triggered no opening/return refresh. Real authentication, successful reconnect telemetry, account changes, unobserved stale callbacks, other reconnect branches, AX5 and VoiceOver remain open.
+
+## Recovery F1–F3 supplement
+
+Independent audits accepted three further bounded cases using actual A Home Screen widget ingress. All three reused the unchanged runtime source and signed v3 binaries associated with compiled-source commit `8d0a9cceb9b5d8176e691520041fd4911553bb09`; no new build was performed.
+
+The frozen evidence folders are under `/tmp/hearth-ios-car-widget-probe/`. Each audit verified every manifest hash/byte count, native PNG/AX provenance pair, and receipt delta:
+
+| Case / frozen folder | Manifest files | Native PNG/AX pairs | Receipt deltas | Copied receipts |
+| --- | --- | --- | --- | --- |
+| F1 · `native-fresh-pro-persistence-failure-v1` | 38 | 7 | 8 | 12 |
+| F2 · `native-fresh-pro-expired-v1` | 38 | 7 | 8 | 12 |
+| F3 · `native-fresh-pro-setup-v1` | 47 | 11 | 9 | 13 |
+
+**F1 — persistence failure.** Visible A entry `D71124F6-E851-44FF-86D5-28BCE59F6CD6` has no saved ticket or digest. Its native tap opens the reserved unavailable route with `lookupOutcome=notRequested`, `routeStatus=storageUnavailable`, and `ticketID=none`. This is visible-widget provenance, not a saved-ticket join; `notRequested` is a typed outcome rather than a measured lookup counter. Controlled Settings Back creates fresh request `6BD8CE8F-09BA-42CA-A315-7168865282F1` with the same unavailable explanation.
+
+**F2 — expired ticket.** A requests saved UUID `4C24162B-5407-45FD-8A3E-8A7D8A981E92`, prepared as expired before lookup using the existing controlled clock and normal 48-hour lifetime. Both initial load and fresh Settings return `FEECE4D6-3905-4943-B5B8-91EF17C2B986` report expiry for that UUID. The expired lookup supplies no usable opening entry/ticket/digest or telemetry fields; provider data is not substituted into the destination.
+
+**F3 — valid setup record.** A's available setup ticket `D072A92D-3106-4B5A-AC6D-DC312B2F89B7` retains entry `E6A9283D-D2E8-4FB6-8C3C-61EF58DA24CD` and digest `3f33dc2dbc17cd5218ebe90fbc292594023c6e0ac19c508c2badb51ccefbddc8`. It has no telemetry or identified prefix. The provider records `transportCount=0`, which is a controlled transport counter. Connect Home Assistant opens inert Settings; Back creates fresh request `3694ACC7-9BA5-4AAF-AC5C-C68590182FC6` preserving the exact setup record and explanation.
+
+Each case exposes “Refresh widget” and records `controlledResult=inertReload` with explicit DEBUG feedback. This verifies inert feedback, not actual widget reload or recovery. F3's complete feedback was verified after an additional native scroll. Close leaves the controlled Settings host without Back to car readings in all three cases. Each case has one external widget ingress and two screen loads, distinguishing internal return from a second widget tap.
+
+These ordinary-size cases preserve their appropriate failure/setup state without telemetry substitution, operating vehicle actions, or live authentication. They do not establish later reactivation, process-death recovery, delayed-callback behavior, AX5, VoiceOver, or the untested failure branches below.
+
 ## Open acceptance gates
 
-Uncooperative delayed success after B and unobserved stale callbacks; remaining Settings return cases including mutated account/prefix revalidation; reconnect return matrix; native process-death lease recovery; complete unavailable/setup/auth/expiry/eviction/corruption/selector cases; all 32 fields/actions at uncapped AX5; actual VoiceOver; production controls and adaptive summary; live authentication and successful Tesla handoff; all-ten-widget native acceptance; Android performance; physical-device provisioning and release readiness.
+Uncooperative delayed success after B and unobserved stale callbacks; remaining Settings return cases including mutated account/prefix revalidation; remaining reconnect branches including real authentication/account changes and successful telemetry; native process-death lease recovery; untested corrupt, evicted, access-failed and selector branches, other unavailable outcomes, and actual refresh recovery; all 32 fields/actions at uncapped AX5; actual VoiceOver; production controls and adaptive summary; live authentication and successful Tesla handoff; all-ten-widget native acceptance; Android performance; physical-device provisioning and release readiness.
 
 The Android performance candidate remains failed. There is no version bump, release or platform-parity completion claim in this tranche.
