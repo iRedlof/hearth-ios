@@ -4,20 +4,30 @@ import HearthKit
 
 @main
 struct HearthApp: App {
+    #if DEBUG
+    private let probeSelection: CarRouteProbeSelection
+    #endif
     init() {
         #if DEBUG
-        if Self.settingsFixture() == nil,
+        probeSelection = CarRouteProbe.resolveLaunch(arguments: ProcessInfo.processInfo.arguments)
+        if case .inactive = probeSelection,
+           Self.settingsFixture() == nil,
            ProcessInfo.processInfo.arguments.contains("-parityLive") { ParityCatalog.deactivateWidget() }
         #endif
     }
     var body: some Scene {
         WindowGroup {
             #if DEBUG
-            if let state = Self.carReadingsFixture() { CarReadingsFixtureHost(state: state) }
-            else if let concept = Self.accessibleFixture() { AccessibleBeaconFixtureScreen(concept: concept) }
-            else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
-            else if let id = Self.parityState() { ParityStateScreen(id: id) }
-            else { ContentView() }
+            switch probeSelection {
+            case .armed(let run): CarReadingsProbeHost(run: run)
+            case .blocked(let reason): CarReadingsProbeBlockedHost(reason: reason)
+            case .inactive:
+                if let state = Self.carReadingsFixture() { CarReadingsFixtureHost(state: state) }
+                else if let concept = Self.accessibleFixture() { AccessibleBeaconFixtureScreen(concept: concept) }
+                else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
+                else if let id = Self.parityState() { ParityStateScreen(id: id) }
+                else { ContentView() }
+            }
             #else
             if let id = Self.parityState() { ParityStateScreen(id: id) }
             else { ContentView() }
@@ -98,42 +108,42 @@ struct ContentView: View {
             get: { signOutError != nil }, set: { if !$0 { signOutError = nil } }
         )) { Button("OK", role: .cancel) {} } message: { Text(signOutError ?? "") }
         .confirmationDialog(climateGate.pick?.title ?? "", isPresented: Binding(
-            get: { climateGate.pick != nil },
-            set: { if !$0 { climateGate.dismiss() } }
+            get: { !inertTabs && climateGate.pick != nil },
+            set: { if !inertTabs && !$0 { climateGate.dismiss() } }
         ), titleVisibility: .visible, presenting: climateGate.pick) { pick in
             ForEach(pick.options, id: \.self) { opt in
-                Button(opt.capitalized) { climateGate.choose(pick, opt) }
+                Button(opt.capitalized) { if !inertTabs { climateGate.choose(pick, opt) } }
             }
-            Button("Cancel", role: .cancel) { climateGate.dismiss() }
+            Button("Cancel", role: .cancel) { if !inertTabs { climateGate.dismiss() } }
         }
         .alert("Thermostat", isPresented: Binding(
-            get: { climateGate.error != nil }, set: { if !$0 { climateGate.error = nil } }
+            get: { !inertTabs && climateGate.error != nil }, set: { if !inertTabs && !$0 { climateGate.error = nil } }
         )) {
-            Button("OK") { climateGate.error = nil }
+            Button("OK") { if !inertTabs { climateGate.error = nil } }
         } message: { Text(climateGate.error ?? "") }
         .alert("Open the garage?", isPresented: Binding(
-            get: { garageGate.confirming != nil },
-            set: { if !$0 { garageGate.cancel() } }
+            get: { !inertTabs && garageGate.confirming != nil },
+            set: { if !inertTabs && !$0 { garageGate.cancel() } }
         ), presenting: garageGate.confirming) { id in
-            Button("Open", role: .destructive) { garageGate.confirm(id) }
-            Button("Cancel", role: .cancel) { garageGate.cancel() }
+            Button("Open", role: .destructive) { if !inertTabs { garageGate.confirm(id) } }
+            Button("Cancel", role: .cancel) { if !inertTabs { garageGate.cancel() } }
         }
         .confirmationDialog("Join the ChargePoint waitlist?", isPresented: Binding(
-            get: { joinGate.asking },
-            set: { if !$0 { joinGate.cancel() } }
+            get: { !inertTabs && joinGate.asking },
+            set: { if !inertTabs && !$0 { joinGate.cancel() } }
         ), titleVisibility: .visible) {
-            Button("Join & auto-run") { joinGate.join(auto: true) }
-            Button("Just join") { joinGate.join(auto: false) }
-            Button("Cancel", role: .cancel) { joinGate.cancel() }
+            Button("Join & auto-run") { if !inertTabs { joinGate.join(auto: true) } }
+            Button("Just join") { if !inertTabs { joinGate.join(auto: false) } }
+            Button("Cancel", role: .cancel) { if !inertTabs { joinGate.cancel() } }
         }
         .confirmationDialog("Snooze for…", isPresented: Binding(
-            get: { snoozeGate.asking },
-            set: { if !$0 { snoozeGate.cancel() } }
+            get: { !inertTabs && snoozeGate.asking },
+            set: { if !inertTabs && !$0 { snoozeGate.cancel() } }
         ), titleVisibility: .visible) {
-            Button("10 minutes") { snoozeGate.snooze(minutes: 10) }
-            Button("30 minutes") { snoozeGate.snooze(minutes: 30) }
-            Button("60 minutes") { snoozeGate.snooze(minutes: 60) }
-            Button("Cancel", role: .cancel) { snoozeGate.cancel() }
+            Button("10 minutes") { if !inertTabs { snoozeGate.snooze(minutes: 10) } }
+            Button("30 minutes") { if !inertTabs { snoozeGate.snooze(minutes: 30) } }
+            Button("60 minutes") { if !inertTabs { snoozeGate.snooze(minutes: 60) } }
+            Button("Cancel", role: .cancel) { if !inertTabs { snoozeGate.cancel() } }
         }
         .onChange(of: cpSetup.route, initial: true) {
             guard let route = cpSetup.route else { return }
@@ -148,7 +158,16 @@ struct ContentView: View {
         }
         .onOpenURL { url in
             guard let destination = carReadingsDestination(from: url) else { return }
-            presentCarReadings(CarReadingsRequest(destination: destination))
+            let request = CarReadingsRequest(destination: destination)
+            #if DEBUG
+            var fields = ["requestID": request.id.uuidString, "destination": "unavailable"]
+            if case .ticket(let id) = destination {
+                fields["destination"] = "ticket"
+                fields["ticketID"] = id.uuidString
+            }
+            carReadingsRuntime.probeReceipts?.record(phase: "sceneReceived", fields: fields)
+            #endif
+            presentCarReadings(request)
         }
         .onChange(of: haSetup.request, initial: true) {
             guard haSetup.request != nil else { return }
@@ -216,6 +235,9 @@ struct ContentView: View {
                     onSettings: {
                         guard presentedSheet?.id == sheet.id else { return }
                         if !inertTabs { config = HaConfigStore.load() }
+                        #if DEBUG
+                        recordCarTransition("settingsStarted", original: request, transitionID: sheet.id)
+                        #endif
                         settingsCarReturn = request
                         selection = 1
                         presentedSheet = nil
@@ -223,8 +245,12 @@ struct ContentView: View {
                     onReconnect: {
                         guard presentedSheet?.id == sheet.id else { return }
                         if !inertTabs { config = HaConfigStore.load() }
+                        let reconnect = HearthSheet.reconnect(UUID(), returningTo: request)
+                        #if DEBUG
+                        recordCarTransition("reconnectStarted", original: request, transitionID: reconnect.id)
+                        #endif
                         settingsCarReturn = nil
-                        presentedSheet = .reconnect(UUID(), returningTo: request)
+                        presentedSheet = reconnect
                     })
                 .id(request.id)
             }
@@ -243,12 +269,28 @@ struct ContentView: View {
               case .reconnect(_, let original) = sheet else { return }
         if completed, !inertTabs { config = HaConfigStore.load() }
         if let original {
-            presentCarReadings(original.reopened())
+            let reopened = original.reopened()
+            #if DEBUG
+            recordCarTransition(completed ? "reconnectReturned" : "reconnectCancelled",
+                original: original, reopened: reopened, transitionID: sheet.id)
+            #endif
+            presentCarReadings(reopened)
         } else {
             if completed { selection = 0 }
             presentedSheet = nil
         }
     }
+
+    #if DEBUG
+    /// Observes existing ownership decisions; it never chooses a destination or reads a store.
+    private func recordCarTransition(_ phase: String, original: CarReadingsRequest,
+                                     reopened: CarReadingsRequest? = nil, transitionID: String) {
+        var fields = ["requestID": original.id.uuidString, "transitionID": transitionID,
+                      "ticketID": original.ticketID?.uuidString ?? "unavailable"]
+        if let reopened { fields["requestEventID"] = reopened.id.uuidString }
+        carReadingsRuntime.probeReceipts?.record(phase: phase, fields: fields)
+    }
+    #endif
 
     /// Initial tab from a launch arg (`-tab live|settings|preview`), for screenshots and testing.
     private static func initialTab() -> Int {
@@ -279,7 +321,12 @@ struct ContentView: View {
             if let original = settingsCarReturn {
                 Button {
                     guard settingsCarReturn?.id == original.id else { return }
-                    presentCarReadings(original.reopened())
+                    let reopened = original.reopened()
+                    #if DEBUG
+                    recordCarTransition("settingsReturned", original: original, reopened: reopened,
+                        transitionID: "car:\(original.id.uuidString)")
+                    #endif
+                    presentCarReadings(reopened)
                 } label: {
                     Label("Back to car readings", systemImage: "car")
                         .font(.body.weight(.semibold))

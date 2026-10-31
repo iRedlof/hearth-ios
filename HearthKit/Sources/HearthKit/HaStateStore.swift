@@ -76,6 +76,9 @@ public struct HaStateStore: Sendable {
     private let directory: URL
     private let initialConfig: HaConfig?
     private let initialScope: String
+    #if DEBUG
+    private let maximumProbeBytes: Int?
+    #endif
     private static let carReadLeaseDuration: TimeInterval = 60
     private struct CarReadLease: Codable {
         // Missing legacy metadata is abandoned ownership; unreadable field types remain corruption.
@@ -165,7 +168,19 @@ public struct HaStateStore: Sendable {
 
     public init(directory: URL, initialConfig: HaConfig? = nil, initialScope: String = "initial") {
         self.directory = directory; self.initialConfig = initialConfig; self.initialScope = initialScope
+        #if DEBUG
+        self.maximumProbeBytes = nil
+        #endif
     }
+
+    #if DEBUG
+    /// Private DEBUG probes must never reseed a missing state or synchronously decode unbounded bytes.
+    /// All existing store methods reach this policy through the same locked read transaction.
+    public init(existingProbeDirectory: URL, maximumProbeBytes: Int) {
+        self.directory = existingProbeDirectory; self.initialConfig = nil; self.initialScope = "initial"
+        self.maximumProbeBytes = maximumProbeBytes
+    }
+    #endif
 
     public func snapshot() throws -> HaStoreSnapshot {
         try locked { try read().snapshot }
@@ -718,6 +733,14 @@ public struct HaStateStore: Sendable {
 
     private var file: URL { directory.appendingPathComponent("ha-state.json") }
     private func read() throws -> Stored {
+        #if DEBUG
+        if let maximumProbeBytes {
+            let stored = try JSONDecoder().decode(Stored.self,
+                from: readExistingProbeState(maximumBytes: maximumProbeBytes))
+            guard stored.version == 1 else { throw CocoaError(.fileReadCorruptFile) }
+            return stored
+        }
+        #endif
         guard FileManager.default.fileExists(atPath: file.path) else {
             let initial = Stored(config: initialConfig, scope: initialScope, readings: [:])
             try write(initial)
@@ -727,6 +750,40 @@ public struct HaStateStore: Sendable {
         guard stored.version == 1 else { throw CocoaError(.fileReadCorruptFile) }
         return stored
     }
+    #if DEBUG
+    /// Called only by read() while ha-state.lock is held. Opening never creates or follows a link.
+    private func readExistingProbeState(maximumBytes: Int) throws -> Data {
+        guard maximumBytes > 0, maximumBytes <= 4 * 1024 * 1024 else { throw CocoaError(.fileReadCorruptFile) }
+        let descriptor = open(file.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK)
+        guard descriptor >= 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        defer { close(descriptor) }
+        var info = stat()
+        guard fstat(descriptor, &info) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        guard (info.st_mode & mode_t(S_IFMT)) == mode_t(S_IFREG) else { throw CocoaError(.fileReadCorruptFile) }
+        // The actual read is limit+1 even if the file grows after fstat; no unbounded Data initializer.
+        var data = Data(count: maximumBytes + 1)
+        var received = 0
+        while received < data.count {
+            let remaining = data.count - received
+            let amount = data.withUnsafeMutableBytes { bytes in
+                #if canImport(Darwin)
+                Darwin.read(descriptor, bytes.baseAddress!.advanced(by: received), remaining)
+                #else
+                Glibc.read(descriptor, bytes.baseAddress!.advanced(by: received), remaining)
+                #endif
+            }
+            if amount < 0 {
+                if errno == EINTR { continue }
+                throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO)
+            }
+            if amount == 0 { break }
+            received += amount
+        }
+        guard received <= maximumBytes else { throw CocoaError(.fileReadCorruptFile) }
+        data.count = received
+        return data
+    }
+    #endif
     private func write(_ stored: Stored) throws {
         let staged = directory.appendingPathComponent(".ha-state-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: staged) }

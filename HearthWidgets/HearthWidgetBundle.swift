@@ -18,6 +18,8 @@ struct HearthWidgetBundle: WidgetBundle {
         #if DEBUG
         SmallConceptWidget()
         ReadableConceptWidget()
+        CarReadingsRouteProbeWidget(slot: .a)
+        CarReadingsRouteProbeWidget(slot: .b)
         #endif
     }
 }
@@ -270,10 +272,13 @@ struct CarEntry: TimelineEntry {
     var snap: CarSnapshot { payload.snapshot }
     #if DEBUG
     let interactionGeneration: UUID
+    let probeIdentity: CarRouteProbeEntryIdentity?
     init(payload: CarReadingsEntryPayload,
-         interactionGeneration: UUID = ParityCatalog.widgetInteractionGeneration()) {
+         interactionGeneration: UUID = ParityCatalog.widgetInteractionGeneration(),
+         probeIdentity: CarRouteProbeEntryIdentity? = nil) {
         self.payload = payload
         self.interactionGeneration = interactionGeneration
+        self.probeIdentity = probeIdentity
     }
     #endif
 
@@ -282,6 +287,9 @@ struct CarEntry: TimelineEntry {
         #if DEBUG
         guard ParityCatalog.activeWidgetID(prefix: "car") == nil,
               interactionGeneration == ParityCatalog.widgetInteractionGeneration() else { return false }
+        if let probeIdentity {
+            guard CarRouteProbe.allowsPublication(run: probeIdentity.run) else { return false }
+        }
         #endif
         return true
     }
@@ -292,14 +300,20 @@ struct CarEntry: TimelineEntry {
         let inert = CarReadingsEntryPayload(entryID: payload.entryID, date: date, snapshot: snap,
             destination: .inert)
         #if DEBUG
-        return CarEntry(payload: inert, interactionGeneration: interactionGeneration)
+        return CarEntry(payload: inert, interactionGeneration: interactionGeneration,
+            probeIdentity: probeIdentity)
         #else
         return CarEntry(payload: inert)
         #endif
     }
 }
 
-struct CarProvider: TimelineProvider {
+struct CarProvider: TimelineProvider, Sendable {
+    #if DEBUG
+    let probeSlot: CarRouteProbeSlot?
+    init(probeSlot: CarRouteProbeSlot? = nil) { self.probeSlot = probeSlot }
+    #endif
+
     func placeholder(in context: Context) -> CarEntry {
         CarEntry(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now, snapshot: .sample,
             destination: .inert))
@@ -307,7 +321,7 @@ struct CarProvider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (CarEntry) -> Void) {
         let isPreview = context.isPreview
         nonisolated(unsafe) let completion = completion
-        Task { completion(await Self.loadEntry(isPreview: isPreview)) }
+        Task { completion(await loadEntry(isPreview: isPreview, callbackKind: "snapshot")) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<CarEntry>) -> Void) {
         let isPreview = context.isPreview
@@ -315,16 +329,38 @@ struct CarProvider: TimelineProvider {
         // once; `nonisolated(unsafe)` is the sanctioned bridge for carrying it into the async `Task`.
         nonisolated(unsafe) let completion = completion
         Task {
-            let entry = await Self.loadEntry(isPreview: isPreview)
+            let entry = await loadEntry(isPreview: isPreview, callbackKind: "timeline")
             completion(Timeline(entries: [entry],
                                 policy: .after(Date().addingTimeInterval(15 * 60))))
         }
     }
 
-    private static func loadEntry(isPreview: Bool) async -> CarEntry {
+    private func loadEntry(isPreview: Bool, callbackKind: String) async -> CarEntry {
         #if DEBUG
         let generation = ParityCatalog.widgetInteractionGeneration()
         let inert = isPreview || ParityCatalog.activeWidgetID(prefix: "car") != nil
+        if let probeSlot {
+            // Gallery, parity and invalid probe selections exit before opening any private store.
+            guard !inert, case .armed(let run) = CarRouteProbe.selection(),
+                  let probe = try? CarRouteProbe.dependencies(run: run, slot: probeSlot) else {
+                return CarEntry(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
+                    snapshot: .sample, destination: .inert), interactionGeneration: generation)
+            }
+            let persisted = CarRouteProbePersistedTicket()
+            let payload = await CarLiveSnapshot.loadEntry(selection: .live, probe: probe,
+                didPersist: { persisted.capture($0) },
+                allowsLivePublication: {
+                    ParityCatalog.activeWidgetID(prefix: "car") == nil &&
+                        ParityCatalog.widgetInteractionGeneration() == generation &&
+                        CarRouteProbe.allowsPublication(run: run)
+                })
+            let entry = CarEntry(payload: payload, interactionGeneration: generation,
+                probeIdentity: CarRouteProbeEntryIdentity(run: run, slot: probeSlot,
+                    callbackKind: callbackKind)).currentInteractionEntry
+            CarRouteProbeWidgetReceipts.providerCompleted(entry: entry, probe: probe,
+                persistedTicket: persisted.value)
+            return entry
+        }
         let payload = await CarLiveSnapshot.loadEntry(selection: inert ? .inert : .live,
             allowsLivePublication: {
                 ParityCatalog.activeWidgetID(prefix: "car") == nil &&

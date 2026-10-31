@@ -35,4 +35,27 @@ enum CarLiveSnapshot {
                 try store.save(ticket, now: issuedAt)
             }, allowsLivePublication: allowsLivePublication)
     }
+
+    #if DEBUG
+    /// The probe still binds one fetched envelope through the real entry loader and factory.
+    /// Its captured dependencies never resolve a production store or a nil-request transport.
+    static func loadEntry(selection: CarReadingsEntrySelection,
+                          probe: CarRouteProbeDependencies,
+                          didPersist: @escaping @Sendable (CarReadingsTicket) -> Void = { _ in },
+                          allowsLivePublication: @escaping @Sendable () -> Bool = { true })
+        async -> CarReadingsEntryPayload {
+        await loadCarReadingsEntry(selection: selection,
+            fetchEnvelope: probe.fetchEnvelope,
+            persist: { ticket, issuedAt in
+                // Recheck at the actual save boundary, including parity invalidation.
+                guard probe.allowsPublication(), allowsLivePublication() else {
+                    throw CarRouteProbeStorageError.invalid
+                }
+                try probe.persist(ticket, issuedAt)
+                didPersist(ticket)
+            },
+            now: { probe.issuanceClock },
+            allowsLivePublication: { probe.allowsPublication() && allowsLivePublication() })
+    }
+    #endif
 }

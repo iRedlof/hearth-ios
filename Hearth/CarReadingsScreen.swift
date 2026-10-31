@@ -11,6 +11,9 @@ struct CarReadingsRuntime: Sendable {
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.car")
         return "Refresh requested. Return to your Home Screen and open the new widget reading."
     }
+    #if DEBUG
+    var probeReceipts: CarRouteProbeReceiptWriter? = nil
+    #endif
     static var live: Self { Self(tickets: CarReadingsStore.store, state: HaConfigStore.store) }
     func context() -> HaStoreSnapshot? { try? state?.snapshot() }
 }
@@ -48,29 +51,46 @@ struct CarReadingsRuntime: Sendable {
         guard active else { return }
         if unsavedWidgetReading {
             unavailable = .storageUnavailable
+            recordProbeLoad(outcome: "notRequested")
             return
         }
-        guard session == nil, let id = request.ticketID else { return }
-        guard let tickets = runtime.tickets else { unavailable = .storageUnavailable; return }
+        guard session == nil else { return }
+        guard let id = request.ticketID else { recordProbeLoad(outcome: "noTicket"); return }
+        guard let tickets = runtime.tickets else {
+            unavailable = .storageUnavailable
+            recordProbeLoad(outcome: "storageUnavailable")
+            return
+        }
         do {
             switch try tickets.lookup(id) {
             case .available(let ticket):
                 openingTicket = ticket
                 session = CarReadingsRouteSession(ticket: ticket, context: runtime.context())
-            case .expired: unavailable = .expired
-            case .missing: unavailable = .unavailable
+                recordProbeLoad(outcome: "available")
+            case .expired:
+                unavailable = .expired
+                recordProbeLoad(outcome: "expired")
+            case .missing:
+                unavailable = .unavailable
+                recordProbeLoad(outcome: "missing")
             }
         } catch {
             corruptedTicket = error is DecodingError
                 || error is CarReadingsTicketError
                 || (error as? CocoaError)?.code == .fileReadCorruptFile
             unavailable = .storageUnavailable
+            recordProbeLoad(outcome: corruptedTicket ? "damaged" : "storageUnavailable")
         }
     }
 
     func revalidate() {
         guard active, session != nil else { return }
         session?.revalidate(context: runtime.context())
+        #if DEBUG
+        runtime.probeReceipts?.record(phase: "sceneActive", fields: [
+            "requestID": request.id.uuidString, "routeStatus": status.rawValue,
+            "openingTicketID": openingTicket?.id.uuidString ?? "none"])
+        #endif
     }
 
     func refresh() {
@@ -80,10 +100,21 @@ struct CarReadingsRuntime: Sendable {
         guard let state = runtime.state, let context = current,
               let claim = session?.beginRefresh(context: context),
               let prefix = session?.shownTicket.origin.vehiclePrefix else { return }
+        #if DEBUG
+        runtime.probeReceipts?.record(phase: "refreshStarted", fields: [
+            "requestID": request.id.uuidString, "openingTicketID": openingTicket?.id.uuidString ?? "none",
+            "prefix": prefix])
+        #endif
         feedback = nil
         task = Task {
             let envelope = await fetchOwnedCarRouteEnvelope(store: state, context: context,
                 expectedVehiclePrefix: prefix, request: runtime.request)
+            #if DEBUG
+            runtime.probeReceipts?.record(phase: "transportCompleted", fields: [
+                "requestID": request.id.uuidString, "action": "envelopeReturned",
+                "controlledResult": active ? "screenActive" : "screenClosed",
+                "cancelled": String(Task.isCancelled)])
+            #endif
             guard active, !Task.isCancelled else { return }
             var candidate: CarReadingsTicket?
             var failure = envelope.result.error
@@ -99,11 +130,27 @@ struct CarReadingsRuntime: Sendable {
                 context: runtime.context()) == true
             if accepted { feedback = nil }
             else if status == .current { feedback = failure ?? "Refresh did not replace this reading. Try again." }
+            #if DEBUG
+            var fields = ["requestID": request.id.uuidString, "accepted": String(accepted),
+                          "action": "refreshSettled",
+                          "ticketID": session?.shownTicket.id.uuidString ?? "none",
+                          "openingTicketID": openingTicket?.id.uuidString ?? "none"]
+            if let shown = session?.shownTicket {
+                fields["ticketDigest"] = try? CarRouteProbeReceiptWriter.ticketDigest(shown)
+            }
+            runtime.probeReceipts?.record(phase: "transportCompleted", fields: fields)
+            #endif
             task = nil
         }
     }
 
     func close() {
+        #if DEBUG
+        if active {
+            runtime.probeReceipts?.record(phase: "screenClosed", fields: [
+                "requestID": request.id.uuidString, "openingTicketID": openingTicket?.id.uuidString ?? "none"])
+        }
+        #endif
         active = false
         session?.close()
         task?.cancel()
@@ -117,11 +164,36 @@ struct CarReadingsRuntime: Sendable {
 
     func externalResult(_ opened: Bool) {
         guard active else { return }
+        #if DEBUG
+        runtime.probeReceipts?.record(phase: "sceneActive", fields: [
+            "requestID": request.id.uuidString, "action": "externalResult", "accepted": String(opened)])
+        #endif
         revalidate()
         if !opened {
             feedback = Self.teslaFailureMessage
             showingTeslaFailure = true
         }
+    }
+
+    /// DEBUG observations never resolve a replacement ticket or read configuration.
+    private func recordProbeLoad(outcome: String) {
+        #if DEBUG
+        guard let writer = runtime.probeReceipts else { return }
+        var fields = ["requestID": request.id.uuidString, "lookupOutcome": outcome,
+                      "ticketID": request.ticketID?.uuidString ?? "none",
+                      "routeStatus": status.rawValue]
+        if let ticket = openingTicket {
+            fields["openingTicketID"] = ticket.id.uuidString
+            fields["openingEntryID"] = ticket.entryID.uuidString
+            fields["ticketDigest"] = try? CarRouteProbeReceiptWriter.ticketDigest(ticket)
+            fields["prefix"] = ticket.origin.vehiclePrefix ?? "none"
+            fields["scope"] = ticket.origin.requestScope ?? "none"
+            fields["rawBattery"] = detail?.cohorts.first?.sections
+                .flatMap(\.rows).first(where: { $0.id == "sensor.battery_level" })?.rawState ?? "none"
+            fields["rawName"] = detail?.title ?? "none"
+        }
+        writer.record(phase: "screenLoaded", fields: fields)
+        #endif
     }
 }
 
