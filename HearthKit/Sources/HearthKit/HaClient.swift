@@ -6,7 +6,7 @@ public struct HaError: Error, Sendable, Equatable {
     public init(_ message: String, code: Int = 0) { self.message = message; self.code = code }
 }
 
-/// Short-lived access tokens cached in-memory, keyed by refresh token, renewed 60s before expiry.
+/// Short-lived access tokens cached in-memory by server and refresh token, renewed 60s before expiry.
 /// Ported from Android `HaAuth`. An actor for Swift-6 concurrency safety (replaces the Kotlin Mutex).
 public actor HaAuth {
     public static let shared = HaAuth()
@@ -26,19 +26,49 @@ public actor HaAuth {
         return c?.url
     }
 
-    private var cached: (refresh: String, tokens: HaTokens)?
+    private let renewTokens: @Sendable (String, String) async throws -> HaTokens
+    private let nowMilliseconds: @Sendable () -> Double
+    private struct CacheKey: Equatable {
+        let server: String
+        let refresh: String
+    }
+    private var cached: (key: CacheKey, tokens: HaTokens)?
+    private var forgetEpoch = UUID()
+    private var latestRenewal: UUID?
+
+    /// Internal seams keep cache and actor-reentry tests independent of transport and wall time.
+    init(renew: @escaping @Sendable (String, String) async throws -> HaTokens = { base, refresh in
+        try await HaAuth.renew(base, refresh)
+    }, nowMilliseconds: @escaping @Sendable () -> Double = {
+        Date().timeIntervalSince1970 * 1000
+    }) {
+        renewTokens = renew
+        self.nowMilliseconds = nowMilliseconds
+    }
 
     public func accessToken(_ config: HaConfig) async throws -> String {
-        let nowMs = Date().timeIntervalSince1970 * 1000
-        if let c = cached, c.refresh == config.refreshToken, c.tokens.expiresAt - 60_000 > nowMs {
+        try Task.checkCancellation()
+        let key = CacheKey(server: config.baseUrl.trimmedTrailingSlash, refresh: config.refreshToken)
+        let nowMs = nowMilliseconds()
+        if let c = cached, c.key == key, c.tokens.expiresAt - 60_000 > nowMs {
             return c.tokens.access
         }
-        let t = try await Self.renew(config.baseUrl, config.refreshToken)
-        cached = (config.refreshToken, t)
+        let epoch = forgetEpoch
+        let renewal = UUID()
+        latestRenewal = renewal
+        let t = try await renewTokens(config.baseUrl, config.refreshToken)
+        try Task.checkCancellation()
+        guard epoch == forgetEpoch else { throw HaError("Configuration changed · Refresh to check") }
+        // Actor reentry may have started a newer renewal. This caller still receives its own token.
+        if latestRenewal == renewal { cached = (key, t) }
         return t.access
     }
 
-    public func forget() { cached = nil }
+    public func forget() {
+        forgetEpoch = UUID()
+        latestRenewal = nil
+        cached = nil
+    }
 
     public static func exchange(_ baseUrl: String, _ code: String) async throws -> HaTokens {
         try await token(baseUrl, ["grant_type": "authorization_code", "code": code, "client_id": clientId(baseUrl)])
