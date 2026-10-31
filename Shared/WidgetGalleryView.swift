@@ -143,7 +143,7 @@ struct WidgetGalleryView: View {
 
     @ViewBuilder private func widget(for kind: WidgetPreviewKind) -> some View {
         switch kind {
-        case .car: CarBeaconView(.sample)
+        case .car: CarBeaconView(.sample, interactionMode: .inert)
         case .alarm: AlarmBeaconView(.sample)
         case .thermostat: ThermostatBeaconView(.sample)
         case .chargepoint: CpBeaconView(.sample)

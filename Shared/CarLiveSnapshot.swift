@@ -21,4 +21,18 @@ enum CarLiveSnapshot {
         let current = envelope.origin.status == .obsolete ? HaConfigStore.context() : nil
         return envelope.presentationSnapshot(currentContext: current)
     }
+
+    /// Production widget entries retain the original envelope; only snapshot-only consumers
+    /// above may display newer current-context readings after an obsolete completion.
+    static func loadEntry(selection: CarReadingsEntrySelection,
+                          allowsLivePublication: @escaping @Sendable () -> Bool = { true })
+        async -> CarReadingsEntryPayload {
+        await loadCarReadingsEntry(selection: selection,
+            fetchEnvelope: { await fetchEnvelope() },
+            persist: { ticket, issuedAt in
+                // Open the App Group ticket store only when a live record is ready to save.
+                guard let store = CarReadingsStore.store else { throw CocoaError(.fileNoSuchFile) }
+                try store.save(ticket, now: issuedAt)
+            }, allowsLivePublication: allowsLivePublication)
+    }
 }

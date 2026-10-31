@@ -265,41 +265,86 @@ struct DoorsWidget: Widget {
 // MARK: - Car
 
 struct CarEntry: TimelineEntry {
-    let date: Date
-    let snap: CarSnapshot
+    let payload: CarReadingsEntryPayload
+    var date: Date { payload.date }
+    var snap: CarSnapshot { payload.snapshot }
+    #if DEBUG
+    let interactionGeneration: UUID
+    init(payload: CarReadingsEntryPayload,
+         interactionGeneration: UUID = ParityCatalog.widgetInteractionGeneration()) {
+        self.payload = payload
+        self.interactionGeneration = interactionGeneration
+    }
+    #endif
+
+    var allowsInteractions: Bool {
+        guard payload.destination != .inert else { return false }
+        #if DEBUG
+        guard ParityCatalog.activeWidgetID(prefix: "car") == nil,
+              interactionGeneration == ParityCatalog.widgetInteractionGeneration() else { return false }
+        #endif
+        return true
+    }
+
+    /// Strip stale route metadata as well as executable controls before constructing the card.
+    var currentInteractionEntry: CarEntry {
+        if allowsInteractions { return self }
+        let inert = CarReadingsEntryPayload(entryID: payload.entryID, date: date, snapshot: snap,
+            destination: .inert)
+        #if DEBUG
+        return CarEntry(payload: inert, interactionGeneration: interactionGeneration)
+        #else
+        return CarEntry(payload: inert)
+        #endif
+    }
 }
 
 struct CarProvider: TimelineProvider {
-    func placeholder(in context: Context) -> CarEntry { CarEntry(date: .now, snap: .sample) }
+    func placeholder(in context: Context) -> CarEntry {
+        CarEntry(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now, snapshot: .sample,
+            destination: .inert))
+    }
     func getSnapshot(in context: Context, completion: @escaping (CarEntry) -> Void) {
-        if context.isPreview { completion(CarEntry(date: .now, snap: .sample)); return }
+        let isPreview = context.isPreview
         nonisolated(unsafe) let completion = completion
-        Task { completion(CarEntry(date: .now, snap: await Self.fetch())) }
+        Task { completion(await Self.loadEntry(isPreview: isPreview)) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<CarEntry>) -> Void) {
+        let isPreview = context.isPreview
         // WidgetKit's completion predates Swift concurrency (not `@Sendable`) and is invoked exactly
         // once; `nonisolated(unsafe)` is the sanctioned bridge for carrying it into the async `Task`.
         nonisolated(unsafe) let completion = completion
         Task {
-            let snap = await CarProvider.fetch()
-            completion(Timeline(entries: [CarEntry(date: .now, snap: snap)],
+            let entry = await Self.loadEntry(isPreview: isPreview)
+            completion(Timeline(entries: [entry],
                                 policy: .after(Date().addingTimeInterval(15 * 60))))
         }
     }
 
-    /// Reads the same raw-reading cache and error state as the in-app dashboard.
-    private static func fetch() async -> CarSnapshot {
+    private static func loadEntry(isPreview: Bool) async -> CarEntry {
         #if DEBUG
-        if ParityCatalog.activeWidgetID(prefix: "car") != nil { return .sample }
+        let generation = ParityCatalog.widgetInteractionGeneration()
+        let inert = isPreview || ParityCatalog.activeWidgetID(prefix: "car") != nil
+        let payload = await CarLiveSnapshot.loadEntry(selection: inert ? .inert : .live,
+            allowsLivePublication: {
+                ParityCatalog.activeWidgetID(prefix: "car") == nil &&
+                    ParityCatalog.widgetInteractionGeneration() == generation
+            })
+        return CarEntry(payload: payload, interactionGeneration: generation)
+        #else
+        return CarEntry(payload: await CarLiveSnapshot.loadEntry(selection: isPreview ? .inert : .live))
         #endif
-        return await CarLiveSnapshot.fetch()
     }
 }
 
 struct CarWidget: Widget {
     var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "com.rohit.hearth.car", provider: CarProvider()) { entry in
-            ParityWidgetContent(prefix: "car") { CarBeaconView(entry.snap) }
+        StaticConfiguration(kind: "com.rohit.hearth.car", provider: CarProvider()) { originalEntry in
+            ParityWidgetContent(prefix: "car") {
+                let entry = originalEntry.currentInteractionEntry
+                CarBeaconView(entry.snap, interactionMode: entry.payload.destination == .inert ? .inert : .live)
+                    .widgetURL(carReadingsURL(for: entry.payload.destination))
+            }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("Car")

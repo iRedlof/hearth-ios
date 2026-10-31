@@ -30,6 +30,16 @@ targets:
     dependencies:
       - package: HearthKit
       - target: HearthWidgets
+    info:
+      path: Hearth/Info.plist
+      properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Editor
+            CFBundleURLName: com.rohit.hearth
+            CFBundleURLSchemes:
+              - hearth
     entitlements:
       path: Hearth/Hearth.entitlements
       properties:

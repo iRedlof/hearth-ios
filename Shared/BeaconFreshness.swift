@@ -25,6 +25,7 @@ struct BeaconFreshness: View {
     let checkedAt: String
     let kind: String      // widget kind id, for WidgetRefreshIntent
     var ink: Color
+    var interactionsEnabled: Bool = true
 
     var body: some View {
         HStack(spacing: 6) {
@@ -34,14 +35,20 @@ struct BeaconFreshness: View {
             }
             .foregroundStyle(ink.opacity(0.78))
             .invalidatableContent()
-            Button(intent: WidgetRefreshIntent(kind)) {
-                Image(systemName: "arrow.clockwise")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(ink.opacity(0.9))
-                    .frame(width: 26, height: 26)
-                    .background(ink.opacity(0.14), in: Circle())
+            if interactionsEnabled {
+                Button(intent: WidgetRefreshIntent(kind)) { refreshLabel }
+                    .buttonStyle(.plain)
+            } else {
+                refreshLabel
             }
-            .buttonStyle(.plain)
         }
+    }
+
+    private var refreshLabel: some View {
+        Image(systemName: "arrow.clockwise")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(ink.opacity(0.9))
+            .frame(width: 26, height: 26)
+            .background(ink.opacity(0.14), in: Circle())
     }
 }

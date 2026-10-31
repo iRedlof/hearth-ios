@@ -2,12 +2,21 @@ import SwiftUI
 import AppIntents
 import HearthKit
 
+/// Inert samples retain the same labels without constructing executable controls.
+public enum CarInteractionMode {
+    case live, inert
+}
+
 /// The Car Beacon card, ported from the Android `CarWidget` (v1.4.28): a two-tone card — a light
 /// mint status panel on the left, a dark graphite panel on the right with the car image, charge bar,
 /// and the single Open Tesla button. All right-panel text uses the bright header ink; Sentry-on is red.
 public struct CarBeaconView: View {
     public let snap: CarSnapshot
-    public init(_ snap: CarSnapshot) { self.snap = snap }
+    public let interactionMode: CarInteractionMode
+    public init(_ snap: CarSnapshot, interactionMode: CarInteractionMode = .live) {
+        self.snap = snap
+        self.interactionMode = interactionMode
+    }
 
     private var fill: Color { Color(argb: snap.tone.fillARGB) }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }                       // dark text on light mint
@@ -75,7 +84,8 @@ public struct CarBeaconView: View {
             HStack(alignment: .top, spacing: 6) {
                 Text(snap.name).font(.system(size: 18, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
-                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.car", ink: surfaceInk)
+                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.car",
+                    ink: surfaceInk, interactionsEnabled: interactionMode == .live)
             }
             .frame(height: 26, alignment: .top)
             Text(snap.place).font(.system(size: 12.5)).foregroundStyle(surfaceInk)
@@ -124,7 +134,10 @@ public struct CarBeaconView: View {
     }
 
     @ViewBuilder private var openTesla: some View {
-        if snap.needsSettings {
+        if interactionMode == .inert {
+            actionLabel(snap.needsSettings
+                ? (snap.needsSignIn ? "Sign in" : "Open Settings") : "Open Tesla")
+        } else if snap.needsSettings {
             Button(intent: HaSetupIntent(reconnect: snap.needsSignIn)) {
                 actionLabel(snap.needsSignIn ? "Sign in" : "Open Settings")
             }.buttonStyle(.plain)

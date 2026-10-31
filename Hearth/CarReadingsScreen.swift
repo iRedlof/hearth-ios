@@ -19,6 +19,7 @@ struct CarReadingsRuntime: Sendable {
     @Published private(set) var session: CarReadingsRouteSession?
     @Published private(set) var openingTicket: CarReadingsTicket?
     @Published private(set) var unavailable: CarReadingsRouteStatus = .unavailable
+    @Published private(set) var corruptedTicket = false
     @Published private(set) var feedback: String?
     @Published var showingTeslaFailure = false
     static let teslaFailureMessage = "Tesla couldn't be opened. Install the Tesla app, or open it from your Home Screen."
@@ -30,11 +31,13 @@ struct CarReadingsRuntime: Sendable {
     init(request: CarReadingsRequest, runtime: CarReadingsRuntime) {
         self.request = request
         self.runtime = runtime
+        if request.destination == .storageUnavailable { unavailable = .storageUnavailable }
     }
 
     var status: CarReadingsRouteStatus { session?.status ?? unavailable }
     var refreshing: Bool { session?.refreshing == true }
     var detail: CarDetailedReadings? { session.map { Self.detail($0.shownTicket) } }
+    var unsavedWidgetReading: Bool { request.destination == .storageUnavailable }
 
     static func detail(_ ticket: CarReadingsTicket) -> CarDetailedReadings {
         CarDetailedReadings(origin: ticket.origin, cache: ticket.cache,
@@ -42,7 +45,12 @@ struct CarReadingsRuntime: Sendable {
     }
 
     func load() {
-        guard active, session == nil, let id = request.ticketID else { return }
+        guard active else { return }
+        if unsavedWidgetReading {
+            unavailable = .storageUnavailable
+            return
+        }
+        guard session == nil, let id = request.ticketID else { return }
         guard let tickets = runtime.tickets else { unavailable = .storageUnavailable; return }
         do {
             switch try tickets.lookup(id) {
@@ -53,17 +61,20 @@ struct CarReadingsRuntime: Sendable {
             case .missing: unavailable = .unavailable
             }
         } catch {
+            corruptedTicket = error is DecodingError
+                || error is CarReadingsTicketError
+                || (error as? CocoaError)?.code == .fileReadCorruptFile
             unavailable = .storageUnavailable
         }
     }
 
     func revalidate() {
-        guard active else { return }
+        guard active, session != nil else { return }
         session?.revalidate(context: runtime.context())
     }
 
     func refresh() {
-        guard active else { return }
+        guard active, session != nil else { return }
         let current = runtime.context()
         session?.revalidate(context: current)
         guard let state = runtime.state, let context = current,
@@ -100,6 +111,7 @@ struct CarReadingsRuntime: Sendable {
     }
 
     func requestedWidgetRefresh() {
+        guard active else { return }
         feedback = runtime.reloadWidget()
     }
 
@@ -144,6 +156,14 @@ struct CarReadingsScreen: View {
                             ? "The reading this widget opened." : "Refreshed reading. The original widget record is retained below.")
                             .font(.subheadline).foregroundStyle(.secondary)
                     }
+                    Section {
+                        Image("CarPremium")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: 160)
+                            .accessibilityHidden(true)
+                    }
+                    readingSources(detail)
                 }
                 if model.status != .current {
                     Section("Reading availability") {
@@ -224,17 +244,22 @@ struct CarReadingsScreen: View {
     }
 
     @ViewBuilder private func readingSections(_ detail: CarDetailedReadings) -> some View {
+        ForEach(detail.cohorts) { cohort in
+            ForEach(cohort.sections) { section in
+                Section(cohort.attribution == .historical ? "\(cohort.title) · \(section.title)" : section.title) {
+                    ForEach(section.rows) { readingRow($0) }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder private func readingSources(_ detail: CarDetailedReadings) -> some View {
         Section("Reading source") {
             ForEach(detail.sourceRows) { readingRow($0) }
             Text(detail.sourceNote).font(.subheadline).foregroundStyle(.secondary)
         }
         ForEach(detail.cohorts) { cohort in
             Section(cohort.title) { ForEach(cohort.sourceRows) { readingRow($0) } }
-            ForEach(cohort.sections) { section in
-                Section(cohort.attribution == .historical ? "\(cohort.title) · \(section.title)" : section.title) {
-                    ForEach(section.rows) { readingRow($0) }
-                }
-            }
         }
     }
 
@@ -288,7 +313,14 @@ struct CarReadingsScreen: View {
         case .explanationOnly: "This widget had no identified vehicle. Connect or check Home Assistant, then refresh the widget and open its new reading."
         case .configurationChanged: "The Home Assistant connection or widget vehicle changed. \(recordDescription) Refresh and Open Tesla are unavailable for this old route."
         case .targetUnavailable: "The current widget vehicle can't be verified. \(recordDescription) Refresh the widget and open its new reading."
-        case .storageUnavailable: "The shared settings or readings couldn't be read. Reopen Hearth and check Home Assistant settings."
+        case .storageUnavailable:
+            if model.unsavedWidgetReading {
+                "This widget reading couldn't be saved. Refresh the widget, then open its new reading."
+            } else if model.corruptedTicket {
+                "This saved widget reading is damaged or unsupported. Refresh the widget and open its new reading."
+            } else {
+                "The shared settings or readings couldn't be read. Reopen Hearth and check Home Assistant settings."
+            }
         case .expired: "This widget reading has expired. Refresh the widget and open its new reading."
         case .unavailable: "This widget reading is no longer available. Refresh the widget and open its new reading."
         case .superseded: "This read was superseded. Refresh the widget and open its new reading."

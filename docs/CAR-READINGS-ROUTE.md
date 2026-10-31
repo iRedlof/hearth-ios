@@ -4,7 +4,7 @@
 
 ## What changed
 
-`CarReadingsTicket` freezes the coherent Car envelope that a widget entry will open. It contains the exact account scope, verified Home Assistant vehicle prefix, raw current/history readings, their actual observation times and complete read failure. It has a random UUID and a fixed lifetime of at most 48 hours. It contains no connection configuration or credentials. Only its opaque UUID travels through `CarReadingsIntent`.
+`CarReadingsTicket` freezes the coherent Car envelope that a widget entry will open. It contains the exact account scope, verified Home Assistant vehicle prefix, raw current/history readings, their actual observation times and complete read failure. It has a random UUID and a fixed lifetime of at most 48 hours. It contains no connection configuration or credentials. Only its opaque UUID travels through the widget URL or compatible `CarReadingsIntent`.
 
 `CarReadingsTicketStore` persists bounded records in the App Group: 128 records, 4 MiB aggregate and 128 KiB per record by default. It uses a permanent sidecar lock and atomic replacement. A same-ID/same-payload retry cannot extend expiry; a changed payload under an existing ID is rejected. Unknown, expired, corrupt and evicted records never fall back to the latest vehicle. A successful save retains the incoming record even after a clock rollback.
 
@@ -47,8 +47,7 @@ The native evidence uses real app screens, native HID taps/scrolls, original PNG
 
 ## Remaining work
 
-- Bind the production `CarEntry` to a persisted immutable ticket at the coherent timeline boundary. The current production Car widget and its actions are not wired to this destination yet.
-- Test real WidgetKit-to-app cold and warm intent execution. Direct fixture invocation of `CarReadingsIntent.perform()` proves only the in-app gate path.
+- Production `CarEntry` binding and receiving-scene URL handling are implemented and source-reviewed. Prove actual WidgetKit-to-app cold and warm delivery before accepting the route or replacing larger-text controls. Direct fixture invocation of `CarReadingsIntent.perform()` and supplementary URL delivery prove only their app ingress paths.
 - Finish native original-record disclosure, sheet replacement while work is pending, external-app/scene return, setup return and VoiceOver traversal. A Sign in again transition opens the real sign-in screen; no successful login or authentication persistence race is claimed.
 - Finish the reviewed full-destination presentation, including the Premium car image below the primary state, before replacing any production summary or removing ordinary actions.
 - Car reads now have bounded persisted lease recovery, verified with deterministic reopened-store tests. Actual app termination/relaunch recovery still needs native acceptance before the destination rollout.
@@ -65,8 +64,22 @@ Car discovery and exact-route reads now share a persisted 60-second lease. Exact
 
 `bindCarReadingsEntry` saves one ticket from the supplied coherent envelope before publishing its UUID. Construction/storage failure keeps the envelope's displayed snapshot and yields a stateless storage-unavailable destination. It never adopts a newer account, cache or existing ticket. Placeholder construction can explicitly produce an inert payload.
 
-The pure `hearth://car-readings/<UUID>` parser/encoder accepts only an opaque ticket or the reserved `unavailable` explanation, and emits no URL for inert entries. It rejects malformed authorities, credentials, ports, queries/fragments, escaped or extra path segments and unrelated authentication callbacks without consuming/logging them. App URL registration, scene handling and production provider binding are still pending.
+The pure `hearth://car-readings/<UUID>` parser/encoder accepts only an opaque ticket or the reserved `unavailable` explanation, and emits no URL for inert entries. It rejects malformed authorities, credentials, ports, queries/fragments, escaped or extra path segments and unrelated authentication callbacks without consuming/logging them. The subsequent integration registers the scheme and wires the provider to the receiving scene.
 
 The exact stable prerequisite source passed **580 HearthKit tests, zero failures and zero warning/error diagnostics**. Independent task reviews passed both specification and quality: 59 lease/store tests and 62 entry/URL/ticket/store tests. Thirty-one additional malformed URL inputs produced no unexpected acceptance. Meaningful RED evidence preceded implementation. Existing success/cancellation/ETA fixtures use explicit issuance clocks within the active lease; separate boundary tests verify exclusive expiry at 60 seconds.
 
-These are core source tests and source reviews, not new app/WidgetKit captures. Earlier V1/V2/V3 native images remain frozen at their own build hashes. Production entry/scene wiring, explicit sample isolation, a private DEBUG actual WidgetKit launch probe, complete destination/return/VoiceOver acceptance, other widget routes and the wider performance/release gates remain open.
+These prerequisite results are core tests and source reviews, not new app/WidgetKit captures. Earlier V1/V2/V3 native images remain frozen at their own build hashes.
+
+## Provider and scene integration — 31 October 2026
+
+Both production Car provider callbacks now publish the coherent saved entry through one loader. The original dashboard snapshot path remains unchanged. Placeholder, preview, parity and gallery Car content is explicitly inert: it constructs no Car refresh/setup intent or Tesla link and issues no live ticket. A DEBUG generation token prevents an old live entry regaining its URL or controls after parity is activated and deactivated.
+
+The real Car card carries its opaque URL inside the production content closure. The receiving scene decodes that URL locally and shares presentation with the compatible intent. Save failure opens a stateless explanation with Refresh widget, Settings and Close; it performs no record or current-car lookup and has no exact Refresh or Tesla action.
+
+The full readings sheet places the primary state and Premium car image before bound source context, actual dates and controls. Settings exposes Back to car readings; controlled and ordinary reconnect Cancel/Complete return through a fresh screen event for the original destination. A Car-origin reconnect currently disables interactive dismissal and keeps visible Cancel. Ordinary reconnect remains dismissible. This bounded fallback was independently reviewed; it is not a gesture-return pass. An attempted generic dismissal callback failed ownership review and was removed before acceptance.
+
+The stable integration's full HearthKit suite passed **591 tests with zero failures and zero compiler diagnostics**. Independent provider/scene specification and quality reviews passed. Signed Debug and Release simulator builds, including the explicit-return fallback, succeeded without compiler warnings. Both built app plists retain the `hearth` route, bundle/version, scene, launch-screen and Face ID metadata. Simulator App Group entitlements were checked separately from code-sign entitlements. Four DEBUG fixture selectors are absent from the Release executable.
+
+New controlled app captures and native command records are retained under `/tmp/hearth-ios-car-integration/` with separate source/build manifests, including the Debug implementation dylibs. They are separate candidates from the earlier gallery images. Native checks, test-driver failures and their actual scope must be reported per candidate; this source/build result does not establish WidgetKit launch, VoiceOver, successful authentication or Tesla handoff.
+
+A private persisted DEBUG actual WidgetKit probe, complete destination/return/accessibility acceptance, other widget routes and wider performance/release gates remain open. No version bump or release is claimed.

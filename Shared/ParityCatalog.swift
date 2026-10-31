@@ -29,8 +29,18 @@ struct ParityWidgetSelection: Sendable {
     nonisolated static func activeWidgetID(prefix: String) -> String? {
         widgetSelection(prefix: prefix)?.id
     }
+    /// Independent of HA configuration: an old live entry cannot regain actions after a capture.
+    nonisolated static func widgetInteractionGeneration() -> UUID {
+        if let value = fixtureStore.string(forKey: "parityWidgetInteractionGeneration"),
+           let generation = UUID(uuidString: value) { return generation }
+        let generation = UUID()
+        fixtureStore.set(generation.uuidString, forKey: "parityWidgetInteractionGeneration")
+        fixtureStore.synchronize()
+        return generation
+    }
     static func activateWidget(_ id: String) {
         guard view(id) != nil, let prefix = id.split(separator: "-").first else { return }
+        fixtureStore.set(UUID().uuidString, forKey: "parityWidgetInteractionGeneration")
         fixtureStore.removeObject(forKey: "parityWidgetRendered")
         let arguments = ProcessInfo.processInfo.arguments
         let run: String
@@ -44,6 +54,7 @@ struct ParityWidgetSelection: Sendable {
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.\(prefix)")
     }
     static func deactivateWidget() {
+        fixtureStore.set(UUID().uuidString, forKey: "parityWidgetInteractionGeneration")
         fixtureStore.removeObject(forKey: "parityWidgetState")
         fixtureStore.removeObject(forKey: "parityWidgetRendered")
         fixtureStore.removeObject(forKey: "parityWidgetRun")
@@ -121,7 +132,9 @@ struct ParityWidgetSelection: Sendable {
 
     // MARK: Car
     private static func car() -> [(String, AnyView)] {
-        CarParityInputs.states.map { ("car-" + $0, AnyView(CarBeaconView(CarParityInputs.snapshot($0)))) }
+        CarParityInputs.states.map {
+            ("car-" + $0, AnyView(CarBeaconView(CarParityInputs.snapshot($0), interactionMode: .inert)))
+        }
     }
 
     // MARK: ChargePoint

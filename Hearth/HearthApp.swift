@@ -70,12 +70,14 @@ struct ContentView: View {
     @ObservedObject private var haSetup = HaSetupGate.shared
     @ObservedObject private var carReadings = CarReadingsGate.shared
     @State private var presentedSheet: HearthSheet?
+    @State private var settingsCarReturn: CarReadingsRequest?
     @State private var signOutError: String?
     private let carReadingsRuntime: CarReadingsRuntime
     private let inertTabs: Bool
 
-    init(carReadingsRuntime: CarReadingsRuntime = .live, inertTabs: Bool = false) {
+    init(carReadingsRuntime: CarReadingsRuntime? = nil, inertTabs: Bool = false) {
         self.carReadingsRuntime = carReadingsRuntime
+            ?? (inertTabs ? CarReadingsRuntime(tickets: nil, state: nil) : .live)
         self.inertTabs = inertTabs
         _config = State(initialValue: inertTabs ? nil : HaConfigStore.load())
     }
@@ -136,29 +138,44 @@ struct ContentView: View {
         .onChange(of: cpSetup.route, initial: true) {
             guard let route = cpSetup.route else { return }
             cpSetup.route = nil
+            settingsCarReturn = nil
             presentedSheet = .chargepoint(route, UUID())
         }
         .onChange(of: carReadings.request, initial: true) {
             guard let request = carReadings.request else { return }
             carReadings.request = nil
-            presentedSheet = .car(request)
+            presentCarReadings(request)
+        }
+        .onOpenURL { url in
+            guard let destination = carReadingsDestination(from: url) else { return }
+            presentCarReadings(CarReadingsRequest(destination: destination))
         }
         .onChange(of: haSetup.request, initial: true) {
             guard haSetup.request != nil else { return }
             haSetup.request = nil
-            config = HaConfigStore.load()
+            settingsCarReturn = nil
+            if !inertTabs { config = HaConfigStore.load() }
             if haSetup.reconnect {
-                presentedSheet = .reconnect(UUID())
+                presentedSheet = .reconnect(UUID(), returningTo: nil)
             } else {
                 presentedSheet = nil
-                selection = config?.hasAuth == true ? 1 : 0
+                selection = (inertTabs || config?.hasAuth == true) ? 1 : 0
             }
         }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .chargepoint(let route, _):
                 NavigationStack {
-                    if route == .signin {
+                    if inertTabs {
+                        ControlledSetupScreen(title: "Controlled ChargePoint setup",
+                            onCancel: {
+                                guard presentedSheet?.id == sheet.id else { return }
+                                presentedSheet = nil
+                            }, onComplete: {
+                                guard presentedSheet?.id == sheet.id else { return }
+                                presentedSheet = nil
+                            })
+                    } else if route == .signin {
                         CpSignInView(onSignedIn: {
                             guard presentedSheet?.id == sheet.id else { return }
                             presentedSheet = nil
@@ -170,23 +187,26 @@ struct ContentView: View {
                         })
                     }
                 }
-            case .reconnect:
+                .id(sheet.id)
+            case .reconnect(_, let original):
                 NavigationStack {
-                    SignInView(initialURL: config?.baseUrl) {
-                        guard presentedSheet?.id == sheet.id else { return }
-                        config = HaConfigStore.load()
-                        selection = 0
-                        presentedSheet = nil
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                guard presentedSheet?.id == sheet.id else { return }
-                                presentedSheet = nil
+                    if inertTabs {
+                        ControlledSetupScreen(title: "Controlled Home Assistant reconnect",
+                            onCancel: { finishReconnect(sheet, completed: false) },
+                            onComplete: { finishReconnect(sheet, completed: true) })
+                    } else {
+                        SignInView(initialURL: config?.baseUrl) {
+                            finishReconnect(sheet, completed: true)
+                        }
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") { finishReconnect(sheet, completed: false) }
                             }
                         }
                     }
                 }
+                .id(sheet.id)
+                .interactiveDismissDisabled(original != nil)
             case .car(let request):
                 CarReadingsScreen(request: request, runtime: carReadingsRuntime,
                     onClose: {
@@ -195,17 +215,38 @@ struct ContentView: View {
                     },
                     onSettings: {
                         guard presentedSheet?.id == sheet.id else { return }
-                        config = HaConfigStore.load()
+                        if !inertTabs { config = HaConfigStore.load() }
+                        settingsCarReturn = request
                         selection = 1
                         presentedSheet = nil
                     },
                     onReconnect: {
                         guard presentedSheet?.id == sheet.id else { return }
-                        config = HaConfigStore.load()
-                        presentedSheet = .reconnect(UUID())
+                        if !inertTabs { config = HaConfigStore.load() }
+                        settingsCarReturn = nil
+                        presentedSheet = .reconnect(UUID(), returningTo: request)
                     })
                 .id(request.id)
             }
+        }
+    }
+
+    /// URL delivery remains local to this scene; compatible intent delivery shares this sink.
+    private func presentCarReadings(_ request: CarReadingsRequest) {
+        guard request.destination != .inert else { return }
+        settingsCarReturn = nil
+        presentedSheet = .car(request)
+    }
+
+    private func finishReconnect(_ sheet: HearthSheet, completed: Bool) {
+        guard presentedSheet?.id == sheet.id,
+              case .reconnect(_, let original) = sheet else { return }
+        if completed, !inertTabs { config = HaConfigStore.load() }
+        if let original {
+            presentCarReadings(original.reopened())
+        } else {
+            if completed { selection = 0 }
+            presentedSheet = nil
         }
     }
 
@@ -227,10 +268,27 @@ struct ContentView: View {
     }
 
     @ViewBuilder private var settingsTab: some View {
-        if inertTabs { Text("Controlled Car route fixture · Settings tab") }
-        else {
-            SettingsView(config: config, onChange: { config = $0 })
-                .id(HaConfigStore.requestScope())
+        Group {
+            if inertTabs { Text("Controlled Car route fixture · Settings tab") }
+            else {
+                SettingsView(config: config, onChange: { config = $0 })
+                    .id(HaConfigStore.requestScope())
+            }
+        }
+        .safeAreaInset(edge: .top) {
+            if let original = settingsCarReturn {
+                Button {
+                    guard settingsCarReturn?.id == original.id else { return }
+                    presentCarReadings(original.reopened())
+                } label: {
+                    Label("Back to car readings", systemImage: "car")
+                        .font(.body.weight(.semibold))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }
+                .padding(.horizontal)
+                .background(.regularMaterial)
+            }
         }
     }
 
@@ -251,13 +309,41 @@ struct ContentView: View {
 
 private enum HearthSheet: Identifiable {
     case chargepoint(CpSetupRoute, UUID)
-    case reconnect(UUID)
+    case reconnect(UUID, returningTo: CarReadingsRequest?)
     case car(CarReadingsRequest)
     var id: String {
         switch self {
         case .chargepoint(_, let id): "chargepoint:\(id)"
-        case .reconnect(let id): "reconnect:\(id)"
+        case .reconnect(let id, _): "reconnect:\(id)"
         case .car(let request): "car:\(request.id)"
+        }
+    }
+}
+
+/// Controlled setup transitions never create an authentication coordinator or touch real config.
+private struct ControlledSetupScreen: View {
+    let title: String
+    let onCancel: () -> Void
+    let onComplete: () -> Void
+
+    var body: some View {
+        Form {
+            Section {
+                Text(title).font(.headline)
+                Text("Controlled data only. This screen does not sign in or change Home Assistant or ChargePoint settings.")
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Section {
+                Button("Complete controlled return", action: onComplete)
+                    .frame(minHeight: 44)
+            }
+        }
+        .navigationTitle("Controlled setup")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Cancel", action: onCancel).frame(minHeight: 44)
+            }
         }
     }
 }

@@ -2,12 +2,6 @@ import AppIntents
 import SwiftUI
 import HearthKit
 
-struct CarReadingsRequest: Identifiable, Equatable {
-    let id = UUID()
-    let ticketID: UUID?
-    init(identifier: String) { ticketID = UUID(uuidString: identifier) }
-}
-
 @MainActor final class CarReadingsGate: ObservableObject {
     static let shared = CarReadingsGate()
     @Published var request: CarReadingsRequest?
