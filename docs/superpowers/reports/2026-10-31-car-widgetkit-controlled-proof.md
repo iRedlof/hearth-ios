@@ -61,8 +61,27 @@ Source manifest SHA256: `2cb0355899ddf22585fb158fb6891f841b523a493e0415583523d78
 
 Debug build manifest SHA256: `c8e76a0ba03c1433f8ad83d84ef64e9612f9defea1cfacd5c29095d4bea396de`.
 
+## Settings S1/S2 supplement
+
+The separate frozen Settings tranche is at `/tmp/hearth-ios-car-widget-probe/native-fresh-pro-settings-v1/`. It used source commit `8d0a9cceb9b5d8176e691520041fd4911553bb09` and the same installed signed v3 app/extension binaries. Source inventories and all eight runtime artifact hashes remain unchanged; this tranche required no rebuild.
+
+The existing widgets published newer timeline entries before these checks. Their exact identities differ from the earlier v3 cases:
+
+| Slot | Entry UUID | Ticket UUID | Whole-ticket digest | Battery |
+| --- | --- | --- | --- | --- |
+| A | `07A1272E-9ED1-452F-8C99-9C5975DB2FAF` | `8F0C2E68-5A7C-4227-8D46-CC4B931B910B` | `a99cc5abc7d261030dd5e0b918db4fd8f720ed1e41019ec0296c82a186d62353` | 79% |
+| B | `51A0316B-25D0-4873-877F-7932F2E37594` | `A1360006-A4B2-4C92-974F-EC51FC72939C` | `d49669670ddb4a690d4c29c94aa7085e9d1e86e4334488d01dc16dcc13009378` | 44% |
+
+**S1 — bounded pass.** An actual Home Screen A widget tap opened request `74029209-EE35-4967-BF7D-0B3BB3449DD5`. Native “Home Assistant settings” and “Back to car readings” actions returned the same entry, ticket, digest and original 79% reading under fresh request `FCFD6A19-4437-4F59-BA98-F07B95483CB2`. This was an internal return following WidgetKit ingress.
+
+**S2 — bounded pass.** A second A opening left its return pending in Settings. An actual B widget tap then opened B's exact 44% record under request `99F1791C-E6CB-4D5F-98F4-415D2A16D391`. Closing B and subsequently tapping the native Home Screen app icon left Settings without A's old return action or a restored readings sheet. No S2 `settingsReturned` event occurred. This demonstrates observed return-context invalidation; no inaccessible stale callback was injected.
+
+Independent audit verified all **83** manifest files, **24** native PNG/AX provenance pairs, and **17** receipt deltas. The **21** copied receipts include those deltas plus four provider/render records for the newer entries. Canonical saved-ticket digests match the loaded records. Neither opening nor the internal return triggered a refresh.
+
+Both cases used ordinary native text size and an inert controlled Settings tab on the same simulator/run. They establish no live Settings mutation, account/prefix revalidation, reconnect, AX5, VoiceOver, or delayed-success coverage. The remaining acceptance gates below stay open.
+
 ## Open acceptance gates
 
-Uncooperative delayed success after B; exact Settings/reconnect probe returns; native process-death lease recovery; complete unavailable/setup/auth/expiry/eviction/corruption/selector cases; all 32 fields/actions at uncapped AX5; actual VoiceOver; production controls and adaptive summary; live authentication and successful Tesla handoff; all-ten-widget native acceptance; Android performance; physical-device provisioning and release readiness.
+Uncooperative delayed success after B and unobserved stale callbacks; remaining Settings return cases including mutated account/prefix revalidation; reconnect return matrix; native process-death lease recovery; complete unavailable/setup/auth/expiry/eviction/corruption/selector cases; all 32 fields/actions at uncapped AX5; actual VoiceOver; production controls and adaptive summary; live authentication and successful Tesla handoff; all-ten-widget native acceptance; Android performance; physical-device provisioning and release readiness.
 
 The Android performance candidate remains failed. There is no version bump, release or platform-parity completion claim in this tranche.
