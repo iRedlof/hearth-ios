@@ -135,7 +135,8 @@ public func carFromTemplate(_ json: String?) -> Car? {
     let openKnown =
         ["front_driver", "front_passenger", "rear_driver", "rear_passenger"].allSatisfy { ["on", "off"].contains(raw("binary_sensor.\($0)_door") ?? "") } &&
         ["frunk", "trunk", "windows"].allSatisfy { ["open", "closed"].contains(raw("cover.\($0)") ?? "") } &&
-        (plugged || ["open", "closed"].contains(raw("cover.charge_port_door") ?? ""))
+        (plugged || raw("cover.charge_port_door") == "closed" ||
+            (pluggedKnown && raw("cover.charge_port_door") == "open"))
 
     let statusSince = (o["statusSince"] as? String).flatMap { $0.isEmpty || $0 == "null" ? nil : $0 }
 

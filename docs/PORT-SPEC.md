@@ -246,7 +246,8 @@ fun carFromTemplate(json: String?): Car? {
         openKnown = listOf("front_driver", "front_passenger", "rear_driver", "rear_passenger")
             .all { raw("binary_sensor.${it}_door") in setOf("on", "off") } &&
             listOf("frunk", "trunk", "windows").all { raw("cover.$it") in setOf("open", "closed") } &&
-            (plugged || raw("cover.charge_port_door") in setOf("open", "closed")),
+            (plugged || raw("cover.charge_port_door") == "closed" ||
+                (pluggedKnown && raw("cover.charge_port_door") == "open")),
         preciseTires = listOf("front_left", "front_right", "rear_left", "rear_right")
             .map { num("sensor.tire_pressure_$it") }.takeIf { it.all { n -> n != null && n.isFinite() } }?.filterNotNull(),
         preciseInside = num("sensor.inside_temperature"),
@@ -263,7 +264,7 @@ fun carFromTemplate(json: String?): Car? {
 - `locked`: `"locked"`→true; `"unlocked"`/`"open"`→false; **everything else (incl. `"locking"`, unknown)→null**.
 - `plugged` = cable sensor `== "on"`. `pluggedKnown` = cable in `{"on","off"}`.
 - `open` list order is fixed: Door, Frunk, Trunk, Windows, Charge port. "Charge port" only when open **and** `pluggedKnown && !plugged` (an open port while plugged is expected, not flagged).
-- `openKnown`: true only when **all four doors** are `on`/`off` **and** frunk/trunk/windows are `open`/`closed` **and** (`plugged` OR charge-port is `open`/`closed`).
+- `openKnown`: true only when **all four doors** are `on`/`off` **and** frunk/trunk/windows are `open`/`closed` **and** (cable is confirmed connected OR charge-port is confirmed closed OR charge-port is open with cable state confirmed). An open port with unknown cable state cannot produce `All shut`; a confirmed closed port remains known even when cable state is unknown. The existing connected-cable exception still excludes the expected open charging port from warnings.
 - `place`: `"home"`→`"Home"`, `"not_home"`→`"Away"`, else title-cased first char, null if unknown.
 - `addedKwh`: rounded to 1 decimal via `Math.round(x*10)/10.0`.
 - `climateOn`: null if unknown, else `(state != "off")`.
