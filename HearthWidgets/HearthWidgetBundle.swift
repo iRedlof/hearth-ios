@@ -53,7 +53,7 @@ struct BatteryWidget: Widget {
         }
         .configurationDisplayName("Batteries")
         .description("Every battery you replace, lowest first.")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies(WidgetPreviewKind.battery.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -93,7 +93,7 @@ struct ActivityWidget: Widget {
         }
         .configurationDisplayName("Activity")
         .description("Recent home events — doors, locks, alarm.")
-        .supportedFamilies([.systemLarge])
+        .supportedFamilies(WidgetPreviewKind.activity.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -133,7 +133,7 @@ struct LightsWidget: Widget {
         }
         .configurationDisplayName("Lights")
         .description("Lights that are on, plus your always-show favourites.")
-        .supportedFamilies([.systemLarge])
+        .supportedFamilies(WidgetPreviewKind.lights.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -173,7 +173,7 @@ struct QuickWidget: Widget {
         }
         .configurationDisplayName("Quick")
         .description("Run your scripts and scenes.")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies(WidgetPreviewKind.quick.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -213,7 +213,7 @@ struct FavouritesWidget: Widget {
         }
         .configurationDisplayName("Favourites")
         .description("Your pinned switches, lights, fans and scripts.")
-        .supportedFamilies([.systemLarge])
+        .supportedFamilies(WidgetPreviewKind.favourites.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -253,7 +253,7 @@ struct DoorsWidget: Widget {
         }
         .configurationDisplayName("Doors")
         .description("Doors, garages and the front-door lock.")
-        .supportedFamilies([.systemLarge])
+        .supportedFamilies(WidgetPreviewKind.doors.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -300,7 +300,7 @@ struct CarWidget: Widget {
         }
         .configurationDisplayName("Car")
         .description("Your car's battery, doors, and charge at a glance.")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies(WidgetPreviewKind.car.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -345,7 +345,7 @@ struct AlarmWidget: Widget {
         }
         .configurationDisplayName("Home Alarm")
         .description("Your alarm state and front door at a glance.")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies(WidgetPreviewKind.alarm.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -389,7 +389,7 @@ struct ThermostatWidget: Widget {
         }
         .configurationDisplayName("Thermostat")
         .description("Your thermostat's temperature and setpoints at a glance.")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies(WidgetPreviewKind.thermostat.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }
@@ -436,7 +436,7 @@ struct ChargePointWidget: Widget {
         }
         .configurationDisplayName("ChargePoint")
         .description("Your ChargePoint site, waitlist, and charging at a glance.")
-        .supportedFamilies([.systemMedium])
+        .supportedFamilies(WidgetPreviewKind.chargepoint.widgetKitFamilies)
         .contentMarginsDisabled()
     }
 }

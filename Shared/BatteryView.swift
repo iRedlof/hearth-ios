@@ -7,12 +7,17 @@ import HearthKit
 public struct BatteryView: View {
     public let snap: BatterySnapshot
     @Environment(\.widgetFamily) private var family
+    private let layoutFamily: WidgetFamily?
     @ScaledMetric(relativeTo: .body) private var rowFont = 13.0
     @ScaledMetric(relativeTo: .caption) private var labelFont = 12.0
     @ScaledMetric(relativeTo: .title2) private var headlineFont = 25.0
-    public init(_ snap: BatterySnapshot) { self.snap = snap }
+    /// In-app previews specify their layout family; Home Screen widgets use WidgetKit's environment.
+    public init(_ snap: BatterySnapshot, layoutFamily: WidgetFamily? = nil) {
+        self.snap = snap
+        self.layoutFamily = layoutFamily
+    }
 
-    private var compact: Bool { family == .systemMedium }
+    private var compact: Bool { (layoutFamily ?? family) == .systemMedium }
     private var tone: DoorsTone { snap.state == .failed ? .unknown : snap.summary.tone }
     private var fill: Color { Color(argb: tone.fillARGB) }
     private var ink: Color { Color(argb: tone.inkARGB) }

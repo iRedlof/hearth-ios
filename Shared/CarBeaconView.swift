@@ -17,58 +17,73 @@ public struct CarBeaconView: View {
     public var body: some View {
         GeometryReader { geo in
             let s = beaconSplit(width: geo.size.width)   // Android rail is ~37%, not 50%
-            HStack(spacing: 0) {
-                left.frame(width: s.rail)
-                right.frame(maxWidth: .infinity)
+            let compact = geo.size.height < 165
+            HStack(alignment: .top, spacing: 0) {
+                left(compact: compact)
+                    .frame(width: s.rail, height: geo.size.height, alignment: .topLeading)
+                right(compact: compact)
+                    .frame(width: geo.size.width - s.rail, height: geo.size.height, alignment: .topLeading)
             }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
     }
 
     // MARK: Left — light mint status panel
-    private var left: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: "car.fill").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
-            HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Text(snap.battery.map(String.init) ?? "—").font(.system(size: 34, weight: .heavy)).tracking(-1.2)
-                if snap.battery != nil { Text("%").font(.system(size: 15, weight: .heavy)) }
-            }.foregroundStyle(ink).padding(.top, 1)
+    private func left(compact: Bool) -> some View {
+        // At 155pt: 41 hero + 15 range + 3 divider + 5×16 readings + 14 padding = 153pt.
+        let rowHeight: CGFloat = compact ? 16 : 17
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: 2) {
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text(snap.battery.map(String.init) ?? "—").font(.system(size: 34, weight: .heavy)).tracking(-1.2)
+                    if snap.battery != nil { Text("%").font(.system(size: 15, weight: .heavy)) }
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "car.fill").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
+            }
+            .foregroundStyle(ink).frame(height: 41, alignment: .leading)
             Text(snap.range).font(.system(size: 12, weight: .medium)).foregroundStyle(ink)
-            Rectangle().fill(ink.opacity(0.26)).frame(height: 1).padding(.top, 4).padding(.bottom, 1)
-            statusRow("Lock", snap.lock, snap.lockWarn)
-            statusRow("Doors", snap.doors, snap.doorsWarn)
-            statusRow("Cabin", snap.cabin, false)
-            statusRow("Outside", snap.outside, false)
-            statusRow("Tires", snap.tires, snap.tiresWarn)
+                .lineLimit(1).frame(height: compact ? 15 : 16, alignment: .leading)
+            Rectangle().fill(ink.opacity(0.26)).frame(height: 1)
+                .padding(.vertical, compact ? 1 : 2)
+            statusRow("Lock", snap.lock, snap.lockWarn, height: rowHeight)
+            statusRow("Doors", snap.doors, snap.doorsWarn, height: rowHeight)
+            statusRow("Cabin", snap.cabin, false, height: rowHeight)
+            statusRow("Outside", snap.outside, false, height: rowHeight)
+            statusRow("Tires", snap.tires, snap.tiresWarn, height: rowHeight)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12).padding(.vertical, 11)
+        .padding(.horizontal, 12).padding(.vertical, compact ? 7 : 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
-    private func statusRow(_ key: String, _ value: String, _ warn: Bool) -> some View {
-        HStack(spacing: 3) {
-            Text(key).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1).minimumScaleFactor(0.8)
-            Spacer(minLength: 2)
-            Text(value).font(.system(size: 12.5, weight: warn ? .heavy : .bold)).foregroundStyle(ink)
-                .underline(warn).lineLimit(1).minimumScaleFactor(0.8)
-        }.padding(.vertical, 1.5)
+    private func statusRow(_ key: String, _ value: String, _ warn: Bool, height: CGFloat) -> some View {
+        HStack(spacing: 1) {
+            Text(key).font(.system(size: 13)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+            Spacer(minLength: 0)
+            Text(value).font(.system(size: 13, weight: warn ? .heavy : .bold)).foregroundStyle(ink)
+                .underline(warn).lineLimit(1).minimumScaleFactor(0.9)
+        }.frame(height: height)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(key), \(value)")
     }
 
     // MARK: Right — dark graphite panel
-    private var right: some View {
+    private func right(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
                 Text(snap.name).font(.system(size: 18, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.car", ink: surfaceInk)
             }
+            .frame(height: 26, alignment: .top)
             Text(snap.place).font(.system(size: 12.5)).foregroundStyle(surfaceInk)
-                .lineLimit(1).minimumScaleFactor(0.72).padding(.top, 3)
-            // Car photo — enlarged to fill the space freed by moving Sentry onto the charge line.
+                .lineLimit(1).minimumScaleFactor(0.72).frame(height: 15, alignment: .leading).padding(.top, 2)
+            // The photo takes the remaining height; readings and the footer retain their own rows.
             Image("CarPremium").resizable().scaledToFit()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.horizontal, -20).padding(.vertical, 0)
+                .layoutPriority(-1)
             chargeBar.frame(height: 7)
             // Unplugged (left) + Sentry on/off (right-aligned) share one line — frees a row for the photo.
             HStack(spacing: 6) {
@@ -80,10 +95,10 @@ public struct CarBeaconView: View {
                     Image(systemName: "lock.shield.fill").font(.system(size: 10.5))
                     Text(sentryText).font(.system(size: 12, weight: .medium))
                 }.foregroundStyle(sentryInk).lineLimit(1).minimumScaleFactor(0.85).fixedSize()
-            }.padding(.top, 3)
-            openTesla.padding(.top, 6)
+            }.frame(height: 16).padding(.top, 3)
+            openTesla.padding(.top, 5)
         }
-        .padding(.horizontal, 13).padding(.vertical, 11)
+        .padding(.horizontal, 13).padding(.top, compact ? 8 : 10).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }

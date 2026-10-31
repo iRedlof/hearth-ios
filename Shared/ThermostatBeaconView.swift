@@ -20,28 +20,41 @@ public struct ThermostatBeaconView: View {
     public var body: some View {
         GeometryReader { geo in
             let s = beaconSplit(width: geo.size.width)   // Android rail is ~37%, not 50%
-            HStack(spacing: 0) {
-                left.frame(width: s.rail)
-                right.frame(maxWidth: .infinity)
+            let compact = geo.size.height < 165
+            HStack(alignment: .top, spacing: 0) {
+                left(compact: compact)
+                    .frame(width: s.rail, height: geo.size.height, alignment: .topLeading)
+                right(compact: compact)
+                    .frame(width: geo.size.width - s.rail, height: geo.size.height, alignment: .topLeading)
             }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
         }
     }
 
     // MARK: Left — readings
-    private var left: some View {
+    private func left(compact: Bool) -> some View {
+        // At 155pt with humidity and all three sensors: 43+15+15+15+3+3×16+14 = 153pt.
         VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: "thermometer.medium").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
-            Text(snap.roomTemp).font(.system(size: 36, weight: .heavy)).tracking(-1).foregroundStyle(ink).padding(.top, 1)
-            Text(snap.roomSub).font(.system(size: 12, weight: .medium)).foregroundStyle(ink)
-            if let h = snap.humidity {
-                Text(h).font(.system(size: 11)).foregroundStyle(ink.opacity(0.82)).lineLimit(1).minimumScaleFactor(0.8)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(snap.roomTemp).font(.system(size: 36, weight: .heavy)).tracking(-1).foregroundStyle(ink)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "thermometer.medium").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
             }
-            Text(snap.commandFeedback ?? snap.status).font(.system(size: 11)).foregroundStyle(ink.opacity(0.82)).lineLimit(1).minimumScaleFactor(0.75)
+            .frame(height: 43, alignment: .leading)
+            Text(snap.roomSub).font(.system(size: 12, weight: .medium)).foregroundStyle(ink)
+                .lineLimit(1).frame(height: 15, alignment: .leading)
+            if let h = snap.humidity {
+                Text(h).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+                    .frame(height: 15, alignment: .leading)
+            }
+            Text(snap.commandFeedback ?? snap.status).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+                .frame(height: 15, alignment: .leading)
                 .accessibilityLabel(snap.commandError ?? snap.error ?? snap.commandFeedback ?? snap.status)
-            Rectangle().fill(ink.opacity(0.26)).frame(height: 1).padding(.top, 4).padding(.bottom, 1)
+            Rectangle().fill(ink.opacity(0.26)).frame(height: 1).padding(.vertical, compact ? 1 : 2)
             ForEach(snap.sensors.prefix(3), id: \.id) { s in
                 HStack(spacing: 3) {
-                    Text(s.name).font(.system(size: 11.5)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+                    Text(s.name).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                     Spacer(minLength: 2)
                     HStack(spacing: 2) {
                         if s.stale {
@@ -49,19 +62,19 @@ public struct ThermostatBeaconView: View {
                         }
                         Text(s.value).font(.system(size: 12, weight: .bold)).foregroundStyle(ink).lineLimit(1)
                     }.layoutPriority(1)
-                }.padding(.vertical, 0.5)
+                }.frame(height: compact ? 16 : 17)
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel("\(s.name), \(s.value)\(s.stale ? ", last known" : "")")
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12).padding(.vertical, 11)
+        .padding(.horizontal, 12).padding(.vertical, compact ? 7 : 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
     // MARK: Right — controls
-    private var right: some View {
+    private func right(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
                 Text(snap.name).font(.system(size: 16, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
@@ -70,6 +83,7 @@ public struct ThermostatBeaconView: View {
                 // same as Alarm/Car/ChargePoint and Android — was a bespoke header (bare icon on the left).
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.thermostat", ink: surfaceInk)
             }
+            .frame(height: 26, alignment: .top)
             BeaconMiddle(maximumHeight: 92) { middleContent }
             if isSetup || snap.needsSettings {
                 connectButton
@@ -77,7 +91,7 @@ public struct ThermostatBeaconView: View {
                 controlRow
             }
         }
-        .padding(.horizontal, 13).padding(.top, 11).padding(.bottom, 6)
+        .padding(.horizontal, 13).padding(.top, compact ? 8 : 11).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }

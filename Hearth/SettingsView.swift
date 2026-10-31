@@ -39,6 +39,23 @@ struct SettingsView: View {
                     }
                 }
                 CpSettingsSection(runtime: runtime)
+                Section {
+                    NavigationLink {
+                        WidgetGalleryView()
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "square.grid.2x2")
+                                .font(.system(size: 20, weight: .regular))
+                                .symbolRenderingMode(.monochrome)
+                                .frame(width: 24, height: 24)
+                            Text("Widget previews").font(.body)
+                        }
+                        .frame(minHeight: 48)
+                    }
+                    .accessibilityIdentifier("settings.widgetPreviews")
+                } footer: {
+                    Text("Explore widget layouts with example data. No account connection is required.")
+                }
             }
             .navigationTitle("Settings")
             .accessibilityIdentifier("settings.root")
