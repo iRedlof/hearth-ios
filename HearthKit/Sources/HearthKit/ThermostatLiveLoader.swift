@@ -25,6 +25,55 @@ public struct ThermostatLiveLoader: Sendable {
             return thermostatEnvelope(accepted, now: now)
         } catch { return retaining(captured, recovery: .readingsNotSaved, now: now) }
     }
+    public func load(cause: ThermostatForegroundLoadCause, now: Date = .now) async -> ThermostatLiveEnvelope {
+        switch cause {
+        case .initialOrConfig, .cacheChanged, .chargepointSignIn: return cached(now: now)
+        case .dashboardRefresh, .thermostatRefresh: return await fetch(now: now)
+        }
+    }
+    public func cached(now: Date = .now) -> ThermostatLiveEnvelope {
+        guard let context = try? load(now) else { return thermostatStorageUnavailableEnvelope(now: now) }
+        return thermostatEnvelope(context, now: now)
+    }
+    /// A deliberate read owns its captured selection and callback lifetime at every await.
+    public func fetch(expectedSelection: ThermostatSelectionOrigin, previous: ThermostatLiveEnvelope?,
+                      isAuthorized: @escaping @Sendable () -> Bool,
+                      clock: @escaping @Sendable () -> Date = { .now }) async -> ThermostatLiveEnvelope {
+        let date = clock()
+        let fallback = previous ?? thermostatStorageUnavailableEnvelope(now: date)
+        guard let context = try? load(date) else {
+            return retaining(fallback, recovery: .sharedStoreUnavailable, now: date)
+        }
+        guard expectedSelection.matches(context), fallback.evidence.recovery != .selectionChanged else {
+            return retaining(fallback, recovery: .selectionChanged, now: date)
+        }
+        let captured = thermostatEnvelope(context, now: date)
+        guard captured.evidence.configuration == .ready, context.climateOperation?.pending != true else { return captured }
+        let revision = context.climateRevision
+        let authorized: @Sendable () -> Bool = {
+            guard !Task.isCancelled, isAuthorized(), let current = try? load(clock()) else { return false }
+            return expectedSelection.matches(current) && current.climateRevision == revision
+                && current.climateOperation?.pending != true
+        }
+        guard authorized(), let config = context.config else { return captured }
+        let client = HaClient(config)
+        let result = await fetchThermostatReadings(config, previous: context.readings, now: date, request: { id in
+            guard authorized() else { throw CancellationError() }
+            let json: String
+            if let request { json = try await request(id) }
+            else { json = try await client.stateJson(id, isAuthorized: authorized) }
+            guard authorized() else { throw CancellationError() }
+            return json
+        })
+        guard authorized() else { return retaining(captured, recovery: .selectionChanged, now: clock()) }
+        do {
+            guard let accepted = try merge(result, expectedSelection, revision, clock()),
+                  expectedSelection.matches(accepted), isAuthorized(), !Task.isCancelled else {
+                return retaining(captured, recovery: .selectionChanged, now: clock())
+            }
+            return thermostatEnvelope(accepted, now: clock())
+        } catch { return retaining(captured, recovery: .readingsNotSaved, now: clock()) }
+    }
     public func currentEnvelope(_ previous: ThermostatLiveEnvelope, now: Date = .now) -> ThermostatLiveEnvelope {
         // A retired or unbound opening cannot become today's selection by reconciliation.
         if previous.evidence.recovery == .selectionChanged { return previous }

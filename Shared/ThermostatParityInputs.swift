@@ -17,6 +17,54 @@ enum ThermostatParityInputs {
     private static let zone = TimeZone(identifier: "America/Los_Angeles")!
     private static let entityID = "climate.thermostat"
     private static let sensors = ["sensor.outside", "sensor.bedroom", "sensor.thermo"]
+    static let readableStates = states + [
+        "no_saved_reading", "unknown_unit", "no_context", "context_failed",
+        "shared_store_failed", "save_failed", "selection_changed", "auth_retained"
+    ]
+
+    /// Uses the real typed mapper, with no durable origin, saved ticket, or executable actions.
+    static func payload(_ state: String) -> ThermostatEntryPayload {
+        var readings: [String: HaStateReading] = [:]
+        let selected = state == "no_context" ? [] : sensors
+        if !["no_saved_reading", "first_failure", "setup"].contains(state) {
+            var raw = reply(state)
+            if state == "unknown_unit", var attributes = raw["attributes"] as? [String: Any] {
+                attributes.removeValue(forKey: "temperature_unit"); raw["attributes"] = attributes
+            }
+            readings[entityID] = reading(entityID, raw: raw)
+            for (id, name) in zip(selected, ["Outside", "Bedroom", "Thermo"]) {
+                readings[id] = reading(id, raw: ["entity_id": id, "state": state == "celsius" ? "8.25" : "48",
+                    "attributes": ["friendly_name": state == "long_names" ? name + " temperature sensor" : name,
+                        "unit_of_measurement": state == "celsius" ? "°C" : "°F"]])
+            }
+        }
+        var failures: [String: HaStateFailure] = [:]
+        if ["offline", "first_failure", "auth_failed", "bad_entity"].contains(state) {
+            let reason: HaReadingFailureReason = state == "auth_failed" ? .authentication
+                : state == "bad_entity" ? .entityNotFound : .transport
+            failures[entityID] = HaStateFailure(message: "Inert fixture failure", checkedAt: now, reason: reason)
+        }
+        if state == "context_failed" || state == "sensor_failed" {
+            let id = state == "context_failed" ? sensors[0] : sensors[1]
+            failures[id] = HaStateFailure(message: "Inert sensor failure", checkedAt: now, reason: .transport)
+        }
+        let operation: ClimateOperation?
+        if state.hasPrefix("pending_") || state == "failed_target" {
+            let action = state == "pending_mode" ? "mode" : state == "pending_fan" ? "fan"
+                : state == "pending_resume" ? "resume" : "heatUp"
+            operation = ClimateOperation(entityID: entityID, action: action, startedAt: now,
+                error: state == "failed_target" ? "Inert update failure" : nil)
+        } else { operation = nil }
+        let config = state == "setup" ? nil : HaConfig(baseUrl: "https://example.invalid",
+            token: state == "auth_retained" ? "" : "inert",
+            entityId: "", climateId: entityID, resumeId: state == "no_controls" ? "" : "button.resume",
+            sensorsJson: String(data: try! JSONEncoder().encode(selected), encoding: .utf8)!)
+        let recovery: ThermostatRecovery = state == "shared_store_failed" ? .sharedStoreUnavailable
+            : state == "save_failed" ? .readingsNotSaved : state == "selection_changed" ? .selectionChanged : .none
+        let envelope = thermostatEnvelope(HaStoreSnapshot(config: config, scope: "inert-example",
+            readings: readings, climateOperation: operation, failures: failures), now: now, recovery: recovery)
+        return ThermostatEntryPayload(date: now, envelope: envelope, destination: .inert)
+    }
 
     static func snapshot(_ state: String) -> ThermostatSnapshot {
         if state == "setup" { return ThermostatFetchResult(setup: true).snapshot(now: now) }
@@ -64,6 +112,7 @@ enum ThermostatParityInputs {
         let cooling = ["cooling", "auto_cooling"].contains(state)
         var attributes: [String: Any] = [
             "friendly_name": state == "long_names" ? "Upstairs bedroom thermostat" : "Thermostat",
+            "temperature_unit": state == "celsius" ? "°C" : "°F",
             "current_temperature": heating ? 65 : cooling ? 74 : 67,
             "current_humidity": 52, "temperature": heating ? 68 : cooling ? 70 : mode == "cool" ? 69 : 64,
             "target_temp_low": state == "auto_heating" || state == "auto_cooling" ? 68 : 64,

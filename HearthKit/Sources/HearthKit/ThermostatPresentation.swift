@@ -76,6 +76,115 @@ public struct ThermostatPresentation: Equatable, Sendable {
         return selectedSensorIDs.filter { !$0.isEmpty && !fetched.contains($0) && seen.insert($0).inserted }
     }
 }
+
+private func thermostatRoomIsHistorical(_ presentation: ThermostatPresentation) -> Bool {
+    presentation.room.availability == .lastKnown
+        || (presentation.room.value != nil && presentation.recovery != .none)
+}
+
+/// The focused card consumes typed observations; commands and typography belong to its host.
+public struct ThermostatFocusedContent: Equatable, Sendable {
+    public let room: ThermostatReadingFacet
+    public let roomAttribution: String
+    public let context: ThermostatReadingFacet?
+    public let mode: String
+    public let target: String?
+    public let recoveryTitle: String?
+    public let tone: BeaconTone
+    public let footerLabel: String
+}
+/// Card temperatures use nearest-tenth summaries; other numeric sensors retain three significant
+/// digits. Raw accessibility and the destination retain up to seventeen significant digits.
+public func thermostatFocusedNumberText(_ reading: ThermostatReadingFacet, summary: Bool,
+                                        locale: Locale = .current) -> String? {
+    guard case let .number(number) = reading.value else { return nil }
+    if summary {
+        if reading.source == .homeAssistantClimate || ["°C", "°F", "K"].contains(reading.reportedUnit ?? "") {
+            return thermostatSummaryTemperature(number)
+                .formatted(.number.precision(.fractionLength(0...1)).grouping(.never).locale(locale))
+        }
+        return number.formatted(.number.precision(.significantDigits(1...3)).grouping(.never).locale(locale))
+    }
+    return number.formatted(.number.precision(.significantDigits(1...17)).grouping(.never).locale(locale))
+}
+private func thermostatSummaryTemperature(_ number: Double) -> Double {
+    let scaled = number * 10
+    guard scaled.isFinite else { return number }
+    let rounded = scaled.rounded() / 10
+    return rounded == 0 ? 0 : rounded
+}
+public func thermostatFocusedReadingAccessibility(_ reading: ThermostatReadingFacet, attribution: String? = nil,
+                                                   locale: Locale = .current) -> String {
+    let value: String
+    switch reading.value {
+    case .number:
+        value = (thermostatFocusedNumberText(reading, summary: false, locale: locale) ?? "No reading")
+            + (reading.reportedUnit.map { " \($0)" } ?? " · Unit not reported")
+    case .text(let text): value = text
+    case nil: value = reading.availability == .unavailable ? "Unavailable" : "No reading"
+    }
+    let availability = attribution.map { ", \($0)" }
+        ?? (reading.availability == .lastKnown ? ", Last known" : "")
+    let time = reading.checkedAt.map { ", checked \(thermostatObservationText($0, locale: locale))" }
+        ?? ", no saved observation"
+    return "\(reading.name), \(value)\(availability)\(time)"
+}
+public func thermostatFocusedContent(_ presentation: ThermostatPresentation,
+                                     accessibility: Bool,
+                                     destination: ThermostatDestination = .inert) -> ThermostatFocusedContent {
+    let recoveryTitle: String?
+    switch presentation.recovery {
+    case .authentication: recoveryTitle = "Sign in"
+    case .setup: recoveryTitle = "Set up"
+    case .sharedStoreUnavailable: recoveryTitle = "Unavailable"
+    case .readingsNotSaved, .operationNotSaved: recoveryTitle = "Not saved"
+    case .selectionChanged: recoveryTitle = "Changed"
+    case .readFailed:
+        recoveryTitle = presentation.room.failure?.reason == .transport ? "Can't connect" : "Check failed"
+    case .none:
+        switch presentation.operation {
+        case .pending: recoveryTitle = "Updating"
+        case .failed: recoveryTitle = "Update failed"
+        case .none: recoveryTitle = nil
+        }
+    }
+    let historical = thermostatRoomIsHistorical(presentation)
+    let attribution: String
+    if historical { attribution = "Last known" }
+    else {
+        switch presentation.room.availability {
+        case .current: attribution = "Room"
+        case .lastKnown: attribution = "Last known"
+        case .unavailable: attribution = "Unavailable"
+        case .noReading: attribution = "No reading"
+        }
+    }
+    let state = presentation.state
+    let mode = state.map { state in
+        CLIMATE_MODES.first(where: { $0.mode == state.mode })?.name
+            ?? (state.mode == "auto" ? "Auto" : state.mode.replacingOccurrences(of: "_", with: " ").capitalizedFirst)
+    } ?? "Mode not reported"
+    let target: String?
+    if !accessibility, presentation.recovery == .none, state?.isAvailable == true,
+       let unit = presentation.room.reportedUnit, let state {
+        func number(_ value: Double) -> String {
+            thermostatSummaryTemperature(value)
+                .formatted(.number.precision(.fractionLength(0...1)).grouping(.never))
+        }
+        if state.isRange, let low = state.low, let high = state.high, low < high,
+           thermostatSummaryTemperature(low) < thermostatSummaryTemperature(high) {
+            target = "\(number(low))–\(number(high)) \(unit)"
+        } else if !state.isRange, ["heat", "cool"].contains(state.mode), let value = state.target {
+            target = "\(number(value)) \(unit)"
+        } else { target = nil }
+    } else { target = nil }
+    return ThermostatFocusedContent(room: presentation.room, roomAttribution: attribution,
+        context: presentation.sensors.first, mode: mode, target: target, recoveryTitle: recoveryTitle,
+        tone: beaconClimatePair(state?.mode, stale: historical || presentation.room.value == nil
+            || state?.isAvailable != true),
+        footerLabel: destination == .inert ? "Open · inactive" : "Open")
+}
+
 public struct ThermostatLiveEnvelope: Equatable, Sendable {
     public let evidence: ThermostatRawEvidence
     public let presentation: ThermostatPresentation
@@ -115,16 +224,21 @@ public struct ThermostatLiveEnvelope: Equatable, Sendable {
                 : value.needsSettings ? "Check setup" : "Check failed"
         case .setup:
             if evidence.configuration == .invalid { value.setup = false; value.status = "Check setup" }
-        case .none: break
+        case .none:
+            if evidence.configuration == .ready, presentation.room.checkedAt == nil, presentation.state == nil {
+                value.status = "No saved reading"
+            }
         }
+        let historical = thermostatRoomIsHistorical(presentation)
         if case let .number(number) = presentation.room.value {
             value.roomTemp = degrees(number)
-            value.roomSub = presentation.room.availability == .lastKnown ? "Last known" : "In the room"
+            value.roomSub = historical ? "Last known" : "In the room"
         } else {
             value.roomTemp = "—"; value.roomSub = "No reading"
         }
-        value.stale = presentation.room.availability == .lastKnown || presentation.room.failure != nil
+        value.stale = historical || presentation.room.failure != nil
             || [.sharedStoreUnavailable, .readingsNotSaved, .selectionChanged, .operationNotSaved].contains(presentation.recovery)
+        if historical { value.tone = .offline }
         for index in value.sensors.indices {
             let facet = presentation.sensors[index]
             value.sensors[index].stale = facet.availability == .lastKnown || facet.failure != nil

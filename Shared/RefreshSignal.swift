@@ -1,4 +1,5 @@
 import SwiftUI
+import HearthKit
 
 /// Relays the widgets' refresh glyph into the in-app views. The glyph runs `WidgetRefreshIntent`;
 /// on the home screen that reloads the widget timeline, but in the app (Preview / Live) nothing
@@ -9,5 +10,7 @@ import SwiftUI
     static let shared = RefreshSignal()
     private init() {}
     @Published var tick = 0
+    @Published var thermostatRefresh: ThermostatRefreshRequest?
     func bump() { tick &+= 1 }
+    func requestThermostatRefresh(_ request: ThermostatRefreshRequest) { thermostatRefresh = request }
 }

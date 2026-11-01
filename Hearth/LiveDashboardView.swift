@@ -12,7 +12,7 @@ struct LiveDashboardView: View {
 
     @State private var car: CarSnapshot?
     @State private var alarm: AlarmSnapshot?
-    @State private var thermostat: ThermostatSnapshot?
+    @StateObject private var thermostat = ThermostatLiveModel()
     @State private var cp: CpSnapshot?
     @State private var cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
     @State private var showCpSignIn = false
@@ -32,7 +32,21 @@ struct LiveDashboardView: View {
                 }
                 if config.hasClimate {
                     sectionTitle("Thermostat")
-                    card { if let thermostat { ThermostatBeaconView(thermostat) } else { placeholder } }
+                    card(dimmed: thermostat.checking) {
+                        if let entry = thermostat.entry { ThermostatBeaconView(entry) } else { placeholder }
+                    }
+                    if let entry = thermostat.entry {
+                        if let observed = thermostatSavedObservation(entry.presentation) {
+                            Text("Saved reading · \(thermostatObservationText(observed))")
+                                .font(.callout).foregroundStyle(.secondary)
+                                .accessibilityLabel("Saved reading, \(thermostatObservationText(observed))")
+                        } else { Text("No saved reading").font(.callout).foregroundStyle(.secondary) }
+                        if let url = thermostatReadingsURL(for: entry.destination) {
+                            Link("Open readings and controls", destination: url).frame(minHeight: 44)
+                        }
+                    }
+                    Text("Refresh checks Home Assistant. Automatic loading uses saved thermostat readings.")
+                        .font(.callout).foregroundStyle(.secondary)
                 }
                 sectionTitle("ChargePoint")
                 card { if let cp { CpBeaconView(cp) } else { placeholder } }
@@ -49,7 +63,11 @@ struct LiveDashboardView: View {
         .background(Color(white: 0.08).ignoresSafeArea())
         .preferredColorScheme(.dark)
         .task(id: config) { await load() }
+        .onDisappear { thermostat.close() }
         .onChange(of: refreshSignal.tick) { Task { await load() } }
+        .onChange(of: refreshSignal.thermostatRefresh) {
+            if let request = refreshSignal.thermostatRefresh { thermostat.refresh(request, source: .glyphRefresh) }
+        }
         .sheet(isPresented: $showCpSignIn) {
             NavigationStack {
                 CpSignInView(onSignedIn: {
@@ -74,12 +92,12 @@ struct LiveDashboardView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private func card<V: View>(@ViewBuilder _ content: () -> V) -> some View {
+    private func card<V: View>(dimmed: Bool? = nil, @ViewBuilder _ content: () -> V) -> some View {
         content()
             .frame(height: 174).frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .shadow(color: .black.opacity(0.25), radius: 6, y: 3)
-            .opacity(loading ? 0.5 : 1)   // dim while a refresh is in flight
+            .opacity((dimmed ?? loading) ? 0.5 : 1)   // dim while a refresh is in flight
     }
 
     private var placeholder: some View {
@@ -88,7 +106,12 @@ struct LiveDashboardView: View {
 
     private var controls: some View {
         HStack(spacing: 12) {
-            Button { Task { await load() } } label: {
+            Button {
+                if let context = HaConfigStore.context(), let selection = ThermostatSelectionOrigin(context) {
+                    thermostat.refresh(ThermostatRefreshRequest(selection: selection), source: .dashboardRefresh)
+                }
+                Task { await load() }
+            } label: {
                 Label("Refresh", systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
             }.buttonStyle(.bordered).disabled(loading)
             Button(role: .destructive, action: onSignOut) {
@@ -99,6 +122,7 @@ struct LiveDashboardView: View {
     }
 
     private func load() async {
+        thermostat.loadCache()
         let requestID = UUID()
         loadID = requestID
         loading = true
@@ -106,14 +130,12 @@ struct LiveDashboardView: View {
         await withTaskGroup(of: CardResult.self) { group in
             group.addTask { .car(await CarLiveSnapshot.fetch(now: now)) }
             group.addTask { .alarm(selected.isComplete ? await AlarmLiveSnapshot.fetch(now: now) : nil) }
-            group.addTask { .thermostat(selected.hasClimate ? await ThermostatLiveSnapshot.fetch(now: now) : nil) }
             group.addTask { .chargePoint(await CpLiveSnapshot.fetch(now: now)) }
             for await result in group {
                 guard !Task.isCancelled, loadID == requestID else { group.cancelAll(); return }
                 switch result {
                 case .car(let snapshot): car = snapshot
                 case .alarm(let snapshot): alarm = snapshot.map { AlarmLiveSnapshot.currentFeedback($0) }
-                case .thermostat(let snapshot): thermostat = snapshot.map { ThermostatLiveSnapshot.currentFeedback($0) }
                 case .chargePoint(let snapshot): cp = snapshot
                 }
             }
@@ -122,6 +144,6 @@ struct LiveDashboardView: View {
     }
 
     private enum CardResult: Sendable {
-        case car(CarSnapshot), alarm(AlarmSnapshot?), thermostat(ThermostatSnapshot?), chargePoint(CpSnapshot)
+        case car(CarSnapshot), alarm(AlarmSnapshot?), chargePoint(CpSnapshot)
     }
 }

@@ -138,7 +138,9 @@ public struct HaClient: Sendable {
     }
 
     public func allStatesJson() async throws -> String { try await request("GET", "/api/states", nil) }
-    public func stateJson(_ entityId: String) async throws -> String { try await request("GET", "/api/states/\(entityId)", nil) }
+    public func stateJson(_ entityId: String, isAuthorized: (@Sendable () -> Bool)? = nil) async throws -> String {
+        try await request("GET", "/api/states/\(entityId)", nil, isAuthorized: isAuthorized)
+    }
 
     /// Home Assistant's logbook since `since` for `ids` (a JSON array of entries) — used by Activity.
     public func logbookJson(since: Date, ids: [String]) async throws -> String {

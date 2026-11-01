@@ -1,11 +1,13 @@
 /// The designed widget families, shared by the extension and the in-app gallery.
 /// Add a family only after designing useful content for that size.
 public enum WidgetPreviewFamily: String, CaseIterable, Sendable {
+    case small
     case medium
     case large
 
     public var title: String {
         switch self {
+        case .small: "Small"
         case .medium: "Medium"
         case .large: "Large"
         }
@@ -64,5 +66,7 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var supportedFamilies: [WidgetPreviewFamily] { [family] }
+    public var supportedFamilies: [WidgetPreviewFamily] {
+        self == .thermostat ? [.small, .medium] : [family]
+    }
 }

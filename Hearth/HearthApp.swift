@@ -87,6 +87,9 @@ struct ContentView: View {
     @ObservedObject private var carReadings = CarReadingsGate.shared
     @State private var presentedSheet: HearthSheet?
     @State private var settingsCarReturn: CarReadingsRequest?
+    @State private var thermostatAdmission = ThermostatRouteAdmission()
+    @State private var thermostatModel: ThermostatControlsModel?
+    @State private var settingsThermostatReturn: ThermostatRecoveryReturn?
     @State private var signOutError: String?
     private let carReadingsRuntime: CarReadingsRuntime
     private let inertTabs: Bool
@@ -138,6 +141,7 @@ struct ContentView: View {
             guard let route = cpSetup.route else { return }
             cpSetup.route = nil
             settingsCarReturn = nil
+            retireThermostat()
             presentedSheet = .chargepoint(route, UUID())
         }
         .onChange(of: carReadings.request, initial: true) {
@@ -146,6 +150,10 @@ struct ContentView: View {
             presentCarReadings(request)
         }
         .onOpenURL { url in
+            if let destination = thermostatDestination(from: url) {
+                presentThermostat(destination)
+                return
+            }
             guard let destination = carReadingsDestination(from: url) else { return }
             let request = CarReadingsRequest(destination: destination)
             #if DEBUG
@@ -162,6 +170,7 @@ struct ContentView: View {
             guard haSetup.request != nil else { return }
             haSetup.request = nil
             settingsCarReturn = nil
+            retireThermostat()
             if !inertTabs { config = HaConfigStore.load() }
             if haSetup.reconnect {
                 presentedSheet = .reconnect(UUID(), returningTo: nil)
@@ -169,6 +178,10 @@ struct ContentView: View {
                 presentedSheet = nil
                 selection = (inertTabs || config?.hasAuth == true) ? 1 : 0
             }
+        }
+        .onChange(of: presentedSheet?.id) {
+            if let sheet = presentedSheet, case .thermostat = sheet { return }
+            thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
         }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
@@ -215,6 +228,40 @@ struct ContentView: View {
                 }
                 .id(sheet.id)
                 .interactiveDismissDisabled(original != nil)
+            case .thermostat(let request):
+                if let model = thermostatModel, model.request.eventID == request.eventID {
+                    ThermostatControlsScreen(model: model,
+                        onClose: {
+                            guard presentedSheet?.id == sheet.id else { return }
+                            retireThermostat(); presentedSheet = nil
+                        }, onSettings: {
+                            guard presentedSheet?.id == sheet.id else { return }
+                            let returning = ThermostatRecoveryReturn(original: request)
+                            thermostatModel?.close(); thermostatAdmission.close()
+                            settingsCarReturn = nil; settingsThermostatReturn = returning
+                            selection = 1; presentedSheet = nil
+                        }, onReconnect: {
+                            guard presentedSheet?.id == sheet.id else { return }
+                            let returning = ThermostatRecoveryReturn(original: request)
+                            thermostatModel?.close(); thermostatAdmission.close(); settingsCarReturn = nil
+                            settingsThermostatReturn = nil
+                            presentedSheet = .thermostatReconnect(returning)
+                        })
+                        .id(request.eventID)
+                }
+            case .thermostatReconnect(let returning):
+                NavigationStack {
+                    if inertTabs {
+                        ControlledSetupScreen(title: "Controlled Home Assistant reconnect",
+                            onCancel: { finishThermostatReconnect(sheet, completed: false) },
+                            onComplete: { finishThermostatReconnect(sheet, completed: true) })
+                    } else {
+                        SignInView(initialURL: config?.baseUrl) { finishThermostatReconnect(sheet, completed: true) }
+                            .toolbar { ToolbarItem(placement: .cancellationAction) {
+                                Button("Cancel") { finishThermostatReconnect(sheet, completed: false) }.frame(minHeight: 44)
+                            } }
+                    }
+                }.id(returning.transitionID).interactiveDismissDisabled()
             case .car(let request):
                 CarReadingsScreen(request: request, runtime: carReadingsRuntime,
                     onClose: {
@@ -250,7 +297,34 @@ struct ContentView: View {
     private func presentCarReadings(_ request: CarReadingsRequest) {
         guard request.destination != .inert else { return }
         settingsCarReturn = nil
+        retireThermostat()
         presentedSheet = .car(request)
+    }
+
+    private func retireThermostat() {
+        thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
+        settingsThermostatReturn = nil
+        if !inertTabs { ClimateGate.shared.retire() }
+    }
+    private func presentThermostat(_ destination: ThermostatDestination) {
+        guard let request = thermostatAdmission.admit(destination) else { return }
+        settingsCarReturn = nil; settingsThermostatReturn = nil
+        if thermostatModel?.request.eventID == request.eventID {
+            thermostatModel?.revalidate()
+            return
+        }
+        thermostatModel?.close()
+        if !inertTabs { ClimateGate.shared.retire() }
+        thermostatModel = ThermostatControlsModel(request: request,
+            runtime: inertTabs ? ThermostatReadingsRuntime(tickets: nil, state: nil) : .live)
+        presentedSheet = .thermostat(request)
+    }
+    private func finishThermostatReconnect(_ sheet: HearthSheet, completed: Bool) {
+        guard presentedSheet?.id == sheet.id,
+              case .thermostatReconnect(let returning) = sheet else { return }
+        if completed, !inertTabs { config = HaConfigStore.load() }
+        thermostatAdmission.close()
+        presentThermostat(returning.original.destination)
     }
 
     private func finishReconnect(_ sheet: HearthSheet, completed: Bool) {
@@ -307,7 +381,17 @@ struct ContentView: View {
             }
         }
         .safeAreaInset(edge: .top) {
-            if let original = settingsCarReturn {
+            if let returning = settingsThermostatReturn {
+                Button {
+                    guard settingsThermostatReturn?.transitionID == returning.transitionID,
+                          presentedSheet?.id == nil, thermostatAdmission.active == nil else { return }
+                    presentThermostat(returning.original.destination)
+                } label: {
+                    Label("Back to thermostat readings", systemImage: "thermometer.medium")
+                        .font(.body.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                }.padding(.horizontal).background(.regularMaterial)
+            } else if let original = settingsCarReturn {
                 Button {
                     guard settingsCarReturn?.id == original.id else { return }
                     let reopened = original.reopened()
@@ -343,15 +427,23 @@ struct ContentView: View {
     }
 }
 
+private struct ThermostatRecoveryReturn {
+    let original: ThermostatRouteRequest
+    let transitionID = UUID()
+}
 private enum HearthSheet: Identifiable {
     case chargepoint(CpSetupRoute, UUID)
     case reconnect(UUID, returningTo: CarReadingsRequest?)
     case car(CarReadingsRequest)
+    case thermostat(ThermostatRouteRequest)
+    case thermostatReconnect(ThermostatRecoveryReturn)
     var id: String {
         switch self {
         case .chargepoint(_, let id): "chargepoint:\(id)"
         case .reconnect(let id, _): "reconnect:\(id)"
         case .car(let request): "car:\(request.id)"
+        case .thermostat(let request): "thermostat:\(request.eventID)"
+        case .thermostatReconnect(let returning): "thermostatReconnect:\(returning.transitionID)"
         }
     }
 }

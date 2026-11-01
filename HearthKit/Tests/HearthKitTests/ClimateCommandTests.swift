@@ -57,6 +57,15 @@ final class ClimateCommandTests: XCTestCase {
         XCTAssertEqual(commands.first?.optionKey, "fan_mode")
         XCTAssertEqual(commands.first?.option, "on")
     }
+    func testDirectionalRawModeChangeCannotChangeSingleVersusRangeMeaning() async throws {
+        let recorder = Commands()
+        let sent = try await executeClimateAction(entityID: "climate.room", action: "heatUp",
+            expectedMode: "heat_cool", isCurrent: { true }, read: { Self.state },
+            send: { await recorder.add($0) })
+        XCTAssertFalse(sent)
+        let commands = await recorder.values
+        XCTAssertTrue(commands.isEmpty)
+    }
 }
 
 private actor Commands {

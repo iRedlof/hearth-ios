@@ -10,13 +10,21 @@ struct WidgetRefreshIntent: AppIntent {
     static var isDiscoverable: Bool { false }
 
     @Parameter(title: "Widget kind") var kind: String
+    @Parameter(title: "Thermostat selection") var thermostatOrigin: String
 
-    init() {}
-    init(_ kind: String) { self.kind = kind }
+    init() { kind = ""; thermostatOrigin = "" }
+    init(_ kind: String, thermostatOrigin: String = "") { self.kind = kind; self.thermostatOrigin = thermostatOrigin }
 
     @MainActor
     func perform() async throws -> some IntentResult {
         if kind == "com.rohit.hearth.chargepoint", CpSessionStore.fixtureReloadHandled() { return .result() }
+        if kind == "com.rohit.hearth.thermostat" {
+            guard let origin = HearthKit.thermostatOrigin(from: thermostatOrigin),
+                  let context = HaConfigStore.context(), origin.matches(context) else { return .result() }
+            WidgetCenter.shared.reloadTimelines(ofKind: kind)
+            RefreshSignal.shared.requestThermostatRefresh(ThermostatRefreshRequest(selection: origin))
+            return .result()
+        }
         if kind.isEmpty {
             WidgetCenter.shared.reloadAllTimelines()
         } else {

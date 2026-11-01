@@ -89,6 +89,7 @@ public struct HaStateStore: Sendable {
     private let directory: URL
     private let initialConfig: HaConfig?
     private let initialScope: String
+    private let climateWriter: (@Sendable (ClimateOperationPersistencePhase, Data, URL) throws -> Void)?
     #if DEBUG
     private let maximumProbeBytes: Int?
     #endif
@@ -186,8 +187,10 @@ public struct HaStateStore: Sendable {
         }
     }
 
-    public init(directory: URL, initialConfig: HaConfig? = nil, initialScope: String = "initial") {
+    public init(directory: URL, initialConfig: HaConfig? = nil, initialScope: String = "initial",
+                climateWriter: (@Sendable (ClimateOperationPersistencePhase, Data, URL) throws -> Void)? = nil) {
         self.directory = directory; self.initialConfig = initialConfig; self.initialScope = initialScope
+        self.climateWriter = climateWriter
         #if DEBUG
         self.maximumProbeBytes = nil
         #endif
@@ -198,6 +201,7 @@ public struct HaStateStore: Sendable {
     /// All existing store methods reach this policy through the same locked read transaction.
     public init(existingProbeDirectory: URL, maximumProbeBytes: Int) {
         self.directory = existingProbeDirectory; self.initialConfig = nil; self.initialScope = "initial"
+        self.climateWriter = nil
         self.maximumProbeBytes = maximumProbeBytes
     }
     #endif
@@ -623,26 +627,34 @@ public struct HaStateStore: Sendable {
 
     /// A single transaction rejects duplicate taps and actions from a previously rendered card.
     public func beginClimateOperation(expectedScope: String, expectedRevision: String, entityID: String,
-                                      action: String, resumeID: String? = nil, now: Date = .now) throws -> HaStoreSnapshot? {
+                                      action: String, resumeID: String? = nil, now: Date = .now,
+                                      expectedThermostatSelectionRevision: String? = nil) throws -> HaStoreSnapshot? {
         try locked {
             var stored = try read()
             guard stored.scope == expectedScope, stored.climateRevision == expectedRevision,
+                  expectedThermostatSelectionRevision == nil ||
+                    stored.thermostatSelectionRevision == expectedThermostatSelectionRevision,
                   let config = stored.config, config.hasClimate, config.climateId == entityID,
                   stored.climateOperation?.pending != true,
                   ["heatUp", "heatDown", "coolUp", "coolDown", "resume", "mode", "fan"].contains(action),
                   action != "resume" || (resumeID?.hasPrefix("button.") == true && config.resumeId == resumeID) else { return nil }
             stored.climateOperation = ClimateOperation(entityID: entityID, action: action, startedAt: now)
             stored.climateRevision = UUID().uuidString
-            try write(stored)
+            do { try write(stored, climatePhase: .beginSave) }
+            catch { throw ClimateOperationPersistenceFailure(phase: .beginSave, underlying: error) }
             return stored.snapshot
         }
     }
 
     public func finishClimateOperation(expectedScope: String, operationID: String,
-                                       error: String?, failureKind: ClimateOperationFailureKind = .generic) throws -> HaStoreSnapshot? {
+                                       error: String?, failureKind: ClimateOperationFailureKind = .generic,
+                                       expectedThermostatSelectionRevision: String? = nil) throws -> HaStoreSnapshot? {
         try locked {
             var stored = try read()
-            guard stored.scope == expectedScope, var operation = stored.climateOperation,
+            guard stored.scope == expectedScope,
+                  expectedThermostatSelectionRevision == nil ||
+                    stored.thermostatSelectionRevision == expectedThermostatSelectionRevision,
+                  var operation = stored.climateOperation,
                   operation.id == operationID, operation.pending else { return nil }
             if let error {
                 operation.error = error.isEmpty ? "Couldn't update thermostat" : error
@@ -650,7 +662,8 @@ public struct HaStateStore: Sendable {
                 stored.climateOperation = operation
             } else { stored.climateOperation = nil }
             stored.climateRevision = UUID().uuidString
-            try write(stored)
+            do { try write(stored, climatePhase: .finishSave) }
+            catch { throw ClimateOperationPersistenceFailure(phase: .finishSave, underlying: error) }
             return stored.snapshot
         }
     }
@@ -820,10 +833,12 @@ public struct HaStateStore: Sendable {
         return data
     }
     #endif
-    private func write(_ stored: Stored) throws {
+    private func write(_ stored: Stored, climatePhase: ClimateOperationPersistencePhase? = nil) throws {
         let staged = directory.appendingPathComponent(".ha-state-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: staged) }
-        try JSONEncoder().encode(stored).write(to: staged, options: .withoutOverwriting)
+        let data = try JSONEncoder().encode(stored)
+        if let climatePhase, let climateWriter { try climateWriter(climatePhase, data, staged) }
+        else { try data.write(to: staged, options: .withoutOverwriting) }
         try protect(staged, permissions: 0o600)
         // Protection is established before this single commit point. A failure leaves old data intact.
         guard rename(staged.path, file.path) == 0 else {

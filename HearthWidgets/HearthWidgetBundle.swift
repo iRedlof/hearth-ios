@@ -438,6 +438,9 @@ struct AlarmWidget: Widget {
 struct ThermostatEntry: TimelineEntry {
     let date: Date
     let snap: ThermostatSnapshot
+    let payload: ThermostatEntryPayload?
+    init(date: Date, snap: ThermostatSnapshot) { self.date = date; self.snap = snap; payload = nil }
+    init(payload: ThermostatEntryPayload) { date = payload.date; snap = payload.snapshot; self.payload = payload }
 }
 
 struct ThermostatProvider: TimelineProvider {
@@ -445,35 +448,46 @@ struct ThermostatProvider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (ThermostatEntry) -> Void) {
         if context.isPreview { completion(ThermostatEntry(date: .now, snap: .sample)); return }
         nonisolated(unsafe) let completion = completion
-        Task { completion(ThermostatEntry(date: .now, snap: await Self.fetch())) }
+        Task { completion(await Self.fetch()) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<ThermostatEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
         Task {
-            let snap = await ThermostatProvider.fetch()
-            completion(Timeline(entries: [ThermostatEntry(date: .now, snap: snap)],
-                                policy: .after(Date().addingTimeInterval(15 * 60))))
+            let entry = await Self.fetch()
+            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
         }
     }
-
-    private static func fetch() async -> ThermostatSnapshot {
+    private static func fetch() async -> ThermostatEntry {
         #if DEBUG
-        if ParityCatalog.activeWidgetID(prefix: "thermostat") != nil { return .sample }
+        if ParityCatalog.activeWidgetID(prefix: "thermostat") != nil { return ThermostatEntry(date: .now, snap: .sample) }
         #endif
-        return await ThermostatLiveSnapshot.fetch()
+        let envelope = await ThermostatLiveSnapshot.fetchEnvelope()
+        return ThermostatEntry(payload: ThermostatReadingsStore.bind(envelope))
     }
 }
 
 struct ThermostatWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.thermostat", provider: ThermostatProvider()) { entry in
-            ParityWidgetContent(prefix: "thermostat") { ThermostatBeaconView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+            ThermostatWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Thermostat")
         .description("Your thermostat's temperature and setpoints at a glance.")
         .supportedFamilies(WidgetPreviewKind.thermostat.widgetKitFamilies)
         .contentMarginsDisabled()
+    }
+}
+
+private struct ThermostatWidgetEntryView: View {
+    let entry: ThermostatEntry
+    @Environment(\.widgetFamily) private var family
+    var body: some View {
+        ParityWidgetContent(prefix: "thermostat") {
+            if let payload = entry.payload { ThermostatBeaconView(payload, family: family) }
+            else { ThermostatBeaconView(entry.snap, family: family) }
+        }
+        .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
+        .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
     }
 }
 

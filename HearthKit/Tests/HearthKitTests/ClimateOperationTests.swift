@@ -1,6 +1,100 @@
 import XCTest
 @testable import HearthKit
 
+private final class ClimatePhaseWriter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var rejected: ClimateOperationPersistencePhase?
+    func fail(_ phase: ClimateOperationPersistencePhase?) { lock.lock(); rejected = phase; lock.unlock() }
+    func write(_ phase: ClimateOperationPersistencePhase, _ data: Data, _ path: URL) throws {
+        lock.lock(); let fails = rejected == phase; lock.unlock()
+        let target = fails ? path.appendingPathComponent("absent/file") : path
+        try data.write(to: target, options: .withoutOverwriting)
+    }
+}
+
+final class ClimateEpochPersistenceTests: XCTestCase {
+    private func fixture(writer: ClimatePhaseWriter? = nil) -> (HaStateStore, URL) {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let write: @Sendable (ClimateOperationPersistencePhase, Data, URL) throws -> Void = { phase, data, url in
+            if let writer { try writer.write(phase, data, url) }
+            else { try data.write(to: url, options: .withoutOverwriting) }
+        }
+        let store = HaStateStore(directory: directory,
+            initialConfig: HaConfig(baseUrl: "https://fixture.invalid", token: "inert", entityId: "",
+                climateId: "climate.room", sensorsJson: #"["sensor.a","sensor.b"]"#),
+            climateWriter: write)
+        return (store, directory)
+    }
+    func testAtomicBeginAndFinishRejectSensorOrderABAWithoutWriting() throws {
+        let (store, directory) = fixture(), original = try store.snapshot()
+        let config = try XCTUnwrap(original.config)
+        var changed = config; changed.sensorsJson = #"["sensor.b","sensor.a"]"#
+        _ = try store.saveConfig(changed); let returned = try store.saveConfig(config)
+        let file = directory.appendingPathComponent("ha-state.json"), bytes = try Data(contentsOf: file)
+        XCTAssertNil(try store.beginClimateOperation(expectedScope: original.scope,
+            expectedRevision: original.climateRevision, entityID: config.climateId, action: "heatUp",
+            expectedThermostatSelectionRevision: original.thermostatSelectionRevision))
+        XCTAssertEqual(try Data(contentsOf: file), bytes)
+        let started = try XCTUnwrap(store.beginClimateOperation(expectedScope: returned.scope,
+            expectedRevision: returned.climateRevision, entityID: config.climateId, action: "heatUp",
+            expectedThermostatSelectionRevision: returned.thermostatSelectionRevision))
+        _ = try store.saveConfig(changed); _ = try store.saveConfig(config)
+        let pending = try Data(contentsOf: file)
+        XCTAssertNil(try store.finishClimateOperation(expectedScope: started.scope,
+            operationID: started.climateOperation!.id, error: "old error",
+            expectedThermostatSelectionRevision: returned.thermostatSelectionRevision))
+        XCTAssertEqual(try Data(contentsOf: file), pending)
+    }
+    func testActualBeginAndFinishWriterFailuresHaveDistinctPhasesAndPreserveJournal() throws {
+        let writer = ClimatePhaseWriter(), (store, directory) = fixture(writer: writer)
+        let before = try store.snapshot(), file = directory.appendingPathComponent("ha-state.json")
+        let bytes = try Data(contentsOf: file)
+        writer.fail(.beginSave)
+        XCTAssertThrowsError(try store.beginClimateOperation(expectedScope: before.scope,
+            expectedRevision: before.climateRevision, entityID: "climate.room", action: "heatUp")) { error in
+                XCTAssertEqual((error as? ClimateOperationPersistenceFailure)?.phase, .beginSave)
+            }
+        XCTAssertEqual(try Data(contentsOf: file), bytes)
+        writer.fail(nil)
+        let begun = try XCTUnwrap(store.beginClimateOperation(expectedScope: before.scope,
+            expectedRevision: before.climateRevision, entityID: "climate.room", action: "heatUp"))
+        let pending = try Data(contentsOf: file)
+        writer.fail(.finishSave)
+        XCTAssertThrowsError(try store.finishClimateOperation(expectedScope: before.scope,
+            operationID: begun.climateOperation!.id, error: nil)) { error in
+                XCTAssertEqual((error as? ClimateOperationPersistenceFailure)?.phase, .finishSave)
+            }
+        XCTAssertEqual(try Data(contentsOf: file), pending)
+        XCTAssertTrue(try store.snapshot().climateOperation?.pending == true)
+    }
+    func testFinishRejectsRetiredSelectionEvenWhenTheSameOperationRemainsPending() throws {
+        let (store, directory) = fixture(), original = try store.snapshot()
+        let begun = try XCTUnwrap(store.beginClimateOperation(expectedScope: original.scope,
+            expectedRevision: original.climateRevision, entityID: "climate.room", action: "heatUp"))
+        var changed = original.config!; changed.sensorsJson = #"["sensor.b","sensor.a"]"#
+        _ = try store.saveConfig(changed); _ = try store.saveConfig(original.config)
+        let file = directory.appendingPathComponent("ha-state.json"), bytes = try Data(contentsOf: file)
+        XCTAssertNil(try store.finishClimateOperation(expectedScope: original.scope,
+            operationID: begun.climateOperation!.id, error: "retired error",
+            expectedThermostatSelectionRevision: original.thermostatSelectionRevision))
+        XCTAssertEqual(try Data(contentsOf: file), bytes)
+    }
+    func testFinishWriterFailureDoesNotClearPendingOrAdvanceRevision() throws {
+        let writer = ClimatePhaseWriter(), (store, directory) = fixture(writer: writer), original = try store.snapshot()
+        let begun = try XCTUnwrap(store.beginClimateOperation(expectedScope: original.scope,
+            expectedRevision: original.climateRevision, entityID: "climate.room", action: "heatUp"))
+        let file = directory.appendingPathComponent("ha-state.json"), bytes = try Data(contentsOf: file)
+        writer.fail(.finishSave)
+        XCTAssertThrowsError(try store.finishClimateOperation(expectedScope: original.scope,
+            operationID: begun.climateOperation!.id, error: nil)) { error in
+                XCTAssertEqual((error as? ClimateOperationPersistenceFailure)?.phase, .finishSave)
+            }
+        XCTAssertEqual(try Data(contentsOf: file), bytes)
+        XCTAssertEqual(try store.snapshot().climateRevision, begun.climateRevision)
+        XCTAssertTrue(try store.snapshot().climateOperation?.pending == true)
+    }
+}
+
 final class ClimateOperationTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 100)
     private let config = HaConfig(baseUrl: "https://example.com", token: "fixture", entityId: "",

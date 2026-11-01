@@ -1,5 +1,6 @@
 import SwiftUI
 import AppIntents
+import HearthKit
 
 /// The card remains compact while its host's middle region expands between header and footer.
 struct BeaconMiddle<Content: View>: View {
@@ -26,6 +27,7 @@ struct BeaconFreshness: View {
     let kind: String      // widget kind id, for WidgetRefreshIntent
     var ink: Color
     var interactionsEnabled: Bool = true
+    var thermostatSelection: ThermostatSelectionOrigin? = nil
 
     var body: some View {
         HStack(spacing: 6) {
@@ -35,8 +37,8 @@ struct BeaconFreshness: View {
             }
             .foregroundStyle(ink.opacity(0.78))
             .invalidatableContent()
-            if interactionsEnabled {
-                Button(intent: WidgetRefreshIntent(kind)) { refreshLabel }
+            if interactionsEnabled && (kind != "com.rohit.hearth.thermostat" || thermostatSelection != nil) {
+                Button(intent: WidgetRefreshIntent(kind, thermostatOrigin: thermostatOriginBinding(thermostatSelection))) { refreshLabel }
                     .buttonStyle(.plain)
             } else {
                 refreshLabel

@@ -140,6 +140,11 @@ struct ParityWidgetSelection: Sendable {
     private static func thermostat() -> [(String, AnyView)] {
         ThermostatParityInputs.states.map {
             ("thermostat-" + $0, AnyView(ThermostatBeaconView(ThermostatParityInputs.snapshot($0))))
+        } + ThermostatParityInputs.readableStates.map {
+            ("thermostat-production-" + $0, AnyView(ThermostatBeaconView(ThermostatParityInputs.payload($0))))
+        } + ThermostatParityInputs.readableStates.map {
+            ("thermostat-small-production-" + $0,
+             AnyView(ThermostatBeaconView(ThermostatParityInputs.payload($0), family: .systemSmall)))
         }
     }
 

@@ -35,13 +35,17 @@ public func climateCommand(_ state: ClimateState, entityID: String, action: Stri
 /// A scope change during the live read invalidates a command before dispatch.
 @discardableResult
 public func executeClimateAction(entityID: String, action: String, resumeID: String = "", option: String? = nil,
+                                 expectedMode: String? = nil,
                                  isCurrent: @Sendable () -> Bool,
                                  read: @Sendable () async throws -> ClimateState?,
                                  send: @Sendable (ClimateCommand) async throws -> Void) async throws -> Bool {
     guard ["heatUp", "heatDown", "coolUp", "coolDown", "resume", "mode", "fan"].contains(action),
           isCurrent() else { return false }
     try Task.checkCancellation()
-    guard let state = try await read(), isCurrent(),
+    guard let state = try await read(), isCurrent() else { return false }
+    if ["heatUp", "heatDown", "coolUp", "coolDown"].contains(action),
+       let expectedMode, state.mode != expectedMode { return false }
+    guard
           let command = climateCommand(state, entityID: entityID, action: action, resumeID: resumeID, option: option) else {
         return false
     }

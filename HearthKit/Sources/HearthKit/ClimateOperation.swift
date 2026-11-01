@@ -1,5 +1,14 @@
 import Foundation
 
+public enum ClimateOperationPersistencePhase: Sendable, Equatable { case beginSave, finishSave }
+public struct ClimateOperationPersistenceFailure: Error {
+    public let phase: ClimateOperationPersistencePhase
+    public let underlying: any Error
+    public init(phase: ClimateOperationPersistencePhase, underlying: any Error) {
+        self.phase = phase; self.underlying = underlying
+    }
+}
+
 public enum ClimateOperationFailureKind: String, Codable, Sendable, Equatable {
     case generic, interrupted
 }

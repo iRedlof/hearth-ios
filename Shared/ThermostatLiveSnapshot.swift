@@ -13,6 +13,19 @@ enum ThermostatLiveSnapshot {
                     thermostatSelectionRevision: origin?.selectionRevision, failureReasons: result.failureReasons)
             }, request: request)
     }
+    static func load(cause: ThermostatForegroundLoadCause, now: Date = .now,
+                     request: (@Sendable (String) async throws -> String)? = nil) async -> ThermostatLiveEnvelope {
+        await loader(request: request).load(cause: cause, now: now)
+    }
+    static func cachedEnvelope(now: Date = .now) -> ThermostatLiveEnvelope { loader().cached(now: now) }
+    static func fetchEnvelope(expectedSelection: ThermostatSelectionOrigin, owner: ThermostatReadOwner,
+                              previous: ThermostatLiveEnvelope? = nil,
+                              isAuthorized: @escaping @Sendable () -> Bool,
+                              clock: @escaping @Sendable () -> Date = { .now },
+                              request: (@Sendable (String) async throws -> String)? = nil) async -> ThermostatLiveEnvelope {
+        await loader(request: request).fetch(expectedSelection: expectedSelection, previous: previous,
+            isAuthorized: isAuthorized, clock: clock)
+    }
     static func fetch(now: Date = .now) async -> ThermostatSnapshot {
         await fetchEnvelope(now: now).snapshot
     }
