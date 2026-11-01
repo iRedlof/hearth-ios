@@ -211,7 +211,7 @@ public struct ThermostatBeaconView: View {
 
     private func setpointRow(_ label: String, _ value: String, _ valueColor: UInt32, side: ClimateSide) -> some View {
         HStack(spacing: 5) {
-            Text(label).font(.system(size: 12)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
+            Text(label).font(.system(size: 16, weight: .medium)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 2)
             Button(intent: ClimateSetpointIntent("\(side.rawValue)Down", entityID: snap.entityID,
                 scope: snap.requestScope, revision: snap.climateRevision, selectionRevision: selectionRevision, expectedMode: observedMode)) {
