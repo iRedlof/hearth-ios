@@ -29,6 +29,10 @@ public struct ThermostatBeaconView: View {
     private var observedMode: String {
         snap.evidence.flatMap { $0.readings[$0.entityID] }.flatMap { ClimateState.fromJson($0.json)?.mode } ?? ""
     }
+    private var ordinaryVisibleStatus: String {
+        guard family == .systemMedium else { return snap.commandFeedback ?? snap.status }
+        return thermostatMediumVisibleStatus(payload?.presentation, snapshot: snap)
+    }
 
     public var body: some View {
         Group {
@@ -74,7 +78,7 @@ public struct ThermostatBeaconView: View {
                 Text(h).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                     .frame(height: 15, alignment: .leading)
             }
-            Text(snap.commandFeedback ?? snap.status).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+            Text(ordinaryVisibleStatus).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                 .frame(height: 15, alignment: .leading)
                 .accessibilityLabel(snap.commandError ?? snap.error ?? snap.commandFeedback ?? snap.status)
             Rectangle().fill(ink.opacity(0.26)).frame(height: 1).padding(.vertical, compact ? 1 : 2)
