@@ -33,7 +33,7 @@ struct HaSettingsSections: View {
             )) { Button("OK", role: .cancel) {} } message: { Text(saveError ?? "") }
 
             Section {
-                entityRow("Alarm panel", domain: "alarm_control_panel", allowNone: false,
+                entityRow("Alarm panel", domain: "alarm_control_panel", allowNone: true,
                           selection: config.entityId) { e in try apply { $0.entityId = e.id } }
                 entityRow("Front door", domain: "lock", allowNone: true,
                           selection: config.lockId) { e in
@@ -42,7 +42,7 @@ struct HaSettingsSections: View {
             } header: {
                 Text("Alarm")
             } footer: {
-                Text("Choose the alarm panel and optional front-door lock. Disarm and Unlock use one tap.")
+                Text("Alarm panel and front-door lock are optional. Choose the entities you want the Alarm widget to use.")
             }
 
             Section {
