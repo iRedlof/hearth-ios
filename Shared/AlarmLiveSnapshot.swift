@@ -28,6 +28,7 @@ enum AlarmLiveSnapshot {
     }
     private static func storageUnavailable(now: Date) -> AlarmSnapshot {
         var result = AlarmFetchResult(setup: true).snapshot(now: now)
+        result.storageUnavailable = true
         result.stateWord = "Can't read settings"
         result.detail = "Reopen Hearth"
         result.error = "Shared storage is unavailable. Please reopen Hearth."

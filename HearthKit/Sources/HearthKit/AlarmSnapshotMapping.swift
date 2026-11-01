@@ -33,6 +33,12 @@ public func alarmSnapshot(alarm: AlarmState?, lockState: String?, lockChanged: D
             : sinceLabel(lockChanged, now: now, zone: zone, locale: locale),
         doorLocked: selected ? lock.secure : nil,
         actions: error == nil ? alarmAvailableActions(alarm) : [])
+    snapshot.panelRawState = alarm?.state
+    snapshot.doorRawState = selected ? lockState : nil
+    snapshot.panelObservedAt = checkedAt
+    snapshot.doorObservedAt = selected ? doorCheckedAt : nil
+    snapshot.panelChangedAt = alarm?.lastChanged
+    snapshot.doorChangedAt = selected ? lockChanged : nil
     snapshot.setup = error?.hasPrefix("Set up") == true
     snapshot.stale = stale
     snapshot.error = error

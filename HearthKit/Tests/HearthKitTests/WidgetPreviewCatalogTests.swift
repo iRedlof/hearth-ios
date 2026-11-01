@@ -3,7 +3,7 @@ import XCTest
 
 final class WidgetPreviewCatalogTests: XCTestCase {
     func testCompactWidgetsCannotAcquireAnUndesignedLargeFamily() {
-        let compact: [WidgetPreviewKind] = [.alarm, .chargepoint, .quick, .battery]
+        let compact: [WidgetPreviewKind] = [.chargepoint, .quick, .battery]
         for kind in compact {
             XCTAssertEqual(kind.supportedFamilies, [.medium], "\(kind) must remain medium only")
         }
@@ -22,7 +22,7 @@ final class WidgetPreviewCatalogTests: XCTestCase {
         XCTAssertEqual(WidgetPreviewFamily.small.title, "Small")
         XCTAssertEqual(WidgetPreviewKind.car.family, .medium)
         XCTAssertEqual(WidgetPreviewKind.car.supportedFamilies, [.small, .medium])
-        for kind in WidgetPreviewKind.allCases where kind != .thermostat && kind != .car {
+        for kind in WidgetPreviewKind.allCases where kind != .thermostat && kind != .car && kind != .alarm {
             XCTAssertFalse(kind.supportedFamilies.contains(.small), "\(kind) has no Small design")
         }
     }
@@ -34,7 +34,7 @@ final class WidgetPreviewCatalogTests: XCTestCase {
         ]
         XCTAssertEqual(Set(WidgetPreviewKind.allCases), shipped)
         for kind in WidgetPreviewKind.allCases {
-            XCTAssertEqual(kind.supportedFamilies.count, [.thermostat, .car].contains(kind) ? 2 : 1)
+            XCTAssertEqual(kind.supportedFamilies.count, [.thermostat, .car, .alarm].contains(kind) ? 2 : 1)
         }
     }
 }

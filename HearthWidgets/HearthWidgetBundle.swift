@@ -402,6 +402,9 @@ struct CarWidget: Widget {
 struct AlarmEntry: TimelineEntry {
     let date: Date
     let snap: AlarmSnapshot
+    let payload: AlarmReadingsEntryPayload?
+    init(date: Date, snap: AlarmSnapshot) { self.date = date; self.snap = snap; payload = nil }
+    init(payload: AlarmReadingsEntryPayload) { date = payload.date; snap = payload.snapshot; self.payload = payload }
 }
 
 struct AlarmProvider: TimelineProvider {
@@ -409,36 +412,46 @@ struct AlarmProvider: TimelineProvider {
     func getSnapshot(in context: Context, completion: @escaping (AlarmEntry) -> Void) {
         if context.isPreview { completion(AlarmEntry(date: .now, snap: .sample)); return }
         nonisolated(unsafe) let completion = completion
-        Task { completion(AlarmEntry(date: .now, snap: await Self.fetch())) }
+        Task { completion(await Self.fetch()) }
     }
     func getTimeline(in context: Context, completion: @escaping (Timeline<AlarmEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
         Task {
-            let snap = await AlarmProvider.fetch()
-            completion(Timeline(entries: [AlarmEntry(date: .now, snap: snap)],
-                                policy: .after(Date().addingTimeInterval(15 * 60))))
+            let entry = await Self.fetch()
+            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
         }
     }
-
-    /// Samples are reserved for previews; live setup and failures preserve actual shared state.
-    private static func fetch() async -> AlarmSnapshot {
+    private static func fetch() async -> AlarmEntry {
         #if DEBUG
-        if ParityCatalog.activeWidgetID(prefix: "alarm") != nil { return .sample }
+        if ParityCatalog.activeWidgetID(prefix: "alarm") != nil { return AlarmEntry(date: .now, snap: .sample) }
         #endif
-        return await AlarmLiveSnapshot.fetch()
+        let snapshot = await AlarmLiveSnapshot.fetch()
+        return AlarmEntry(payload: AlarmReadingsStore.bind(snapshot))
     }
 }
 
 struct AlarmWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.alarm", provider: AlarmProvider()) { entry in
-            ParityWidgetContent(prefix: "alarm") { AlarmBeaconView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+            AlarmWidgetEntryView(entry: entry)
         }
         .configurationDisplayName("Home Alarm")
         .description("Your alarm state and front door at a glance.")
         .supportedFamilies(WidgetPreviewKind.alarm.widgetKitFamilies)
         .contentMarginsDisabled()
+    }
+}
+
+private struct AlarmWidgetEntryView: View {
+    let entry: AlarmEntry
+    @Environment(\.widgetFamily) private var family
+    var body: some View {
+        ParityWidgetContent(prefix: "alarm") {
+            if let payload = entry.payload { AlarmBeaconView(payload, family: family) }
+            else { AlarmBeaconView(entry.snap, family: family) }
+        }
+        .widgetURL(family == .systemSmall ? alarmReadingsURL(for: entry.payload?.destination ?? .inert) : nil)
+        .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
     }
 }
 

@@ -50,7 +50,7 @@ public func alarmAvailableActions(_ state: AlarmState?) -> [AlarmAction] {
 }
 
 /// What each button does in Home Assistant, and which state means it's "on".
-public enum AlarmAction: String, Sendable, CaseIterable {
+public enum AlarmAction: String, Codable, Sendable, CaseIterable {
     case armHome, armAway, disarm
     public var service: String { switch self { case .armHome: "alarm_arm_home"; case .armAway: "alarm_arm_away"; case .disarm: "alarm_disarm" } }
     public var label: String { switch self { case .armHome: "Arm home"; case .armAway: "Arm away"; case .disarm: "Disarm" } }
@@ -70,10 +70,10 @@ public struct CardView: Sendable, Equatable { public let title: String; public l
     public init(_ title: String, _ tone: Tone, _ detail: String?) { self.title = title; self.tone = tone; self.detail = detail } }
 
 /// The shield glyph per state (maps from `Tone` in the Android `statusIcon`).
-public enum AlarmGlyph: String, Sendable { case off, home, lock, alert }
+public enum AlarmGlyph: String, Codable, Sendable { case off, home, lock, alert }
 
 // ── The front door (a `lock.*` entity) ───────────────────────────────────────
-public enum LockAction: String, Sendable { case lock, unlock
+public enum LockAction: String, Codable, Sendable { case lock, unlock
     public var service: String { self == .lock ? "lock" : "unlock" }
     public var label: String { self == .lock ? "Lock" : "Unlock" }
     public var target: String { self == .lock ? "locked" : "unlocked" }

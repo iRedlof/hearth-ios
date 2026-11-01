@@ -1,11 +1,20 @@
 import SwiftUI
 import AppIntents
 import HearthKit
+import WidgetKit
 
 /// Actual panel/door telemetry with a centered door well and controls bound to their rendered origin.
 public struct AlarmBeaconView: View {
     public let snap: AlarmSnapshot
-    public init(_ snap: AlarmSnapshot) { self.snap = snap }
+    public let family: WidgetFamily
+    private let destination: AlarmReadingsDestination
+    public init(_ snap: AlarmSnapshot, family: WidgetFamily = .systemMedium,
+                destination: AlarmReadingsDestination = .inert) {
+        self.snap = snap; self.family = family; self.destination = destination
+    }
+    public init(_ payload: AlarmReadingsEntryPayload, family: WidgetFamily) {
+        self.init(payload.snapshot, family: family, destination: payload.destination)
+    }
 
     private var fill: Color { Color(argb: snap.tone.fillARGB) }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }                 // dark text on the light tone rail
@@ -21,6 +30,11 @@ public struct AlarmBeaconView: View {
     }
 
     public var body: some View {
+        if family == .systemSmall { AlarmSmallCard(snap: snap, destination: destination) }
+        else { medium }
+    }
+
+    private var medium: some View {
         GeometryReader { geo in
             let s = beaconSplit(width: geo.size.width)   // Android rail is ~37%, not 50%
             HStack(spacing: 0) {
@@ -204,5 +218,93 @@ public struct AlarmBeaconView: View {
         case .lock:  "lock.shield.fill"
         case .alert: "exclamationmark.shield.fill"
         }
+    }
+}
+
+
+/// A single navigation target; optional groups yield before critical state or operation qualifiers.
+private struct AlarmSmallCard: View {
+    let snap: AlarmSnapshot
+    let destination: AlarmReadingsDestination
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    @ScaledMetric(relativeTo: .title2) private var criticalSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .subheadline) private var supportSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var openSize: CGFloat = 16
+    private var content: AlarmSmallContent { alarmSmallContent(snap, destination: destination) }
+    private var ink: Color { Color(argb: content.tone.inkARGB) }
+    private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
+
+    var body: some View {
+        GeometryReader { geometry in
+            if let url = content.navigationURL {
+                Link(destination: url) { composition(size: geometry.size) }.buttonStyle(.plain)
+            } else { composition(size: geometry.size) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(alarmSmallAccessibility(content))
+        .accessibilityAddTraits(content.navigationURL == nil ? [] : .isLink)
+        .accessibilityIdentifier("alarm.production-small")
+    }
+    private func composition(size: CGSize) -> some View {
+        ViewThatFits(in: [.horizontal, .vertical]) {
+            if !dynamicType.isAccessibilitySize {
+                standard(size: size, identity: true, context: true)
+                standard(size: size, identity: true, context: false)
+                standard(size: size, identity: false, context: false)
+            }
+            critical(width: max(0, size.width - 22))
+            handoff
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(11).frame(width: size.width, height: size.height)
+        .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),
+            Color(argb: content.tone.fillARGB).opacity(0.86)],
+            startPoint: .topLeading, endPoint: .bottomTrailing))
+        .overlay(ContainerRelativeShape().strokeBorder(.white.opacity(0.24), lineWidth: 1))
+    }
+    private func standard(size: CGSize, identity: Bool, context: Bool) -> some View {
+        let contextHeight = context && content.optionalContext != nil ? ceil(supportSize * 1.3) + 4 : 0
+        return VStack(spacing: 4) {
+            if identity {
+                HStack(spacing: 5) {
+                    Image(systemName: "shield")
+                    Text(snap.name).lineLimit(1).truncationMode(.tail)
+                    Spacer(minLength: 0)
+                }.font(.system(size: supportSize, weight: .semibold)).frame(minHeight: 20)
+            }
+            critical(width: max(0, size.width - 22))
+                .frame(minHeight: max(0, size.height - 22 - (identity ? 24 : 0) - 48 - contextHeight),
+                       alignment: .center)
+            if context, let text = content.optionalContext {
+                Text(text).font(.system(size: supportSize)).fixedSize(horizontal: true, vertical: true)
+            }
+            footer
+        }
+        .foregroundStyle(ink).fixedSize(horizontal: false, vertical: true)
+    }
+    private func critical(width: CGFloat) -> some View {
+        VStack(spacing: 2) {
+            ForEach(content.criticalTexts, id: \.self) { text in
+                Text(text).font(.system(size: criticalSize, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }.frame(width: width).fixedSize(horizontal: false, vertical: true).foregroundStyle(ink)
+    }
+    private var footer: some View {
+        Text("Open").font(.system(size: openSize, weight: .semibold)).fixedSize()
+            .frame(maxWidth: .infinity, minHeight: 44).foregroundStyle(surfaceInk)
+            .background(Color(argb: BeaconSurfaceColors.graphiteARGB),
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .opacity(content.navigationURL == nil ? 0.35 : 1)
+    }
+    private var handoff: some View {
+        VStack(spacing: 4) {
+            Image(systemName: content.statusSymbol).font(.system(size: supportSize))
+            Text("Open").font(.system(size: openSize, weight: .semibold)).fixedSize()
+        }.foregroundStyle(surfaceInk).frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(argb: BeaconSurfaceColors.graphiteARGB),
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .opacity(content.navigationURL == nil ? 0.35 : 1)
     }
 }

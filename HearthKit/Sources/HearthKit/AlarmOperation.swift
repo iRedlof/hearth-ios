@@ -18,6 +18,7 @@ public struct AlarmOperation: Codable, Sendable, Equatable {
 public func alarmApplyingOperation(_ snapshot: AlarmSnapshot, _ operation: AlarmOperation?) -> AlarmSnapshot {
     guard let operation, operation.entityID == snapshot.entityID || operation.entityID == snapshot.lockID else { return snapshot }
     var result = snapshot
+    result.operation = operation
     result.commandPending = operation.pending
     result.commandError = operation.error
     if operation.pending {

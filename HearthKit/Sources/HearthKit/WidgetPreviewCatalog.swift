@@ -67,6 +67,6 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
     }
 
     public var supportedFamilies: [WidgetPreviewFamily] {
-        self == .thermostat || self == .car ? [.small, .medium] : [family]
+        self == .thermostat || self == .car || self == .alarm ? [.small, .medium] : [family]
     }
 }

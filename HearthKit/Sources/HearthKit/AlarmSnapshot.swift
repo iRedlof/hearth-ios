@@ -1,7 +1,7 @@
 import Foundation
 
 /// Everything the Alarm Beacon view renders, already formatted (mirrors CarSnapshot's style).
-public struct AlarmSnapshot: Sendable, Equatable {
+public struct AlarmSnapshot: Codable, Sendable, Equatable {
     public var name: String          // the home's name, e.g. "Home"
     public var checkedAt: String     // "7:17 PM"
     public var stateWord: String     // "Disarmed" / "Armed home" / "Alarm triggered"
@@ -30,6 +30,15 @@ public struct AlarmSnapshot: Sendable, Equatable {
     public var commandPending = false
     public var commandFeedback: String?
     public var commandError: String?
+    // Original typed facts and independent observation dates; Small never parses display copy.
+    public var panelRawState: String?
+    public var doorRawState: String?
+    public var panelObservedAt: Date?
+    public var doorObservedAt: Date?
+    public var panelChangedAt: Date?
+    public var doorChangedAt: Date?
+    public var storageUnavailable = false
+    public var operation: AlarmOperation?
 
     public init(name: String, checkedAt: String, stateWord: String, detail: String, tone: BeaconTone,
                 glyph: AlarmGlyph, doorName: String, doorState: String, doorSince: String?,
@@ -41,8 +50,12 @@ public struct AlarmSnapshot: Sendable, Equatable {
         self.doorAction = doorLocked.map { $0 ? .unlock : .lock }
     }
 
-    public static let sample = AlarmSnapshot(
+    public static let sample: AlarmSnapshot = {
+        var snapshot = AlarmSnapshot(
         name: "Home", checkedAt: "7:17 PM", stateWord: "Disarmed", detail: "Disarmed at 7:00 AM",
         tone: .blue, glyph: .off, doorName: "Front Door", doorState: "Locked",
         doorSince: "since 7:44 PM", doorLocked: true, actions: [.armHome, .armAway])
+        snapshot.panelRawState = "disarmed"; snapshot.doorRawState = "locked"
+        return snapshot
+    }()
 }

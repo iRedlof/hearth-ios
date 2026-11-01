@@ -174,7 +174,7 @@ struct WidgetGalleryView: View {
                 CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
                     snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
             }
-        case .alarm: AlarmBeaconView(.sample)
+        case .alarm: AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"), family: selectedFamily(for: kind).widgetKitFamily)
         case .thermostat:
             if selectedFamily(for: kind) == .small {
                 ThermostatBeaconView(ThermostatParityInputs.payload("auto"), family: .systemSmall)

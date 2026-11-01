@@ -139,6 +139,10 @@ struct ParityWidgetSelection: Sendable {
     // MARK: Alarm
     private static func alarm() -> [(String, AnyView)] {
         AlarmParityInputs.states.map { ("alarm-" + $0, AnyView(AlarmBeaconView(AlarmParityInputs.snapshot($0)))) }
+        + AlarmParityInputs.states.map {
+            ("alarm-small-production-" + $0,
+             AnyView(AlarmBeaconView(AlarmParityInputs.snapshot($0), family: .systemSmall)))
+        }
     }
 
     // MARK: Thermostat

@@ -6,7 +6,7 @@ enum AlarmParityInputs {
     static let states = [
         "disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation", "armed_custom_bypass",
         "arming", "disarming", "pending", "triggered", "offline", "setup", "first_failure",
-        "panel_failed", "door_failed", "door_first_failure", "no_door", "long_names",
+        "panel_failed", "historical_triggered", "triggered_pending_door", "door_failed", "door_first_failure", "no_door", "long_names",
         "door_unlocked", "door_open", "door_jammed", "door_locking", "door_unlocking", "door_opening",
         "door_unknown", "door_unavailable", "panel_unavailable", "panel_unknown",
         "home_only", "away_only", "no_arm_modes", "code_required", "pending_arm", "failed_arm",
@@ -24,7 +24,7 @@ enum AlarmParityInputs {
         }
         let alarmStates = ["disarmed", "armed_home", "armed_away", "armed_night", "armed_vacation",
                            "armed_custom_bypass", "arming", "disarming", "pending", "triggered"]
-        let panelState = alarmStates.contains(state) ? state
+        let panelState = ["historical_triggered", "triggered_pending_door"].contains(state) ? "triggered" : alarmStates.contains(state) ? state
             : state == "panel_unavailable" ? "unavailable" : state == "panel_unknown" ? "unknown"
             : ["offline", "panel_failed", "pending_door", "failed_door"].contains(state) ? "armed_home" : "disarmed"
         let doorStates = ["unlocked", "open", "jammed", "locking", "unlocking", "opening", "unknown", "unavailable"]
@@ -48,7 +48,7 @@ enum AlarmParityInputs {
                 old: state == "old_cache")
         }
         var errors: [String: String] = [:]
-        if ["offline", "first_failure", "panel_failed"].contains(state) { errors[panelID] = "Can't reach Home Assistant" }
+        if ["offline", "first_failure", "panel_failed", "historical_triggered"].contains(state) { errors[panelID] = "Can't reach Home Assistant" }
         if ["offline", "first_failure", "door_failed", "door_first_failure"].contains(state) {
             errors[doorID] = "Can't reach Home Assistant"
         }
@@ -57,7 +57,7 @@ enum AlarmParityInputs {
         var result = AlarmFetchResult(entityID: panelID, lockID: state == "no_door" ? "" : doorID,
             lockName: state == "long_names" ? "Main entrance beside the garage" : "Front Door",
             readings: readings, errors: errors).snapshot(now: now, zone: zone, locale: Locale(identifier: "en_US"))
-        if ["pending_arm", "failed_arm", "pending_door", "failed_door", "interrupted"].contains(state) {
+        if ["pending_arm", "failed_arm", "pending_door", "triggered_pending_door", "failed_door", "interrupted"].contains(state) {
             let isDoor = state.hasSuffix("_door")
             result = alarmApplyingOperation(result, AlarmOperation(entityID: isDoor ? doorID : panelID,
                 action: isDoor ? "unlock" : "armHome", startedAt: now,

@@ -150,6 +150,13 @@ struct ContentView: View {
             presentCarReadings(request)
         }
         .onOpenURL { url in
+            if let destination = alarmReadingsDestination(from: url) {
+                guard destination != .inert else { return }
+                settingsCarReturn = nil
+                retireThermostat()
+                presentedSheet = .alarm(destination, UUID())
+                return
+            }
             if let destination = thermostatDestination(from: url) {
                 presentThermostat(destination)
                 return
@@ -262,6 +269,10 @@ struct ContentView: View {
                             } }
                     }
                 }.id(returning.transitionID).interactiveDismissDisabled()
+            case .alarm(let destination, _):
+                AlarmReadingsScreen(destination: destination, inert: inertTabs,
+                    onSettings: { presentedSheet = nil; selection = 1 },
+                    onReconnect: { presentedSheet = .reconnect(UUID(), returningTo: nil) })
             case .car(let request):
                 CarReadingsScreen(request: request, runtime: carReadingsRuntime,
                     onClose: {
@@ -435,6 +446,7 @@ private enum HearthSheet: Identifiable {
     case chargepoint(CpSetupRoute, UUID)
     case reconnect(UUID, returningTo: CarReadingsRequest?)
     case car(CarReadingsRequest)
+    case alarm(AlarmReadingsDestination, UUID)
     case thermostat(ThermostatRouteRequest)
     case thermostatReconnect(ThermostatRecoveryReturn)
     var id: String {
@@ -442,6 +454,7 @@ private enum HearthSheet: Identifiable {
         case .chargepoint(_, let id): "chargepoint:\(id)"
         case .reconnect(let id, _): "reconnect:\(id)"
         case .car(let request): "car:\(request.id)"
+        case .alarm(_, let id): "alarm:\(id)"
         case .thermostat(let request): "thermostat:\(request.eventID)"
         case .thermostatReconnect(let returning): "thermostatReconnect:\(returning.transitionID)"
         }
