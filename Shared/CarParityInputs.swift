@@ -31,7 +31,6 @@ enum CarParityInputs {
         return CarFetchResult(cache: cache, error: error).snapshot(now: now, zone: zone, locale: locale)
     }
 
-    #if DEBUG
     static let compactOpeningStates = ["windows_open", "mixed_open", "port_open", "partial_open",
                                        "historical_open", "save_failed_open"]
 
@@ -64,12 +63,12 @@ enum CarParityInputs {
         ]
         let origin = try! JSONDecoder().decode(CarReadingOrigin.self,
             from: JSONSerialization.data(withJSONObject: record))
+        let primary = carReadingsPrimary(origin: origin, cache: cache, error: error, setup: setup)
         return CarReadingsEntryPayload(entryID: UUID(), date: now,
             snapshot: result.snapshot(now: now, zone: zone, locale: locale), destination: destination,
-            primary: carReadingsPrimary(origin: origin, cache: cache, error: error, setup: setup),
-            readingsUnavailable: ["save_failed", "save_failed_open"].contains(state))
+            primary: primary, readingsUnavailable: ["save_failed", "save_failed_open"].contains(state),
+            smallReading: carSmallReading(result: result, primary: primary))
     }
-    #endif
 
     private static func reply(_ state: String) -> String {
         if state == "no_car" { return #"{"found":false}"# }

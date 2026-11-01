@@ -197,7 +197,9 @@ struct CarWidgetPresentation: View {
     var body: some View {
         let destination = carReadingsURL(for: payload.destination)
         Group {
-            if family == .systemMedium && dynamicType >= .xxxLarge {
+            if family == .systemSmall {
+                CarSmallCard(payload: payload)
+            } else if family == .systemMedium && dynamicType >= .xxxLarge {
                 CarReadableSummary(payload: payload, destination: destination)
             } else {
                 CarBeaconView(payload.snapshot,
@@ -207,6 +209,145 @@ struct CarWidgetPresentation: View {
             }
         }
         .widgetURL(destination)
+    }
+}
+
+private struct CarSmallCard: View {
+    let payload: CarReadingsEntryPayload
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    @ScaledMetric(relativeTo: .largeTitle) private var batterySize: CGFloat = 40
+    @ScaledMetric(relativeTo: .title2) private var primarySize: CGFloat = 22
+    @ScaledMetric(relativeTo: .subheadline) private var supportSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var openSize: CGFloat = 16
+
+    private var content: CarSmallContent { carSmallContent(payload) }
+    private var ink: Color { Color(argb: content.tone.inkARGB) }
+    private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
+
+    var body: some View {
+        GeometryReader { geometry in
+            if let url = content.navigationURL {
+                Link(destination: url) { composition(size: geometry.size) }
+                    .buttonStyle(.plain)
+            } else { composition(size: geometry.size) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(carSmallAccessibility(content))
+        .accessibilityAddTraits(content.navigationURL == nil ? [] : .isLink)
+        .accessibilityIdentifier("car.production-small")
+    }
+
+    private func composition(size: CGSize) -> some View {
+        ViewThatFits(in: [.horizontal, .vertical]) {
+            if !dynamicType.isAccessibilitySize {
+                if content.batteryIsPrimary {
+                    standard(size: size, photo: true, battery: true, detail: true, identity: true)
+                }
+                standard(size: size, photo: false, battery: true, detail: true, identity: true)
+                standard(size: size, photo: false, battery: content.batteryIsPrimary,
+                         detail: true, identity: true)
+                standard(size: size, photo: false, battery: content.batteryIsPrimary,
+                         detail: false, identity: true)
+                standard(size: size, photo: false, battery: content.batteryIsPrimary,
+                         detail: false, identity: false)
+            }
+            critical(width: max(0, size.width - 22))
+                .fixedSize(horizontal: false, vertical: true)
+            handoff
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(11)
+        .frame(width: size.width, height: size.height)
+        .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),
+            Color(argb: content.tone.fillARGB).opacity(0.86)],
+            startPoint: .topLeading, endPoint: .bottomTrailing))
+        .overlay(ContainerRelativeShape().strokeBorder(.white.opacity(0.24), lineWidth: 1))
+    }
+
+    private func standard(size: CGSize, photo: Bool, battery: Bool, detail: Bool,
+                          identity: Bool) -> some View {
+        VStack(spacing: 4) {
+            if identity {
+                HStack(spacing: 5) {
+                    Image(systemName: "car")
+                    Text(content.name).lineLimit(1).truncationMode(.tail)
+                    Spacer(minLength: 0)
+                }
+                .font(.system(size: supportSize, weight: .semibold))
+                .frame(minHeight: 20, alignment: .leading)
+            }
+            VStack(spacing: 2) {
+                if content.batteryIsPrimary {
+                    HStack(spacing: 4) {
+                        batteryText
+                        if photo {
+                            Image("CarPremium").resizable().scaledToFit()
+                                .frame(width: 52, height: 30).accessibilityHidden(true)
+                        }
+                    }
+                }
+                ForEach(content.criticalTexts, id: \.self) { text in
+                    Text(text).font(.system(size: primarySize, weight: .semibold)).fixedSize()
+                }
+                if battery && !content.batteryIsPrimary, let value = content.battery {
+                    Text(value).font(.system(size: supportSize, weight: .medium))
+                        .monospacedDigit().fixedSize()
+                }
+                if detail, let opening = content.openingDetail {
+                    Text(opening).font(.system(size: supportSize, weight: .medium)).fixedSize()
+                }
+                if detail && content.openingsUnknown {
+                    Text("Openings unknown").font(.system(size: supportSize, weight: .medium)).fixedSize()
+                }
+            }
+            .frame(minHeight: max(0, size.height - 22 - (identity ? 24 : 0) - 48),
+                   alignment: .center)
+            footer
+        }
+        .foregroundStyle(ink)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder private var batteryText: some View {
+        if let value = content.battery {
+            Text(value).font(.system(size: batterySize, weight: .heavy)).monospacedDigit()
+                .fixedSize(horizontal: true, vertical: true)
+        }
+    }
+
+    private func critical(width: CGFloat) -> some View {
+        VStack(spacing: 2) {
+            if content.batteryIsPrimary { batteryText }
+            ForEach(content.criticalTexts, id: \.self) { text in
+                Text(text).font(.system(size: primarySize, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: true, vertical: true)
+            }
+        }
+        .frame(minWidth: width)
+        .foregroundStyle(ink)
+    }
+
+    private var footer: some View {
+        Text("Open").font(.system(size: openSize, weight: .semibold)).fixedSize()
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .foregroundStyle(surfaceInk)
+            .background(Color(argb: BeaconSurfaceColors.graphiteARGB),
+                        in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .opacity(content.navigationURL == nil ? 0.35 : 1)
+    }
+
+    /// A complete bounded handoff retains the full bound reading in the single link's label.
+    private var handoff: some View {
+        VStack(spacing: 4) {
+            Image(systemName: content.statusSymbol).font(.system(size: supportSize))
+            Text("Open").font(.system(size: openSize, weight: .semibold)).fixedSize()
+        }
+        .foregroundStyle(surfaceInk)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(argb: BeaconSurfaceColors.graphiteARGB),
+                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+        .opacity(content.navigationURL == nil ? 0.35 : 1)
     }
 }
 

@@ -101,6 +101,11 @@ struct ParityWidgetSelection: Sendable {
             ("car-production-" + $0, AnyView(CarWidgetPresentation(
                 payload: CarParityInputs.productionPayload($0), family: .systemMedium)))
         }
+        let productionCarSmall = (CarParityInputs.states + ["save_failed", "long_names", "auth_history"]
+            + CarParityInputs.compactOpeningStates).map {
+            ("car-small-production-" + $0, AnyView(CarWidgetPresentation(
+                payload: CarParityInputs.productionPayload($0), family: .systemSmall)))
+        }
         // Fabricated immutable destination for visual disclosure fit only. No ticket is persisted;
         // the direct parity screen disables hit testing and does not prove navigation.
         let disclosureCar = [
@@ -109,7 +114,7 @@ struct ParityWidgetSelection: Sendable {
                     destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)),
                 family: .systemMedium)))
         ]
-        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + small + readable + nativeReadable + productionCar + disclosureCar
+        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + small + readable + nativeReadable + productionCar + productionCarSmall + disclosureCar
         #else
         alarm() + thermostat() + car() + chargePoint() + tiles() + collections()
         #endif

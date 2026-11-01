@@ -13,23 +13,26 @@ public struct CarReadingsEntryPayload: Sendable, Equatable {
     public let destination: CarReadingsDestination
     public let primary: CarReadingsPrimary
     public let readingsUnavailable: Bool
+    public let smallReading: CarSmallReading?
 
     /// Allows preview and placeholder callers to create an inert payload without persistence.
     public init(entryID: UUID, date: Date, snapshot: CarSnapshot,
                 destination: CarReadingsDestination, primary: CarReadingsPrimary = .noReading,
-                readingsUnavailable: Bool? = nil) {
+                readingsUnavailable: Bool? = nil, smallReading: CarSmallReading? = nil) {
         self.entryID = entryID
         self.date = date
         self.snapshot = snapshot
         self.destination = destination
         self.primary = primary
         self.readingsUnavailable = destination == .storageUnavailable || readingsUnavailable == true
+        self.smallReading = smallReading
     }
 
     /// Preserve the chosen reading when an entry loses permission to publish executable controls.
     public func disablingInteractions() -> CarReadingsEntryPayload {
         CarReadingsEntryPayload(entryID: entryID, date: date, snapshot: snapshot,
-            destination: .inert, primary: primary, readingsUnavailable: readingsUnavailable)
+            destination: .inert, primary: primary, readingsUnavailable: readingsUnavailable,
+            smallReading: smallReading)
     }
 }
 
@@ -52,7 +55,9 @@ public func bindCarReadingsEntry(
     } catch {
         destination = .storageUnavailable
     }
+    let primary = carReadingsPrimary(origin: envelope.origin, cache: envelope.result.cache,
+        error: envelope.result.error, setup: envelope.result.setup)
     return CarReadingsEntryPayload(entryID: entryID, date: date, snapshot: envelope.snapshot,
-        destination: destination, primary: carReadingsPrimary(origin: envelope.origin,
-            cache: envelope.result.cache, error: envelope.result.error, setup: envelope.result.setup))
+        destination: destination, primary: primary,
+        smallReading: carSmallReading(result: envelope.result, primary: primary))
 }

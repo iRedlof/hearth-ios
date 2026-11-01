@@ -168,8 +168,12 @@ struct WidgetGalleryView: View {
     @ViewBuilder private func widget(for kind: WidgetPreviewKind) -> some View {
         switch kind {
         case .car:
-            CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
-                snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
+            if selectedFamily(for: kind) == .small {
+                CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
+            } else {
+                CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
+                    snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
+            }
         case .alarm: AlarmBeaconView(.sample)
         case .thermostat:
             if selectedFamily(for: kind) == .small {

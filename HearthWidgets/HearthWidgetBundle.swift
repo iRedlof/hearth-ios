@@ -372,12 +372,21 @@ struct CarProvider: TimelineProvider, Sendable {
     }
 }
 
+private struct CarWidgetEntryView: View {
+    let entry: CarEntry
+    @Environment(\.widgetFamily) private var family
+
+    var body: some View {
+        CarWidgetPresentation(payload: entry.payload, family: family)
+    }
+}
+
 struct CarWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.car", provider: CarProvider()) { originalEntry in
             ParityWidgetContent(prefix: "car") {
                 let entry = originalEntry.currentInteractionEntry
-                CarWidgetPresentation(payload: entry.payload, family: .systemMedium)
+                CarWidgetEntryView(entry: entry)
             }
                 .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
