@@ -77,6 +77,27 @@ public struct ThermostatPresentation: Equatable, Sendable {
     }
 }
 
+/// Ordinary Medium may omit repeated targets only for a current, settled fan observation.
+/// The canonical snapshot and its full accessibility/detail meaning remain unchanged.
+public func thermostatMediumVisibleStatus(_ presentation: ThermostatPresentation?,
+                                         snapshot: ThermostatSnapshot) -> String {
+    let fallback = snapshot.commandFeedback ?? snapshot.status
+    guard let presentation, presentation.configuration == .ready, presentation.recovery == .none,
+          case .none = presentation.operation,
+          presentation.room.availability == .current, presentation.room.failure == nil,
+          let state = presentation.state, state.isAvailable, state.isRange, state.action == "fan",
+          let current = climateNumber(state.current), presentation.room.value == .number(current),
+          let heat = climateNumber(state.low), let cool = climateNumber(state.high),
+          !snapshot.setup, !snapshot.stale, !snapshot.needsSettings, !snapshot.needsSignIn,
+          !snapshot.commandPending, snapshot.commandFeedback == nil,
+          snapshot.commandError == nil, snapshot.error == nil,
+          snapshot.mode.caseInsensitiveCompare("Off") != .orderedSame,
+          snapshot.heatSetpoint == degrees(heat), snapshot.coolSetpoint == degrees(cool) else {
+        return fallback
+    }
+    return "Fan only"
+}
+
 private func thermostatRoomIsHistorical(_ presentation: ThermostatPresentation) -> Bool {
     presentation.room.availability == .lastKnown
         || (presentation.room.value != nil && presentation.recovery != .none)

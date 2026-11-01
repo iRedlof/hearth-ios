@@ -34,6 +34,121 @@ final class ThermostatPresentationTests: XCTestCase {
             thermostatSelectionRevision: generation)
     }
 
+    private func fanEnvelope(unit: String? = nil) -> ThermostatLiveEnvelope {
+        let unitAttribute = unit.map { #","temperature_unit":"\#($0)""# } ?? ""
+        let reading = HaStateReading(entityID: "climate.room", json: """
+        {"entity_id":"climate.room","state":"heat_cool","attributes":{
+        "current_temperature":67,"current_humidity":50,"target_temp_low":64,
+        "target_temp_high":70,"hvac_action":"fan","fan_mode":"on"\(unitAttribute)}}
+        """, checkedAt: observed)
+        return ThermostatLiveEnvelope(evidence: ThermostatRawEvidence(origin: nil,
+            configuration: .ready, commandRevision: "", readings: ["climate.room": reading],
+            failures: [:], operation: nil, recovery: .none, entityID: "climate.room"),
+            now: observed, zone: TimeZone(secondsFromGMT: 0)!, locale: Locale(identifier: "en_US"))
+    }
+
+    private func mediumStatus(_ presentation: ThermostatPresentation?, _ snapshot: ThermostatSnapshot) -> String {
+        thermostatMediumVisibleStatus(presentation, snapshot: snapshot)
+    }
+
+    func testMediumFanActivityUsesWholeCaptionWithoutChangingCanonicalTargetsOrUnknownUnit() {
+        for unit in [nil, "°F", "°C"] as [String?] {
+            let envelope = fanEnvelope(unit: unit)
+            XCTAssertEqual(envelope.presentation.room.availability, .current)
+            XCTAssertEqual(mediumStatus(envelope.presentation, envelope.snapshot), "Fan only")
+            XCTAssertEqual(envelope.snapshot.status, "Fan only · set 64–70°")
+            XCTAssertEqual(envelope.snapshot.heatSetpoint, "64°")
+            XCTAssertEqual(envelope.snapshot.coolSetpoint, "70°")
+            XCTAssertEqual(envelope.presentation.room.reportedUnit, unit)
+            XCTAssertEqual(envelope.presentation.state?.mode, "heat_cool")
+            XCTAssertEqual(envelope.presentation.state?.fanMode, "on")
+        }
+    }
+
+    func testMediumFanActivityCannotHideRecoveryHistoryUnavailableRoomOrOperation() {
+        let envelope = fanEnvelope()
+        let snapshot = envelope.snapshot
+        var variants: [(String, ThermostatPresentation)] = []
+        for configuration in [ThermostatConfiguration.unconfigured, .invalid, .needsAuthentication, .unavailable] {
+            var value = envelope.presentation; value.configuration = configuration
+            variants.append(("configuration \(configuration)", value))
+        }
+        for recovery in [ThermostatRecovery.setup, .authentication, .readFailed, .sharedStoreUnavailable,
+                         .readingsNotSaved, .selectionChanged, .operationNotSaved] {
+            var value = envelope.presentation; value.recovery = recovery
+            variants.append(("recovery \(recovery)", value))
+        }
+        for availability in [ThermostatReadingAvailability.lastKnown, .unavailable, .noReading] {
+            var value = envelope.presentation; value.room.availability = availability
+            variants.append(("availability \(availability)", value))
+        }
+        var missing = envelope.presentation; missing.room.value = nil
+        variants.append(("missing room", missing))
+        var failedReading = envelope.presentation
+        failedReading.room.failure = HaStateFailure(message: "Read failed", checkedAt: observed, reason: .transport)
+        variants.append(("reading failure", failedReading))
+        for error in [nil, "Failed"] as [String?] {
+            let operation = ClimateOperation(entityID: "climate.room", action: "mode",
+                startedAt: observed, error: error)
+            var value = envelope.presentation
+            value.operation = error == nil ? .pending(operation) : .failed(operation)
+            variants.append(("operation \(error ?? "pending")", value))
+        }
+        var unknown = envelope.presentation; unknown.state = nil
+        variants.append(("unknown state", unknown))
+        for (name, value) in variants {
+            XCTAssertEqual(mediumStatus(value, snapshot), "Fan only · set 64–70°", name)
+        }
+        XCTAssertEqual(mediumStatus(nil, snapshot), "Fan only · set 64–70°")
+    }
+
+    func testMediumFanActivityNeverGuessesFromModeOrFanSettingAndRequiresCompleteFiniteTargets() {
+        let envelope = fanEnvelope()
+        for action in [nil, "idle", "heating", "cooling", "unknown", "Fan"] as [String?] {
+            var value = envelope.presentation; value.state?.action = action
+            XCTAssertEqual(mediumStatus(value, envelope.snapshot), "Fan only · set 64–70°",
+                "action \(action ?? "nil")")
+        }
+        for mode in ["off", "heat", "cool", "fan_only", "dry", "unavailable", "unknown"] {
+            var value = envelope.presentation; value.state?.mode = mode
+            XCTAssertEqual(mediumStatus(value, envelope.snapshot), "Fan only · set 64–70°", mode)
+        }
+        for target in [nil, .nan, .infinity, -.infinity] as [Double?] {
+            var missingHeat = envelope.presentation; missingHeat.state?.low = target
+            var missingCool = envelope.presentation; missingCool.state?.high = target
+            XCTAssertEqual(mediumStatus(missingHeat, envelope.snapshot), "Fan only · set 64–70°")
+            XCTAssertEqual(mediumStatus(missingCool, envelope.snapshot), "Fan only · set 64–70°")
+        }
+        for current in [nil, .nan, .infinity] as [Double?] {
+            var value = envelope.presentation; value.state?.current = current
+            XCTAssertEqual(mediumStatus(value, envelope.snapshot), "Fan only · set 64–70°")
+        }
+    }
+
+    func testMediumFanActivityPreservesExactVisibleFallbackForSnapshotGuardsAndTargetMismatch() {
+        let envelope = fanEnvelope()
+        let changes: [(String, (inout ThermostatSnapshot) -> Void)] = [
+            ("stale", { $0.stale = true }), ("setup", { $0.setup = true }),
+            ("settings", { $0.needsSettings = true }), ("sign in", { $0.needsSignIn = true }),
+            ("pending", { $0.commandPending = true }), ("read error", { $0.error = "Read failed" }),
+            ("command error", { $0.commandError = "Failed" }),
+            ("Off panel hides targets", { $0.mode = "Off" }),
+            ("missing heat", { $0.heatSetpoint = nil }), ("missing cool", { $0.coolSetpoint = nil }),
+            ("other heat", { $0.heatSetpoint = "63°" }), ("other cool", { $0.coolSetpoint = "71°" })
+        ]
+        for (name, change) in changes {
+            var snapshot = envelope.snapshot
+            change(&snapshot)
+            XCTAssertEqual(mediumStatus(envelope.presentation, snapshot), "Fan only · set 64–70°", name)
+        }
+        for feedback in ["Updating mode", "Update failed", ""] {
+            var snapshot = envelope.snapshot; snapshot.commandFeedback = feedback
+            XCTAssertEqual(mediumStatus(envelope.presentation, snapshot), feedback)
+        }
+        var custom = envelope.snapshot; custom.commandError = "Failure"; custom.status = "原文 · details"
+        XCTAssertEqual(mediumStatus(envelope.presentation, custom), "原文 · details")
+    }
+
     func testCurrentRawRoomAndContextPreserveSourceUnitAndIndependentTimes() throws {
         let value = thermostatPresentation(context())
         XCTAssertEqual(value.room.value, .number(-2.5))
