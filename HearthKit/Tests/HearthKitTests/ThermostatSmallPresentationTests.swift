@@ -5,7 +5,7 @@ final class ThermostatSmallPresentationTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
     private let locale = Locale(identifier: "en_US")
     private func envelope(mode: String = "heat_cool", action: String? = nil, room: Double? = -2.56,
-                          unit: String? = "°C", context: Bool = true,
+                          unit: Any? = "°C", context: Bool = true,
                           failures: [String: HaStateFailure] = [:], operation: ClimateOperation? = nil,
                           recovery: ThermostatRecovery = .none, authenticated: Bool = true,
                           modes: [String] = ["heat_cool", "heat", "cool", "off"]) throws -> ThermostatLiveEnvelope {
@@ -63,6 +63,39 @@ final class ThermostatSmallPresentationTests: XCTestCase {
         let unknown = thermostatSmallContent(try envelope(unit: nil, context: false).presentation)
         XCTAssertNil(unknown.target)
         XCTAssertTrue(thermostatSmallAccessibility(unknown, locale: locale).contains("Unit not reported"))
+    }
+
+    func testMissingOrMalformedRoomUnitIsDisclosedWithoutBorrowingSensorUnitOrChangingModeRoute() throws {
+        let id = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
+        for unit in [nil, NSNull(), false, 1, "", " \n "] as [Any?] {
+            let source = try envelope(action: "fan", room: 68, unit: unit)
+            let content = thermostatSmallContent(source.presentation, destination: .ticket(id))
+            XCTAssertNil(content.focused.room.reportedUnit)
+            XCTAssertEqual(content.roomUnitLabel, "Unit not reported")
+            XCTAssertEqual(content.focused.room.value, .number(68))
+            XCTAssertEqual(content.focused.context?.reportedUnit, "°F")
+            XCTAssertEqual(content.focused.mode, "Auto")
+            XCTAssertEqual(content.mode, "Fan")
+            XCTAssertEqual(content.purpose, .mode)
+            XCTAssertEqual(content.actionLabel, "Mode")
+            XCTAssertEqual(content.navigationURL?.absoluteString,
+                "hearth://thermostat-mode/00000000-0000-0000-0000-000000000001")
+            XCTAssertTrue(thermostatSmallAccessibility(content, locale: locale).contains("Unit not reported"))
+        }
+    }
+
+    func testKnownRoomUnitIsPreservedOnBoundSmallModeShortcut() throws {
+        let id = try XCTUnwrap(UUID(uuidString: "00000000-0000-0000-0000-000000000001"))
+        for unit in ["°C", "°F"] {
+            let content = thermostatSmallContent(try envelope(action: "fan", room: 68, unit: unit).presentation,
+                destination: .ticket(id))
+            XCTAssertEqual(content.roomUnitLabel, unit)
+            XCTAssertEqual(content.focused.room.reportedUnit, unit)
+            XCTAssertEqual(content.focused.room.value, .number(68))
+            XCTAssertEqual(content.navigationURL?.absoluteString,
+                "hearth://thermostat-mode/00000000-0000-0000-0000-000000000001")
+            XCTAssertFalse(thermostatSmallAccessibility(content, locale: locale).contains("Unit not reported"))
+        }
     }
 
     func testRetainedRecoveryKeepsNumberDateAndSpecificWrittenHistory() throws {

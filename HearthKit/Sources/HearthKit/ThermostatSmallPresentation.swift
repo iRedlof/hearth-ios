@@ -11,6 +11,7 @@ public struct ThermostatSmallContent: Equatable, Sendable {
     public let destination: ThermostatDestination
     public let purpose: ThermostatRoutePurpose
     public let actionLabel: String
+    public var roomUnitLabel: String { focused.room.reportedUnit ?? "Unit not reported" }
     public var navigationURL: URL? { thermostatReadingsURL(for: destination, purpose: purpose) }
 }
 

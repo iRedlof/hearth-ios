@@ -338,7 +338,7 @@ private struct ThermostatSmallCard: View {
 
     @ViewBuilder private func room(verticalUnit: Bool) -> some View {
         if let number = thermostatFocusedNumberText(content.focused.room, summary: true) {
-            if verticalUnit {
+            if verticalUnit || content.focused.room.reportedUnit == nil {
                 VStack(spacing: 1) {
                     numberText(number)
                     unitText
@@ -359,7 +359,7 @@ private struct ThermostatSmallCard: View {
             .fixedSize(horizontal: true, vertical: true)
     }
     private var unitText: some View {
-        Text(content.focused.room.reportedUnit ?? "?")
+        Text(content.roomUnitLabel)
             .font(.system(size: secondarySize, weight: .medium)).fixedSize()
     }
     private func contextLine(_ reading: ThermostatReadingFacet) -> some View {
