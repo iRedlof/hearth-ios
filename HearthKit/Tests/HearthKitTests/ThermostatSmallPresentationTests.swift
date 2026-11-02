@@ -7,9 +7,11 @@ final class ThermostatSmallPresentationTests: XCTestCase {
     private func envelope(mode: String = "heat_cool", action: String? = nil, room: Double? = -2.56,
                           unit: String? = "°C", context: Bool = true,
                           failures: [String: HaStateFailure] = [:], operation: ClimateOperation? = nil,
-                          recovery: ThermostatRecovery = .none, authenticated: Bool = true) throws -> ThermostatLiveEnvelope {
+                          recovery: ThermostatRecovery = .none, authenticated: Bool = true,
+                          modes: [String] = ["heat_cool", "heat", "cool", "off"]) throws -> ThermostatLiveEnvelope {
         var attributes: [String: Any] = ["friendly_name": "Hallway", "temperature": 20.125,
-            "target_temp_low": 7.126, "target_temp_high": 12.764, "target_temp_step": 0]
+            "target_temp_low": 7.126, "target_temp_high": 12.764, "target_temp_step": 0,
+            "hvac_modes": modes]
         if let room { attributes["current_temperature"] = room }
         if let unit { attributes["temperature_unit"] = unit }
         if let action { attributes["hvac_action"] = action }
@@ -118,5 +120,35 @@ final class ThermostatSmallPresentationTests: XCTestCase {
         let unavailable = thermostatSmallContent(recovered.presentation, destination: .unavailable)
         XCTAssertEqual(unavailable.navigationURL?.absoluteString, "hearth://thermostat-readings/unavailable")
         XCTAssertNil(thermostatSmallContent(source.presentation, destination: .inert).navigationURL)
+    }
+    func testHealthySmallModeShortcutIsBoundAndNeverAdvertisedWithoutChoicesOrAuthority() throws {
+        let id = UUID(), destination = ThermostatDestination.ticket(id)
+        let healthy = thermostatSmallContent(try envelope(action: "idle", context: false).presentation,
+            destination: destination)
+        XCTAssertEqual(healthy.navigationURL?.absoluteString, "hearth://thermostat-mode/\(id)")
+        XCTAssertEqual(healthy.actionLabel, "Mode")
+        let label = thermostatSmallAccessibility(healthy, locale: locale)
+        XCTAssertTrue(label.contains("Choose Hallway mode"))
+        XCTAssertTrue(label.contains("Auto"))
+        XCTAssertTrue(label.contains("Idle"))
+        let noChoice = thermostatSmallContent(try envelope(context: false, modes: ["heat_cool"]).presentation,
+            destination: destination)
+        XCTAssertEqual(noChoice.navigationURL, thermostatReadingsURL(for: destination))
+        XCTAssertEqual(noChoice.actionLabel, "Readings")
+        let pending = ClimateOperation(entityID: "climate.room", action: "mode", startedAt: now)
+        for source in [try envelope(context: false, operation: pending),
+                       try envelope(context: false, recovery: .readFailed),
+                       try envelope(mode: "unavailable", context: false)] {
+            let content = thermostatSmallContent(source.presentation, destination: destination)
+            XCTAssertEqual(content.navigationURL, thermostatReadingsURL(for: destination))
+            XCTAssertEqual(content.actionLabel, "Readings")
+            XCTAssertFalse(thermostatSmallAccessibility(content, locale: locale).contains("Choose Hallway mode"))
+        }
+        XCTAssertNil(thermostatSmallContent(try envelope().presentation).navigationURL)
+        XCTAssertEqual(thermostatSmallContent(try envelope().presentation).actionLabel, "Mode")
+        XCTAssertEqual(thermostatSmallContent(try envelope(authenticated: false).presentation,
+            destination: destination).actionLabel, "Sign in")
+        XCTAssertEqual(thermostatSmallContent(thermostatEnvelope(HaStoreSnapshot(config: nil,
+            scope: "inert"), now: now).presentation, destination: destination).actionLabel, "Connect")
     }
 }

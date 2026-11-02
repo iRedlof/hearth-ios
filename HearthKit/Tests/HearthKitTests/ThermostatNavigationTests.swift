@@ -160,6 +160,104 @@ final class ThermostatNavigationTests: XCTestCase {
             XCTAssertNil(thermostatDestination(from: URL(string: text)!), text)
         }
     }
+    func testModeURLsRetainTheExactOpaqueTicketAndRejectExtraComponents() {
+        let id = UUID(), destination = ThermostatDestination.ticket(id)
+        XCTAssertEqual(thermostatDestination(from: URL(string: "hearth://thermostat-mode/\(id)")!), destination)
+        for text in ["hearth://thermostat-mode/unavailable", "hearth://thermostat-mode/\(id)?mode=heat",
+                     "hearth://thermostat-mode/\(id)#mode", "hearth://user@thermostat-mode/\(id)",
+                     "hearth://thermostat-mode:80/\(id)", "hearth://thermostat-mode/\(id)/extra",
+                     "hearth://thermostat-mode/%41\(id)", "https://thermostat-mode/\(id)"] {
+            XCTAssertNil(thermostatDestination(from: URL(string: text)!), text)
+        }
+    }
+    func testPurposeAwareAdmissionAndOneTimeModePresentationRetainOwnership() throws {
+        let context = try context(store())
+        let ticket = try ThermostatTicket(evidence: thermostatEnvelope(context).evidence, issuedAt: now)
+        let url = try XCTUnwrap(thermostatReadingsURL(for: .ticket(ticket.id), purpose: .mode))
+        let parsed = try XCTUnwrap(thermostatRoute(from: url))
+        XCTAssertEqual(parsed.destination, .ticket(ticket.id))
+        XCTAssertEqual(parsed.purpose, .mode)
+        XCTAssertEqual(thermostatRoute(from: thermostatReadingsURL(for: .ticket(ticket.id))!)?.purpose, .readings)
+        XCTAssertNil(thermostatReadingsURL(for: .unavailable, purpose: .mode))
+        XCTAssertNil(thermostatReadingsURL(for: .inert, purpose: .mode))
+        var admission = ThermostatRouteAdmission()
+        XCTAssertNil(admission.admit(.inert, purpose: .mode))
+        XCTAssertNil(admission.admit(.unavailable, purpose: .mode))
+        let readings = try XCTUnwrap(admission.admit(.ticket(ticket.id)))
+        let mode = try XCTUnwrap(admission.admit(parsed.destination, purpose: parsed.purpose))
+        XCTAssertNotEqual(mode.eventID, readings.eventID)
+        XCTAssertEqual(admission.admit(parsed.destination, purpose: .mode), mode)
+        XCTAssertNil(admission.returning(readings, replacing: readings.eventID))
+        var session = ThermostatRouteSession(ticket: ticket, context: context, now: now)
+        let evidence = session.shownEnvelope.evidence, origin = session.controlOrigin
+        XCTAssertTrue(session.consumeInitialModePresentation(mode.purpose))
+        XCTAssertEqual(session.shownEnvelope.evidence, evidence)
+        XCTAssertEqual(session.controlOrigin, origin)
+        XCTAssertNil(session.refreshClaim)
+        XCTAssertNil(session.pickerID)
+        session.reconcile(context: context, now: now)
+        XCTAssertFalse(session.consumeInitialModePresentation(mode.purpose), "Dismissed choices must not reopen")
+        let returned = try XCTUnwrap(admission.returning(mode, replacing: mode.eventID))
+        XCTAssertEqual(returned.purpose, .mode)
+        XCTAssertNotEqual(returned.eventID, mode.eventID)
+    }
+    func testInitialModeCannotEscalateRetiredFailedPendingOrChangedRevisionTickets() throws {
+        let store = store(), context = try context(store)
+        let ticket = try ThermostatTicket(evidence: thermostatEnvelope(context).evidence, issuedAt: now)
+        var plain = ThermostatRouteSession(ticket: ticket, context: context, now: now)
+        XCTAssertFalse(plain.consumeInitialModePresentation(.readings))
+        XCTAssertFalse(plain.consumeInitialModePresentation(.mode))
+        for (current, date) in [(Optional<HaStoreSnapshot>.none, now), (context, ticket.expiresAt)] {
+            var session = ThermostatRouteSession(ticket: ticket, context: current, now: date)
+            XCTAssertFalse(session.consumeInitialModePresentation(.mode))
+        }
+        let pending = try XCTUnwrap(store.beginClimateOperation(expectedScope: context.scope,
+            expectedRevision: context.climateRevision, entityID: "climate.room", action: "mode", now: now))
+        var during = ThermostatRouteSession(ticket: ticket, context: pending, now: now)
+        XCTAssertFalse(during.consumeInitialModePresentation(.mode))
+        let finished = try XCTUnwrap(store.finishClimateOperation(expectedScope: pending.scope,
+            operationID: try XCTUnwrap(pending.climateOperation).id, error: nil))
+        var revised = ThermostatRouteSession(ticket: ticket, context: finished, now: now)
+        XCTAssertNotEqual(revised.controlOrigin?.revision, ticket.evidence.commandRevision)
+        XCTAssertFalse(revised.consumeInitialModePresentation(.mode), "The opening entry's revision is not current")
+        var failedEvidence = ticket.evidence; failedEvidence.recovery = .readingsNotSaved
+        let failedTicket = try ThermostatTicket(evidence: failedEvidence, issuedAt: now)
+        var failed = ThermostatRouteSession(ticket: failedTicket, context: context, now: now)
+        XCTAssertFalse(failed.consumeInitialModePresentation(.mode))
+        let changed = try store.saveConfig(HaConfig(baseUrl: "https://other.invalid", token: "inert",
+            entityId: "", climateId: "climate.other"))
+        var retired = ThermostatRouteSession(ticket: ticket, context: changed, now: now)
+        XCTAssertFalse(retired.consumeInitialModePresentation(.mode))
+        retired.reconcile(context: context, now: now)
+        XCTAssertFalse(retired.consumeInitialModePresentation(.mode))
+    }
+    func testModePurposeCannotEscalateReadOnlyOpeningEvidenceAfterLocalRecovery() throws {
+        let context = try context(store())
+        let original = thermostatEnvelope(context).evidence
+        var cases: [ThermostatRawEvidence] = []
+        for recovery in [ThermostatRecovery.readFailed, .authentication, .setup, .sharedStoreUnavailable,
+                         .readingsNotSaved, .operationNotSaved, .selectionChanged] {
+            var evidence = original; evidence.recovery = recovery; cases.append(evidence)
+        }
+        for error in [Optional<String>.none, "Inert failure"] {
+            var evidence = original
+            evidence.operation = ClimateOperation(entityID: "climate.room", action: "mode", startedAt: now, error: error)
+            cases.append(evidence)
+        }
+        for (before, after) in [(#""state":"heat""#, #""state":"unavailable""#),
+                                (#""hvac_modes":["heat","cool"]"#, #""hvac_modes":["heat"]"#)] {
+            var evidence = original
+            let reading = try XCTUnwrap(evidence.readings["climate.room"])
+            evidence.readings["climate.room"] = HaStateReading(entityID: reading.entityID,
+                json: reading.json.replacingOccurrences(of: before, with: after), checkedAt: reading.checkedAt)
+            cases.append(evidence)
+        }
+        for evidence in cases {
+            let ticket = try ThermostatTicket(evidence: evidence, issuedAt: now)
+            var session = ThermostatRouteSession(ticket: ticket, context: context, now: now)
+            XCTAssertFalse(session.consumeInitialModePresentation(.mode), "An opening read-only ticket stays read-only")
+        }
+    }
     func testTicketStoreImmutableSaveExpiryAndMissingWithoutDefaultFallback() throws {
         let context = try context(store())
         let ticket = try ThermostatTicket(evidence: thermostatEnvelope(context).evidence, issuedAt: now)

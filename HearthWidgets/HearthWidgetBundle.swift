@@ -508,8 +508,14 @@ private struct ThermostatWidgetEntryView: View {
             if let payload = entry.payload { ThermostatBeaconView(payload, family: family) }
             else { ThermostatBeaconView(entry.snap, family: family) }
         }
-        .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
+        .widgetURL(navigationURL)
         .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+    }
+    private var navigationURL: URL? {
+        guard let payload = entry.payload else { return nil }
+        return family == .systemSmall
+            ? thermostatSmallContent(payload.presentation, destination: payload.destination).navigationURL
+            : thermostatReadingsURL(for: payload.destination)
     }
 }
 

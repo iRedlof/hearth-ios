@@ -176,9 +176,11 @@ struct WidgetGalleryView: View {
             }
         case .alarm: AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"), family: selectedFamily(for: kind).widgetKitFamily)
         case .thermostat:
-            if selectedFamily(for: kind) == .small {
-                ThermostatBeaconView(ThermostatParityInputs.payload("auto"), family: .systemSmall)
-            } else { ThermostatBeaconView(.sample) }
+            if selectedFamily(for: kind) == .medium { ThermostatBeaconView(.sample) }
+            else {
+                ThermostatBeaconView(ThermostatParityInputs.payload("auto"),
+                    family: selectedFamily(for: kind).widgetKitFamily)
+            }
         case .chargepoint: CpBeaconView(.sample)
         case .battery: BatteryView(.sample, layoutFamily: kind.family.widgetKitFamily)
         case .activity: ActivityView(.sample)
