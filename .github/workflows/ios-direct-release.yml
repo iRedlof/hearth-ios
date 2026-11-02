@@ -1,0 +1,279 @@
+name: iOS direct release preparation
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Reviewed source commit to build (full 40-character SHA)
+        required: true
+        default: 7f859c05fedfa7c473a8fa2b0c9b01e41732c027
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-direct-release-preparation
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  unsigned-archive:
+    name: Build unsigned iOS device Release archive
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      # Listed in the official macos-15 arm64 runner image; iOS 26.2 SDK.
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+    steps:
+      - name: Require an explicit source commit
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          [[ "$SOURCE_REF" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "::error::SOURCE_REF_INVALID: use a reviewed full commit SHA."
+            exit 1
+          }
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ inputs.source_ref }}
+          persist-credentials: false
+
+      - name: Verify source and supported Xcode
+        env:
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_REF"
+          test -d "$DEVELOPER_DIR" || {
+            echo "::error::XCODE_UNAVAILABLE: the documented Xcode 26.3 runner path is absent."
+            exit 1
+          }
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          OUTPUT_DIR="$RUNNER_TEMP/hearth-ios-output"
+          printf 'OUTPUT_DIR=%s\n' "$OUTPUT_DIR" >> "$GITHUB_ENV"
+          mkdir -p "$OUTPUT_DIR"
+          printf '%s\n' "$SOURCE_REF" > "$OUTPUT_DIR/SOURCE-COMMIT.txt"
+          command -v xcodegen >/dev/null || brew install xcodegen
+          xcodegen generate
+          # Generated files must not change tracked product configuration.
+          git diff --exit-code
+
+      - name: Archive for generic iOS devices without signing
+        run: |
+          xcodebuild -project Hearth.xcodeproj -scheme Hearth \
+            -configuration Release -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/hearth-ios-derived-data" \
+            -archivePath "$OUTPUT_DIR/Hearth-unsigned.xcarchive" \
+            ARCHS=arm64 CODE_SIGNING_ALLOWED=NO archive \
+            2>&1 | tee "$OUTPUT_DIR/ARCHIVE.log"
+
+      - name: Verify metadata and package the unsigned archive
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, plistlib, subprocess
+          root = pathlib.Path(os.environ["OUTPUT_DIR"])
+          archive = root / "Hearth-unsigned.xcarchive"
+          app = archive / "Products/Applications/Hearth.app"
+          bundles = []
+          for path in (app, app / "PlugIns/HearthWidgets.appex"):
+              info = plistlib.loads((path / "Info.plist").read_bytes())
+              binary = path / info["CFBundleExecutable"]
+              arch = subprocess.check_output(
+                  ["xcrun", "lipo", "-archs", str(binary)], text=True).strip()
+              signature = subprocess.run(
+                  ["codesign", "-d", str(path)], capture_output=True, text=True)
+              if (info.get("DTPlatformName") != "iphoneos" or arch != "arm64"
+                      or signature.returncode == 0
+                      or "code object is not signed at all" not in signature.stderr
+                      or (path / "embedded.mobileprovision").exists()):
+                  raise SystemExit("Expected an unsigned arm64 iPhoneOS bundle.")
+              bundles.append({
+                  "bundleID": info["CFBundleIdentifier"],
+                  "version": info["CFBundleShortVersionString"],
+                  "build": info["CFBundleVersion"],
+                  "sdk": info["DTSDKName"],
+                  "minimumOS": info["MinimumOSVersion"],
+                  "architecture": arch,
+                  "executableSHA256": hashlib.sha256(binary.read_bytes()).hexdigest(),
+                  "signed": False,
+              })
+          if [(b["bundleID"], b["version"], b["build"]) for b in bundles] != [
+                  ("com.rohit.hearth", "0.1.0", "1"),
+                  ("com.rohit.hearth.widgets", "0.1.0", "1")]:
+              raise SystemExit("Bundle IDs or versions differ from the reviewed release configuration.")
+          package = root / "Hearth-0.1.0-1-UNSIGNED.xcarchive.zip"
+          subprocess.run(["ditto", "-c", "-k", "--keepParent",
+                          str(archive), str(package)], check=True)
+          subprocess.run(["unzip", "-tq", str(package)], check=True)
+          digest = hashlib.sha256(package.read_bytes()).hexdigest()
+          (root / "SHA256SUMS.txt").write_text(f"{digest}  {package.name}\n")
+          receipt = {
+              "status": "PREPARED_UNSIGNED_DEVICE_RELEASE_ARCHIVE",
+              "sourceCommit": (root / "SOURCE-COMMIT.txt").read_text().strip(),
+              "workflowCommit": os.environ["GITHUB_SHA"],
+              "configuration": "Release",
+              "destination": "generic/platform=iOS",
+              "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
+              "archiveExit": 0, "zipSHA256": digest, "bundles": bundles,
+              "testsRun": False, "physicalDeviceVerified": False,
+              "exportedIPA": False, "uploadedToApple": False, "published": False,
+          }
+          (root / "BUILD-RECEIPT.json").write_text(json.dumps(receipt, indent=2) + "\n")
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write("Prepared **unsigned** iOS device Release archive, **0.1.0 (1)**.\n\n")
+              summary.write(f"Source `{receipt['sourceCommit']}`; ZIP SHA-256 `{digest}`.\n\n")
+              summary.write("This archive requires signing/provisioning before device installation. "
+                            "No IPA, Apple upload, native acceptance or publication is claimed.\n")
+          PY
+          git diff --exit-code
+
+      - name: Retain build output even if later signing preflight fails
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ios-UNSIGNED-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/hearth-ios-output/*.zip
+            ${{ runner.temp }}/hearth-ios-output/*.json
+            ${{ runner.temp }}/hearth-ios-output/*.txt
+            ${{ runner.temp }}/hearth-ios-output/ARCHIVE.log
+          if-no-files-found: error
+          retention-days: 14
+
+  signing-preflight:
+    name: Check existing iOS signing prerequisites
+    needs: unsigned-archive
+    runs-on: macos-15
+    timeout-minutes: 10
+    steps:
+      # This job does not check out or execute the selected product source.
+      - name: Classify the supplied certificate and validate installed profiles
+        env:
+          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
+          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
+          TEAM_ID: ${{ secrets.TEAM_ID }}
+        run: |
+          umask 077
+          python3 - <<'PY'
+          import base64, datetime, hashlib, json, os, pathlib, plistlib, re
+          import secrets, shutil, subprocess, tempfile
+          report = {
+              "status": "BLOCKED", "appleDistributionIdentities": 0,
+              "appleDevelopmentIdentities": 0, "developerIDIdentities": 0,
+              "distributionTeamMatches": False,
+              "compatibleAppProfiles": 0, "compatibleWidgetProfiles": 0,
+              "commonRegisteredDeviceCount": 0, "blockers": [],
+              "signed": False, "exportedIPA": False,
+          }
+          scratch = pathlib.Path(tempfile.mkdtemp(prefix="hearth-signing-", dir=os.environ["RUNNER_TEMP"]))
+          keychain = scratch / "signing.keychain-db"
+          def quiet(args):
+              result = subprocess.run(args, capture_output=True)
+              if result.returncode:
+                  raise ValueError("Signing material could not be decoded/imported.")
+              return result.stdout.decode(errors="replace")
+          try:
+              required = ("MACOS_CERTIFICATE", "MACOS_CERTIFICATE_PWD", "TEAM_ID")
+              missing = [name for name in required if not os.environ.get(name)]
+              if missing:
+                  report["blockers"].append("ORG_SECRETS_UNAVAILABLE: " + ", ".join(missing))
+              else:
+                  team = os.environ["TEAM_ID"].strip()
+                  if not re.fullmatch(r"[A-Z0-9]{10}", team):
+                      raise ValueError("Invalid team format.")
+                  p12 = scratch / "certificate.p12"
+                  p12.write_bytes(base64.b64decode(
+                      "".join(os.environ["MACOS_CERTIFICATE"].split()), validate=True))
+                  password = secrets.token_hex(24)
+                  quiet(["security", "create-keychain", "-p", password, str(keychain)])
+                  quiet(["security", "unlock-keychain", "-p", password, str(keychain)])
+                  quiet(["security", "import", str(p12), "-P", os.environ["MACOS_CERTIFICATE_PWD"],
+                         "-t", "cert", "-f", "pkcs12", "-k", str(keychain), "-T", "/usr/bin/codesign"])
+                  identities = quiet(["security", "find-identity", "-v", "-p", "codesigning", str(keychain)])
+                  matching_certificates = set()
+                  for digest, name in re.findall(r'\d+\)\s+([0-9A-Fa-f]{40})\s+"([^"]+)"', identities):
+                      if name.startswith(("Apple Distribution:", "iPhone Distribution:")):
+                          report["appleDistributionIdentities"] += 1
+                          if name.endswith(f"({team})"):
+                              matching_certificates.add(digest.upper())
+                      elif name.startswith(("Apple Development:", "iPhone Developer:")):
+                          report["appleDevelopmentIdentities"] += 1
+                      elif name.startswith("Developer ID "):
+                          report["developerIDIdentities"] += 1
+                  report["distributionTeamMatches"] = bool(matching_certificates)
+                  if not matching_certificates:
+                      report["blockers"].append("IOS_DISTRIBUTION_IDENTITY_MISSING_OR_TEAM_MISMATCH")
+                  devices = {"com.rohit.hearth": [], "com.rohit.hearth.widgets": []}
+                  directories = (
+                      pathlib.Path.home() / "Library/MobileDevice/Provisioning Profiles",
+                      pathlib.Path.home() / "Library/Developer/Xcode/UserData/Provisioning Profiles",
+                  )
+                  for directory in directories:
+                      for path in directory.glob("*.mobileprovision"):
+                          decoded = subprocess.run(
+                              ["security", "cms", "-D", "-i", str(path)], capture_output=True)
+                          if decoded.returncode:
+                              continue
+                          profile = plistlib.loads(decoded.stdout)
+                          entitlements = profile.get("Entitlements", {})
+                          identifier = entitlements.get("application-identifier", "")
+                          prefixes = profile.get("ApplicationIdentifierPrefix", [])
+                          expiry = profile.get("ExpirationDate")
+                          certificates = {hashlib.sha1(cert).hexdigest().upper()
+                                          for cert in profile.get("DeveloperCertificates", [])}
+                          registered = set(profile.get("ProvisionedDevices", []))
+                          compatible = (
+                              team in profile.get("TeamIdentifier", [])
+                              and "iOS" in profile.get("Platform", [])
+                              and expiry is not None
+                              and expiry.replace(tzinfo=datetime.timezone.utc) > datetime.datetime.now(datetime.timezone.utc)
+                              and registered
+                              and not profile.get("ProvisionsAllDevices", False)
+                              and entitlements.get("get-task-allow") is False
+                              and "group.com.rohit.hearth" in entitlements.get("com.apple.security.application-groups", [])
+                              and bool(certificates & matching_certificates)
+                          )
+                          for bundle in devices:
+                              if compatible and identifier in [f"{prefix}.{bundle}" for prefix in prefixes]:
+                                  devices[bundle].append(registered)
+                  report["compatibleAppProfiles"] = len(devices["com.rohit.hearth"])
+                  report["compatibleWidgetProfiles"] = len(devices["com.rohit.hearth.widgets"])
+                  if not all(devices.values()):
+                      report["blockers"].append("IOS_REGISTERED_DEVICE_PROFILES_MISSING_OR_INCOMPATIBLE")
+                  else:
+                      app_devices = set().union(*devices["com.rohit.hearth"])
+                      widget_devices = set().union(*devices["com.rohit.hearth.widgets"])
+                      report["commonRegisteredDeviceCount"] = len(app_devices & widget_devices)
+                      if not report["commonRegisteredDeviceCount"]:
+                          report["blockers"].append("IOS_PROFILES_HAVE_NO_COMMON_REGISTERED_DEVICE")
+          except Exception:
+              report["blockers"].append("SIGNING_INPUT_INVALID_OR_IMPORT_FAILED")
+          finally:
+              subprocess.run(["security", "delete-keychain", str(keychain)], capture_output=True)
+              shutil.rmtree(scratch)
+              if not report["blockers"]:
+                  report["status"] = "PREREQUISITES_PRESENT_EXPORT_NOT_ATTEMPTED"
+              target = pathlib.Path(os.environ["RUNNER_TEMP"]) / "SIGNING-PREFLIGHT.json"
+              target.write_text(json.dumps(report, indent=2) + "\n")
+              # Only certificate classes, counts, booleans and blocker keys leave this job.
+              with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+                  summary.write("iOS signing preflight:\n\n```json\n" + json.dumps(report, indent=2) + "\n```\n")
+              print(json.dumps(report, indent=2))
+          if report["blockers"]:
+              raise SystemExit("::error::iOS signing is blocked; see the sanitized preflight report. "
+                               "The separate unsigned archive artifact remains available.")
+          PY
+
+      - name: Retain sanitized signing preflight
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ios-signing-preflight-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/SIGNING-PREFLIGHT.json
+          if-no-files-found: error
+          retention-days: 14
