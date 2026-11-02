@@ -23,11 +23,11 @@ defaults:
 jobs:
   unsigned-archive:
     name: Build unsigned iOS device Release archive
-    runs-on: macos-15
+    runs-on: xcode-27
     timeout-minutes: 30
     env:
-      # Listed in the official macos-15 arm64 runner image; iOS 26.2 SDK.
-      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+      # Official xcode-27 arm64 image; matches the verified local device archive.
+      DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
     steps:
       - name: Require an explicit source commit
         env:
@@ -49,10 +49,14 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$SOURCE_REF"
           test -d "$DEVELOPER_DIR" || {
-            echo "::error::XCODE_UNAVAILABLE: the documented Xcode 26.3 runner path is absent."
+            echo "::error::XCODE_UNAVAILABLE: the documented Xcode 27.0 runner path is absent."
             exit 1
           }
           xcodebuild -version
+          test "$(xcodebuild -version | awk '/Build version/ {print $3}')" = 27A266a || {
+            echo "::error::XCODE_BUILD_CHANGED: expected the verified Xcode 27.0 build 27A266a."
+            exit 1
+          }
           xcrun --sdk iphoneos --show-sdk-version
           OUTPUT_DIR="$RUNNER_TEMP/hearth-ios-output"
           printf 'OUTPUT_DIR=%s\n' "$OUTPUT_DIR" >> "$GITHUB_ENV"

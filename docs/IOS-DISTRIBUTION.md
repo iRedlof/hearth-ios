@@ -99,7 +99,9 @@ gh workflow run ios-direct-release.yml --repo iRedlof/hearth-ios \
   -f source_ref=7f859c05fedfa7c473a8fa2b0c9b01e41732c027
 ```
 
-The build job uses the documented GitHub-hosted `macos-15` arm64 image and explicitly selects `/Applications/Xcode_26.3.app/Contents/Developer`, which provides the iOS 26.2 SDK and Swift 6.2.3. It fails with `XCODE_UNAVAILABLE` if that image path changes. It generates the existing XcodeGen project in the disposable checkout, rejects tracked configuration changes, and performs one generic iOS-device Release archive with `ARCHS=arm64 CODE_SIGNING_ALLOWED=NO`.
+The build job uses GitHub's documented `xcode-27` arm64 image and explicitly selects `/Applications/Xcode_27.app/Contents/Developer`, which the current official image inventory lists as Xcode 27.0 build `27A266a` with the iOS 27.0 SDK. That is the exact toolchain which already produced the accepted source's successful local device Release archive. The workflow checks the build identifier and fails with `XCODE_UNAVAILABLE` or `XCODE_BUILD_CHANGED` if the documented toolchain is absent or different. It generates the existing XcodeGen project in the disposable checkout, rejects tracked configuration changes, and performs one generic iOS-device Release archive with `ARCHS=arm64 CODE_SIGNING_ALLOWED=NO`.
+
+The first organization run, [41397277355](https://github.com/iRedlof/hearth-ios/actions/runs/41397277355), selected Xcode 26.3 successfully but failed archive compilation with 20 instances of “passing closure as a 'sending' parameter risks causing data races” in existing `HearthWidgetBundle.swift` snapshot/timeline callbacks. The build job had no signing secrets, and the signing job was skipped. The corrected build job selects the independently documented, already verified Xcode 27.0 toolchain; product Swift source, concurrency checking, versions and signing settings are unchanged. The next run must produce a successful archive and verified unsigned artifact before any build claim. If that attempt fails, stop on its precise new error and investigate before another dispatch. The separate certificate/profile preflight continues to use `macos-15`.
 
 The `ios-UNSIGNED-<run>-<attempt>` artifact contains the archive ZIP, actual bundle/version/build metadata, executable and ZIP SHA-256 hashes, selected source/workflow commits, and build log. The current accepted release configuration is `0.1.0 (1)` for both `com.rohit.hearth` and `com.rohit.hearth.widgets`; the metadata guard rejects other bundle IDs or versions. Artifacts are retained for 14 days. The archive is **unsigned**, and cannot be installed on an iPhone as delivered. The workflow performs no native installation or test run and claims no publication.
 
@@ -126,7 +128,8 @@ Root owns the reviewed workflow commit, dispatch, final signing/native acceptanc
 Official references for this path:
 
 - [GitHub: hosted runner labels](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
-- [GitHub runner-images: macOS 15 arm64 Xcode/SDK inventory](https://github.com/actions/runner-images/blob/main/images/macos/macos-15-arm64-Readme.md)
+- [GitHub runner-images: xcode-27 arm64 Xcode/SDK inventory](https://github.com/actions/runner-images/blob/main/images/macos/xcode-27-arm64-Readme.md)
+- [GitHub: documented xcode-27 workflow label](https://github.com/actions/runner-images/issues/14404)
 - [Apple: Xcode system requirements and SDKs](https://developer.apple.com/xcode/system-requirements)
 - [GitHub: installing certificates and provisioning profiles on macOS runners](https://docs.github.com/en/actions/how-tos/deploy/deploy-to-third-party-platforms/sign-xcode-applications)
 - [GitHub: organization secret access policies](https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets)
