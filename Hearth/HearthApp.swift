@@ -157,8 +157,8 @@ struct ContentView: View {
                 presentedSheet = .alarm(destination, UUID())
                 return
             }
-            if let destination = thermostatDestination(from: url) {
-                presentThermostat(destination)
+            if let route = thermostatRoute(from: url) {
+                presentThermostat(route.destination, purpose: route.purpose)
                 return
             }
             guard let destination = carReadingsDestination(from: url) else { return }
@@ -317,8 +317,9 @@ struct ContentView: View {
         settingsThermostatReturn = nil
         if !inertTabs { ClimateGate.shared.retire() }
     }
-    private func presentThermostat(_ destination: ThermostatDestination) {
-        guard let request = thermostatAdmission.admit(destination) else { return }
+    private func presentThermostat(_ destination: ThermostatDestination,
+                                   purpose: ThermostatRoutePurpose = .readings) {
+        guard let request = thermostatAdmission.admit(destination, purpose: purpose) else { return }
         settingsCarReturn = nil; settingsThermostatReturn = nil
         if thermostatModel?.request.eventID == request.eventID {
             thermostatModel?.revalidate()
@@ -335,7 +336,7 @@ struct ContentView: View {
               case .thermostatReconnect(let returning) = sheet else { return }
         if completed, !inertTabs { config = HaConfigStore.load() }
         thermostatAdmission.close()
-        presentThermostat(returning.original.destination)
+        presentThermostat(returning.original.destination, purpose: returning.original.purpose)
     }
 
     private func finishReconnect(_ sheet: HearthSheet, completed: Bool) {
@@ -396,7 +397,7 @@ struct ContentView: View {
                 Button {
                     guard settingsThermostatReturn?.transitionID == returning.transitionID,
                           presentedSheet?.id == nil, thermostatAdmission.active == nil else { return }
-                    presentThermostat(returning.original.destination)
+                    presentThermostat(returning.original.destination, purpose: returning.original.purpose)
                 } label: {
                     Label("Back to thermostat readings", systemImage: "thermometer.medium")
                         .font(.body.weight(.semibold)).fixedSize(horizontal: false, vertical: true)

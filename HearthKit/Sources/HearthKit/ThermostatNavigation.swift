@@ -154,23 +154,31 @@ public func thermostatObservationText(_ date: Date, locale: Locale = .current, z
     formatter.dateStyle = .medium; formatter.timeStyle = .medium
     return formatter.string(from: date)
 }
-public func thermostatReadingsURL(for destination: ThermostatDestination) -> URL? {
+public enum ThermostatRoutePurpose: Sendable, Equatable { case readings, mode }
+public func thermostatReadingsURL(for destination: ThermostatDestination,
+                                 purpose: ThermostatRoutePurpose = .readings) -> URL? {
+    let host = purpose == .mode ? "thermostat-mode" : "thermostat-readings"
     switch destination {
-    case .ticket(let id): URL(string: "hearth://thermostat-readings/\(id.uuidString)")
-    case .unavailable: URL(string: "hearth://thermostat-readings/unavailable")
-    case .inert: nil
+    case .ticket(let id): return URL(string: "hearth://\(host)/\(id.uuidString)")
+    case .unavailable:
+        return purpose == .readings ? URL(string: "hearth://thermostat-readings/unavailable") : nil
+    case .inert: return nil
     }
 }
 public func thermostatDestination(from url: URL) -> ThermostatDestination? {
+    thermostatRoute(from: url)?.destination
+}
+public func thermostatRoute(from url: URL) -> ThermostatRouteRequest? {
     guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
-          parts.scheme == "hearth", parts.host == "thermostat-readings",
+          parts.scheme == "hearth", (parts.host == "thermostat-readings" || parts.host == "thermostat-mode"),
           parts.user == nil, parts.password == nil, parts.port == nil,
           parts.query == nil, parts.fragment == nil, !parts.percentEncodedPath.contains("%") else { return nil }
+    let purpose: ThermostatRoutePurpose = parts.host == "thermostat-mode" ? .mode : .readings
     let path = parts.path
-    if path == "/unavailable" { return .unavailable }
+    if path == "/unavailable", purpose == .readings { return ThermostatRouteRequest(destination: .unavailable) }
     guard path.first == "/", let id = UUID(uuidString: String(path.dropFirst())),
           path == "/" + id.uuidString || path == "/" + id.uuidString.lowercased() else { return nil }
-    return .ticket(id)
+    return ThermostatRouteRequest(destination: .ticket(id), purpose: purpose)
 }
 public func bindThermostatEntry(_ envelope: ThermostatLiveEnvelope, date: Date = .now,
                                persist: (ThermostatTicket) throws -> Void) -> ThermostatEntryPayload {
@@ -187,21 +195,27 @@ public func bindThermostatEntry(_ envelope: ThermostatLiveEnvelope, date: Date =
 public struct ThermostatRouteRequest: Sendable, Equatable {
     public let eventID: UUID
     public let destination: ThermostatDestination
-    public init(destination: ThermostatDestination, eventID: UUID = UUID()) { self.destination = destination; self.eventID = eventID }
+    public let purpose: ThermostatRoutePurpose
+    public init(destination: ThermostatDestination, eventID: UUID = UUID(),
+                purpose: ThermostatRoutePurpose = .readings) {
+        self.destination = destination; self.eventID = eventID; self.purpose = purpose
+    }
 }
 public struct ThermostatRouteAdmission: Sendable {
     public private(set) var active: ThermostatRouteRequest?
     public init() {}
-    public mutating func admit(_ destination: ThermostatDestination) -> ThermostatRouteRequest? {
+    public mutating func admit(_ destination: ThermostatDestination,
+                              purpose: ThermostatRoutePurpose = .readings) -> ThermostatRouteRequest? {
         guard destination != .inert else { return nil }
-        if let active, active.destination == destination { return active }
-        let request = ThermostatRouteRequest(destination: destination); active = request; return request
+        if purpose == .mode, destination == .unavailable { return nil }
+        if let active, active.destination == destination, active.purpose == purpose { return active }
+        let request = ThermostatRouteRequest(destination: destination, purpose: purpose); active = request; return request
     }
     public mutating func close() { active = nil }
     public mutating func returning(_ original: ThermostatRouteRequest, replacing eventID: UUID?) -> ThermostatRouteRequest? {
         guard active?.eventID == eventID else { return nil }
         active = nil
-        return admit(original.destination)
+        return admit(original.destination, purpose: original.purpose)
     }
 }
 public enum ThermostatRouteStatus: Sendable, Equatable { case current, selectionChanged, expired, unavailable, sharedStoreUnavailable }
@@ -217,9 +231,20 @@ public struct ThermostatRouteSession: Sendable {
     public private(set) var refreshClaim: ThermostatRefreshClaim?
     public var pickerID: UUID?
     private var active = true
+    private var initialPurposeConsumed = false
     public init(ticket: ThermostatTicket, context: HaStoreSnapshot?, now: Date = .now) {
         openingTicket = ticket; shownEnvelope = ThermostatLiveEnvelope(evidence: ticket.evidence, now: now)
         reconcile(context: context, now: now)
+    }
+    /// Navigation consumes its presentation request once; it cannot read remotely or dispatch.
+    public mutating func consumeInitialModePresentation(_ purpose: ThermostatRoutePurpose) -> Bool {
+        guard !initialPurposeConsumed else { return false }
+        initialPurposeConsumed = true
+        let opening = ThermostatLiveEnvelope(evidence: openingTicket.evidence).presentation
+        guard purpose == .mode, active, status == .current, let controlOrigin,
+              controlOrigin.revision == openingTicket.evidence.commandRevision,
+              opening.authorityAvailable, thermostatModeChoiceAvailable(opening) else { return false }
+        return thermostatModeChoiceAvailable(shownEnvelope.presentation)
     }
     public mutating func reconcile(context: HaStoreSnapshot?, now: Date = .now) {
         guard active else { return }

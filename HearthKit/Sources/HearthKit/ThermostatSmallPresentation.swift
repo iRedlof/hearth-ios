@@ -9,7 +9,17 @@ public struct ThermostatSmallContent: Equatable, Sendable {
     public let placeholder: String
     public let statusSymbol: String
     public let destination: ThermostatDestination
-    public var navigationURL: URL? { thermostatReadingsURL(for: destination) }
+    public let purpose: ThermostatRoutePurpose
+    public let actionLabel: String
+    public var roomUnitLabel: String { focused.room.reportedUnit ?? "Unit not reported" }
+    public var navigationURL: URL? { thermostatReadingsURL(for: destination, purpose: purpose) }
+}
+
+/// Saved options may present choices; the existing command path re-reads state before sending.
+public func thermostatModeChoiceAvailable(_ presentation: ThermostatPresentation) -> Bool {
+    guard presentation.configuration == .ready, presentation.recovery == .none,
+          case .none = presentation.operation, let state = presentation.state, state.isAvailable else { return false }
+    return climateOptions(state, kind: "mode").contains { $0 != state.mode }
 }
 
 public func thermostatSmallContent(_ presentation: ThermostatPresentation,
@@ -50,19 +60,32 @@ public func thermostatSmallContent(_ presentation: ThermostatPresentation,
         case .none: symbol = historical ? "clock" : "thermometer.medium"
         }
     }
+    let choice = thermostatModeChoiceAvailable(presentation)
+    let boundMode: Bool
+    if case .ticket = destination { boundMode = choice && presentation.authorityAvailable }
+    else { boundMode = false }
+    let label: String
+    if presentation.recovery == .setup { label = "Connect" }
+    else if presentation.recovery == .authentication { label = "Sign in" }
+    else { label = boundMode || (destination == .inert && choice) ? "Mode" : "Readings" }
     return ThermostatSmallContent(focused: focused, status: status, mode: mode,
-        target: target, placeholder: placeholder, statusSymbol: symbol, destination: destination)
+        target: target, placeholder: placeholder, statusSymbol: symbol, destination: destination,
+        purpose: boundMode ? .mode : .readings, actionLabel: label)
 }
 
 public func thermostatSmallAccessibility(_ content: ThermostatSmallContent,
                                         locale: Locale = .current) -> String {
     let name = content.focused.room.name
-    let navigation = content.destination == .inert
-        ? "Example \(name). Open readings and controls inactive."
-        : "Open \(name) readings and controls."
+    let navigation: String
+    if content.destination == .inert {
+        navigation = "Example \(name). \(content.actionLabel) inactive."
+    } else if content.purpose == .mode {
+        navigation = "Choose \(name) mode."
+    } else { navigation = "Open \(name) readings and controls." }
     var parts = [navigation, thermostatFocusedReadingAccessibility(content.focused.room,
         attribution: content.focused.roomAttribution, locale: locale)]
     if let status = content.status ?? content.focused.recoveryTitle { parts.append(status) }
+    if content.focused.mode != content.mode { parts.append(content.focused.mode) }
     parts.append(content.mode)
     if let context = content.focused.context {
         parts.append(thermostatFocusedReadingAccessibility(context, locale: locale))

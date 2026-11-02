@@ -56,7 +56,11 @@ struct ThermostatReadingsRuntime: Sendable {
             guard let tickets = runtime.tickets else { throw HaError("Shared storage is unavailable") }
             switch try tickets.lookup(id, now: runtime.clock()) {
             case .available(let ticket):
-                session = ThermostatRouteSession(ticket: ticket, context: runtime.context(), now: runtime.clock())
+                var admitted = ThermostatRouteSession(ticket: ticket, context: runtime.context(), now: runtime.clock())
+                let presentMode = admitted.consumeInitialModePresentation(request.purpose)
+                let initialOrigin = admitted.controlOrigin
+                session = admitted
+                if presentMode { choose(kind: "mode", expectedOrigin: initialOrigin) }
             case .expired: explanation = "These saved readings have expired. Open Live and use Refresh."
             case .missing: explanation = "These saved readings are no longer available. Open Live and use Refresh."
             }
@@ -92,9 +96,10 @@ struct ThermostatReadingsRuntime: Sendable {
         lifetime.invalidate(); refreshLifetime?.invalidate(); refreshTask?.cancel()
         actionLifetime?.invalidate(); session?.close(); picker = nil; checking = false
     }
-    func choose(kind: String) {
+    func choose(kind: String, expectedOrigin: ClimateControlOrigin? = nil) {
         revalidate()
         guard lifetime.isActive(), !checking, let origin = session?.controlOrigin,
+              expectedOrigin == nil || expectedOrigin == origin,
               let state = session?.shownEnvelope.presentation.state else { return }
         let options = climateOptions(state, kind: kind)
         let current = kind == "fan" ? state.fanMode : state.mode

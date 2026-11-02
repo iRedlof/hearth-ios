@@ -18,7 +18,7 @@ final class WidgetPreviewCatalogTests: XCTestCase {
 
     func testDesignedSmallFamiliesPreserveMediumDefaults() {
         XCTAssertEqual(WidgetPreviewKind.thermostat.family, .medium)
-        XCTAssertEqual(WidgetPreviewKind.thermostat.supportedFamilies, [.small, .medium])
+        XCTAssertEqual(WidgetPreviewKind.thermostat.supportedFamilies, [.small, .medium, .large])
         XCTAssertEqual(WidgetPreviewFamily.small.title, "Small")
         XCTAssertEqual(WidgetPreviewKind.car.family, .medium)
         XCTAssertEqual(WidgetPreviewKind.car.supportedFamilies, [.small, .medium])
@@ -34,7 +34,7 @@ final class WidgetPreviewCatalogTests: XCTestCase {
         ]
         XCTAssertEqual(Set(WidgetPreviewKind.allCases), shipped)
         for kind in WidgetPreviewKind.allCases {
-            XCTAssertEqual(kind.supportedFamilies.count, [.thermostat, .car, .alarm].contains(kind) ? 2 : 1)
+            XCTAssertEqual(kind.supportedFamilies.count, kind == .thermostat ? 3 : [.car, .alarm].contains(kind) ? 2 : 1)
         }
     }
 }
