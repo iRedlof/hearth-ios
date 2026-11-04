@@ -5,6 +5,240 @@ import XCTest
 final class CpOwnedActionStoreTests: XCTestCase {
     private let now = CpStoreFixture.now
 
+    func testPassElapsedOwnedProjectionRetainsLeaveWithoutInventingProviderTransition() throws {
+        for armed in [false, true] {
+            let value = try store(armed: armed)
+            let initial = try observed(value, observation("PASS"))
+            let elapsed = now.addingTimeInterval(300)
+            let saved = try value.snapshot(now: elapsed)
+            let display = try saved.displaySnapshot(now: elapsed)
+            XCTAssertEqual(display.keys.map(\.command), ["open", "leave"])
+            XCTAssertEqual(display.keys.map(\.label), ["Open ChargePoint", "Leave"])
+            XCTAssertEqual(display.bigAnswer, "—")
+            XCTAssertEqual(display.sub, "Time elapsed\nRefresh to check")
+            XCTAssertEqual(display.statusDescription, "Time elapsed. Refresh to check.")
+            XCTAssertNil(display.deadline)
+            XCTAssertTrue(display.railNotes.isEmpty)
+            XCTAssertEqual(saved.reading, initial.reading)
+            XCTAssertEqual(saved.session, initial.session)
+            XCTAssertEqual(saved.location, initial.location)
+            XCTAssertEqual(saved.run, initial.run)
+            XCTAssertEqual(display.origin, initial.renderedOrigin)
+            XCTAssertEqual(display.checkedAt, cpClockString(now))
+            XCTAssertEqual(display.autoControl, armed ? .stop : .disabled)
+        }
+    }
+
+    func testPassUnsnoozeRequiresFutureTimeAtClaimAndRepeatedPreflight() throws {
+        let unknown = try cpOwnedObservation(statusJson:
+            #"{"user_status":{"waitlist":{"state":{"state":"PASS"},"stations":[{"deviceId":1},{"deviceId":2}]}}}"#)
+        for (evidence, time) in [(unknown, now), (try observation("PASS"), now.addingTimeInterval(300))] {
+            let value = try store()
+            let initial = try observed(value, evidence)
+            let result = try value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .unsnooze, now: time)
+            XCTAssertEqual(result, .rejected(.detailsChanged))
+            var starts = 0
+            if case .claimed(let operation) = result,
+               try value.validatePreflight(owner: operation, observation: evidence, now: time),
+               let credential = try value.requestCredential(authority: .operation(operation),
+                                                             purpose: .mutation(.unsnooze), now: time) {
+                _ = try value.authorizeAndStart(credential: credential, purpose: .mutation(.unsnooze),
+                                                now: time) { _ in starts += 1 }
+            }
+            XCTAssertEqual(starts, 0)
+        }
+        let value = try store()
+        let evidence = try observation("PASS")
+        let initial = try observed(value, evidence)
+        let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .unsnooze,
+                                              now: now.addingTimeInterval(299)))
+        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: evidence,
+                                                   now: now.addingTimeInterval(300)))
+    }
+
+    func testPassUnsnoozeCrossingAfterPreflightCannotCreateCredentialsOrStartMutation() throws {
+        for (gate, offset) in [("credential", 300.0), ("credential", 301.0), ("send", 300.0), ("send", 301.0)] {
+            let value = try store()
+            let evidence = try observation("PASS")
+            let initial = try observed(value, evidence)
+            let before = now.addingTimeInterval(299)
+            let elapsed = now.addingTimeInterval(offset)
+            let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .unsnooze, now: before))
+            XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: before))
+            var starts = 0
+            if gate == "credential" {
+                XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .mutation(.unsnooze), now: elapsed))
+            } else {
+                let credential = try XCTUnwrap(value.requestCredential(authority: .operation(operation),
+                                                                       purpose: .mutation(.unsnooze), now: before))
+                XCTAssertNil(try value.authorizeAndStart(credential: credential, purpose: .mutation(.unsnooze),
+                                                        now: elapsed) { _ in starts += 1 })
+            }
+            XCTAssertEqual(starts, 0)
+        }
+    }
+
+    func testPassCurrentQueueCanLeaveWithFutureElapsedOrUnknownTimeAfterFreshPreflight() throws {
+        let unknown = try cpOwnedObservation(statusJson:
+            #"{"user_status":{"waitlist":{"state":{"state":"PASS"},"stations":[{"deviceId":1},{"deviceId":2}]}}}"#)
+        for armed in [false, true] {
+            for (evidence, offset, reason) in [
+                (try observation("PASS"), 0.0, ""),
+                (try observation("PASS"), 300.0, "Time elapsed"),
+                (try observation("PASS"), 301.0, "Time elapsed"),
+                (unknown, 0.0, "Deadline unknown")
+            ] {
+                let value = try store(armed: armed)
+                let initial = try observed(value, evidence)
+                let clock = now.addingTimeInterval(offset)
+                let display = try value.snapshot(now: clock).displaySnapshot(now: clock)
+                XCTAssertEqual(display.keys.map(\.command), reason.isEmpty ? ["unsnooze", "leave"] : ["open", "leave"])
+                if !reason.isEmpty {
+                    XCTAssertEqual(display.sub, "\(reason)\nRefresh to check")
+                    XCTAssertEqual(display.statusDescription, "\(reason). Refresh to check.")
+                    XCTAssertNil(display.deadline)
+                    XCTAssertTrue(display.railNotes.isEmpty)
+                }
+                XCTAssertEqual(display.origin, initial.renderedOrigin)
+                XCTAssertEqual(display.autoOn, armed)
+                XCTAssertEqual(display.checkedAt, cpClockString(now))
+                let operation = try owner(value.claim(origin: XCTUnwrap(display.origin), action: .leave, now: clock))
+                XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: clock))
+                let credential = try XCTUnwrap(value.requestCredential(authority: .operation(operation),
+                                                                       purpose: .mutation(.leave), now: clock))
+                var starts = 0
+                XCTAssertNotNil(try value.authorizeAndStart(credential: credential, purpose: .mutation(.leave),
+                                                           now: clock) { _ in starts += 1 })
+                XCTAssertEqual(starts, 1)
+                let after = try value.snapshot(now: clock)
+                XCTAssertEqual(after.reading, initial.reading)
+                XCTAssertEqual(after.session, initial.session)
+                XCTAssertEqual(after.location, initial.location)
+                XCTAssertEqual(after.run, initial.run)
+            }
+        }
+    }
+
+    func testPassFutureUnsnoozeCanPassAllCurrentAdmissionStages() throws {
+        let value = try store(armed: false)
+        let evidence = try observation("PASS")
+        let initial = try observed(value, evidence)
+        let before = now.addingTimeInterval(299)
+        let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .unsnooze, now: before))
+        XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: before))
+        let credential = try XCTUnwrap(value.requestCredential(authority: .operation(operation),
+                                                               purpose: .mutation(.unsnooze), now: before))
+        var starts = 0
+        XCTAssertNotNil(try value.authorizeAndStart(credential: credential, purpose: .mutation(.unsnooze),
+                                                   now: before) { _ in starts += 1 })
+        XCTAssertEqual(starts, 1)
+    }
+
+    func testAcceptAndSnoozeCrossingAfterPreflightCannotCreateCredentialsOrStartMutation() throws {
+        let cases: [(CpOwnedAction, String)] = [
+            (.accept, "ACCEPT_PENDING"),
+            (.snooze, "ACCEPT_PENDING"),
+            (.snooze, "PENDING_PLUG_IN")
+        ]
+        for (action, phase) in cases {
+            for (gate, offset) in [("credential", 300.0), ("credential", 301.0), ("send", 300.0), ("send", 301.0)] {
+                let value = try store()
+                let evidence = try observation(phase, allowance: 1)
+                let initial = try observed(value, evidence)
+                let before = now.addingTimeInterval(299)
+                let elapsed = now.addingTimeInterval(offset)
+                let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: action, now: before))
+                XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: before))
+                var starts = 0
+                if gate == "credential" {
+                    XCTAssertNil(try value.requestCredential(authority: .operation(operation),
+                                                            purpose: .mutation(action), now: elapsed))
+                } else {
+                    let credential = try XCTUnwrap(value.requestCredential(authority: .operation(operation),
+                                                                           purpose: .mutation(action), now: before))
+                    XCTAssertNil(try value.authorizeAndStart(credential: credential, purpose: .mutation(action),
+                                                            now: elapsed) { _ in starts += 1 })
+                }
+                XCTAssertEqual(starts, 0)
+            }
+        }
+    }
+
+    func testAcceptAndSnoozeFutureTimeCanPassAllCurrentAdmissionStages() throws {
+        let cases: [(CpOwnedAction, String)] = [
+            (.accept, "ACCEPT_PENDING"),
+            (.snooze, "ACCEPT_PENDING"),
+            (.snooze, "PENDING_PLUG_IN")
+        ]
+        for (action, phase) in cases {
+            let value = try store()
+            let evidence = try observation(phase, allowance: 1)
+            let initial = try observed(value, evidence)
+            let before = now.addingTimeInterval(299)
+            let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: action, now: before))
+            XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: before))
+            let credential = try XCTUnwrap(value.requestCredential(authority: .operation(operation),
+                                                                   purpose: .mutation(action), now: before))
+            var starts = 0
+            XCTAssertNotNil(try value.authorizeAndStart(credential: credential, purpose: .mutation(action),
+                                                       now: before) { _ in starts += 1 })
+            XCTAssertEqual(starts, 1)
+        }
+    }
+
+    func testPassCleanupCannotRestoreKeysOverUnreadyFailedOrWorkingSource() throws {
+        let evidence = try observation("PASS")
+        let elapsed = now.addingTimeInterval(300)
+        let unready = try store(armed: false)
+        let first = try unready.snapshot(now: now)
+        let read = try XCTUnwrap(unready.beginRead(expected: first.context, now: now))
+        let imported = try XCTUnwrap(unready.commitRead(owner: read, provider: evidence.provider, observedAt: now, now: now))
+        XCTAssertNil(imported.providerActionable)
+        XCTAssertTrue(try imported.displaySnapshot(now: elapsed).keys.isEmpty)
+        XCTAssertEqual(try unready.claim(origin: XCTUnwrap(imported.renderedOrigin), action: .leave, now: elapsed),
+                       .rejected(.detailsChanged))
+
+        let failed = try store()
+        let original = try observed(failed, evidence)
+        let failedRead = try XCTUnwrap(failed.beginRead(expected: original.context, now: now))
+        _ = try failed.failRead(owner: failedRead, message: "inert read failure", now: now)
+        let stale = try failed.snapshot(now: elapsed)
+        let staleDisplay = try stale.displaySnapshot(now: elapsed)
+        XCTAssertTrue(staleDisplay.keys.isEmpty)
+        XCTAssertTrue(staleDisplay.stale)
+        XCTAssertEqual(staleDisplay.statusDescription, "Couldn't check. Refresh to retry.")
+        XCTAssertEqual(stale.reading, original.reading)
+        XCTAssertEqual(try failed.claim(origin: XCTUnwrap(original.renderedOrigin), action: .leave, now: elapsed),
+                       .rejected(.detailsChanged))
+
+        let working = try store()
+        let initial = try observed(working, evidence)
+        _ = try owner(working.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .leave,
+                                   now: now.addingTimeInterval(299)))
+        let display = try working.snapshot(now: elapsed).displaySnapshot(now: elapsed)
+        XCTAssertTrue(display.keys.isEmpty)
+        XCTAssertTrue(display.working)
+        XCTAssertEqual(display.sub, "Waiting\nto send")
+        XCTAssertEqual(display.autoControl, .stop)
+    }
+
+    func testPassCleanupOldObservationCannotLeaveReplacementOrUnselectedQueue() throws {
+        let memberships: [[Int64]] = [[], [3]]
+        for ids in memberships {
+            let value = try store()
+            let initial = try observed(value, observation("PASS", ids: ids))
+            let elapsed = now.addingTimeInterval(300)
+            XCTAssertTrue(try initial.displaySnapshot(now: elapsed).keys.isEmpty)
+            XCTAssertEqual(try value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .leave, now: elapsed),
+                           .rejected(.detailsChanged))
+        }
+        let value = try store()
+        let initial = try observed(value, observation("PASS"))
+        _ = try observed(value, observation("WAITING"), at: now.addingTimeInterval(300))
+        XCTAssertEqual(try value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .leave,
+                                      now: now.addingTimeInterval(300)), .rejected(.detailsChanged))
+    }
+
     private func store(armed: Bool = true) throws -> CpStateStore {
         let value = CpStateStore(directory: try CpStoreFixture.directory(self))
         _ = try value.bootstrap(legacy: CpLegacyState(session: CpStoreFixture.session,

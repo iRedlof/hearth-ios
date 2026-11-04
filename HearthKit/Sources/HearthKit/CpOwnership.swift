@@ -266,15 +266,26 @@ public struct CpStoreSnapshot: Sendable, Equatable {
         }
         if session.isSignedIn, !session.joinExpired,
            providerActionable != nil, reading?.provider.charging == nil,
-           case .inLine(_, _, _, let offer?, _) = reading?.provider.waitlist,
+           case .inLine(_, let phase, _, let offer?, _) = reading?.provider.waitlist,
            offer.untilMs > 0, Double(offer.untilMs) <= now.timeIntervalSince1970 * 1_000 {
-            display.deadline = nil; display.goTo = nil; display.keys = []
-            display.bigAnswer = "—"; display.unit = ""
-            display.railNotes = []; display.sub = "Time\nelapsed"
-            display.statusDescription = "Time elapsed. Refresh to check."
+            if phase != "PASS" {
+                display.deadline = nil; display.goTo = nil; display.keys = []
+                display.bigAnswer = "—"; display.unit = ""
+                display.railNotes = []; display.sub = "Time\nelapsed"
+                display.statusDescription = "Time elapsed. Refresh to check."
+            }
             if !run.armed { display.autoControl = .disabled }
         }
-        if providerActionable == false || operation != nil {
+        let passCleanup: Bool
+        if case let .inLine(_, phase, _, offer, _) = reading?.provider.waitlist {
+            let future = offer.map {
+                $0.untilMs > 0 && Double($0.untilMs) > now.timeIntervalSince1970 * 1_000
+            } ?? false
+            passCleanup = phase == "PASS" && reading?.provider.charging == nil &&
+                !future
+        } else { passCleanup = false }
+        if providerActionable == false || operation != nil ||
+            (passCleanup && (providerActionable != true || renderedOrigin?.observationID == nil)) {
             display.keys = []
             if display.actionLabel == "Join" { display.actionLabel = "Open"; display.showOpen = false }
             if !run.armed, session.isSignedIn { display.autoControl = .disabled }
