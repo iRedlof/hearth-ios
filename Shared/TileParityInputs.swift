@@ -28,6 +28,7 @@ enum TileParityInputs {
     }
 
     static func lights(_ state: String) -> LightsSnapshot {
+        if state == "all_off" { return lightsAllOffWidgetPreviewSnapshot(now: now) }
         if state == "loading" { return .loading }
         let count = ["overflow", "pinned_overflow"].contains(state) ? 10 : state == "pins_only" ? 5 : state == "one_pin" ? 4 : 3
         let rows: [[String: Any]] = state == "empty" ? [] : (1...count).map {

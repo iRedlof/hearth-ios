@@ -2,6 +2,99 @@ import XCTest
 @testable import HearthKit
 
 final class WidgetPreviewExampleCatalogTests: XCTestCase {
+    private func selectedAllOffSnapshot() -> LightsSnapshot {
+        var visit = WidgetPreviewExampleSelection()
+        visit.select(id: "all_off", for: .lights)
+        return visit.selected(for: .lights).id == "sample" ? .sample :
+            lightsAllOffWidgetPreviewSnapshot(now: Date(timeIntervalSince1970: 1_793_379_600))
+    }
+
+    func testAllOffSelectionConsumesSuccessfulZeroOnReading() {
+        let snapshot = selectedAllOffSnapshot()
+        XCTAssertEqual(snapshot.summary.headline, "All off")
+        XCTAssertEqual(snapshot.summary.onCount, 0)
+    }
+
+    func testAllOffSelectionKeepsPorchOffExactlyOnce() {
+        let page = lightTilePage(selectedAllOffSnapshot().summary)
+        XCTAssertEqual(page.pinned.map(\.tile), ["Off"])
+        XCTAssertTrue(page.main.isEmpty)
+        XCTAssertEqual(page.hiddenCount, 0)
+    }
+
+    func testAllOffConsumedFactoryHasKnownMembershipAndSuccessfulInjectedTime() {
+        let now = Date(timeIntervalSince1970: 1_793_379_600)
+        let snapshot = lightsAllOffWidgetPreviewSnapshot(now: now)
+        let summary = snapshot.summary
+        let known = summary.off + summary.pinned
+        XCTAssertEqual(Set(known.map(\.id)), Set((1...4).map { "light.fixture_\($0)" }))
+        XCTAssertEqual(Set(known.map(\.name)), ["Kitchen", "Living room", "Desk lamp", "Porch"])
+        XCTAssertTrue(known.allSatisfy { $0.available && !$0.on && $0.percent == nil && $0.rgb == nil && $0.status == "Off" })
+        XCTAssertEqual(summary.offCount, 3)
+        XCTAssertEqual(known.filter { $0.available && !$0.on }.count, 4)
+        XCTAssertEqual(summary.pinned.map(\.id), ["light.fixture_4"])
+        XCTAssertEqual(summary.pinned.map(\.name), ["Porch"])
+        XCTAssertTrue(summary.off.allSatisfy { $0.id != "light.fixture_4" })
+        XCTAssertEqual(snapshot.state, .ready)
+        XCTAssertNil(snapshot.error)
+        XCTAssertEqual(snapshot.checkedAt, widgetClock(now))
+        let later = now.addingTimeInterval(3_600)
+        XCTAssertEqual(lightsAllOffWidgetPreviewSnapshot(now: later).checkedAt, widgetClock(later))
+        XCTAssertEqual(lightsAllOffWidgetPreviewSnapshot(now: later).summary, summary)
+        XCTAssertEqual(snapshot, lightsAllOffWidgetPreviewSnapshot(now: now))
+    }
+
+    func testAllOffChoiceRetainsAcrossKindsAndCannotReplaceForeignOrIndependentDefaults() {
+        var visit = WidgetPreviewExampleSelection()
+        let untouched = visit
+        XCTAssertTrue(visit.select(id: "all_off", for: .lights))
+        let chosen = visit.selected(for: .lights)
+        XCTAssertTrue(visit.select(id: "triggered", for: .alarm))
+        XCTAssertTrue(visit.select(id: "heldNoSnoozes", for: .chargepoint))
+        for _ in WidgetPreviewKind.lights.supportedFamilies {
+            XCTAssertEqual(visit.selected(for: .lights), chosen)
+        }
+        XCTAssertFalse(visit.select(chosen, for: .favourites))
+        XCTAssertFalse(visit.select(id: "all_off", for: .favourites))
+        XCTAssertEqual(visit.selected(for: .lights), chosen)
+        XCTAssertEqual(untouched.selected(for: .lights).id, "sample")
+        XCTAssertEqual(visit.selected(for: .favourites).id, "sample")
+        XCTAssertEqual(chosen.group, "Readings")
+        var changed = selectedAllOffSnapshot().summary.off
+        changed.removeAll()
+        XCTAssertEqual(selectedAllOffSnapshot().summary.offCount, 3)
+        XCTAssertEqual(selectedAllOffSnapshot().summary.off.count, 3)
+    }
+
+    func testAllOffDoesNotReplaceTheReleasedMixedLightsDefault() {
+        let original = LightsSnapshot.sample
+        _ = selectedAllOffSnapshot()
+        XCTAssertEqual(LightsSnapshot.sample, original)
+        XCTAssertEqual(original.summary.headline, "3 on")
+        XCTAssertEqual(original.summary.onCount, 3)
+        XCTAssertEqual(original.summary.offCount, 1)
+        XCTAssertEqual(Set(original.summary.on.map(\.id)), ["light.kitchen", "light.living", "light.desk"])
+        XCTAssertEqual(Set(original.summary.on.compactMap(\.percent)), [80, 45, 100])
+        XCTAssertEqual(original.summary.pinned.map(\.id), ["light.porch"])
+        XCTAssertEqual(original.summary.pinned.map(\.tile), ["Off"])
+        XCTAssertEqual(original.summary.off.map(\.id), ["light.hall"])
+        XCTAssertEqual(original.checkedAt, "9:41 AM")
+    }
+
+    func testUnknownAndUnavailableCannotBecomeSuccessfulAllOff() {
+        for state in ["unknown", "unavailable"] {
+            let raw = lightsFromTemplate("""
+            [{"entity_id":"light.missing","name":"Missing","state":"\(state)","group":false},
+             {"entity_id":"light.known","name":"Known","state":"off","group":false}]
+            """)
+            let summary = lightsSummary(raw, now: Date(timeIntervalSince1970: 0), pinned: ["light.missing"])
+            XCTAssertFalse(raw[0].available)
+            XCTAssertEqual(summary.headline, "1 unavailable")
+            XCTAssertEqual(summary.pinned.map(\.tile), ["Unavailable"])
+            XCTAssertEqual(summary.offCount, 1)
+        }
+    }
+
     func testKindRoundTripsKeepIndependentChoices() {
         var visit = WidgetPreviewExampleSelection()
         XCTAssertTrue(visit.select(id: "triggered", for: .alarm))
