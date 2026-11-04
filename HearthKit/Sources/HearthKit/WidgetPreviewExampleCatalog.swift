@@ -144,6 +144,7 @@ public func widgetPreviewExamples(for kind: WidgetPreviewKind) -> [WidgetPreview
         rows = [
             ("sample", "Mixed lights · pinned Porch", "Examples"),
             ("ready", "All sample lights on", "Readings"),
+            ("all_off", "All lights off · pinned Porch", "Readings"),
             ("setup", "Connect your lights", "Connection"),
             ("loading", "Checking lights", "Connection"),
             ("empty", "No lights found", "Readings"),
@@ -282,4 +283,15 @@ public struct WidgetPreviewExampleSelection: Sendable {
         guard example.kind == kind else { return false }
         return select(id: example.id, for: kind)
     }
+}
+
+/// One successful fictional reading; normal gallery dispatch consumes the live parser and mapper.
+public func lightsAllOffWidgetPreviewSnapshot(now: Date) -> LightsSnapshot {
+    let rows: [[String: Any]] = ["Kitchen", "Living room", "Desk lamp", "Porch"].enumerated().map {
+        ["entity_id": "light.fixture_\($0.offset + 1)", "name": $0.element, "state": "off", "group": false]
+    }
+    let reply = String(data: try! JSONSerialization.data(withJSONObject: rows), encoding: .utf8)!
+    let config = HaConfig(baseUrl: "https://example.com", token: "inert", entityId: "",
+                          lightPinsJson: "[\"light.fixture_4\"]")
+    return mapLightsSnapshot(config, reply: .success(reply), now: now)
 }
