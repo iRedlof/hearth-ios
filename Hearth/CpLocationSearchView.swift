@@ -59,6 +59,9 @@ struct CpLocationSearchView: View {
                 phase = .failed("Details changed · Search again"); return
             }
             WidgetCenter.shared.reloadAllTimelines()
+            if !CpSessionStore.fixtureReloadHandled() {
+                RefreshSignal.shared.chargePointSourceChanged()
+            }
             onPicked(); dismiss()
         } catch { phase = .failed(friendlyError(error)) }
     }

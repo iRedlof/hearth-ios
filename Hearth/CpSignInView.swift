@@ -30,6 +30,9 @@ struct CpSignInView: View {
                 Button("Reset ChargePoint storage") {
                     do {
                         try CpSessionStore.recoverSignedOut()
+                        if !CpSessionStore.fixtureReloadHandled() {
+                            RefreshSignal.shared.chargePointSourceChanged()
+                        }
                         onSignedIn()
                     } catch { phase = friendlyError(error) }
                 }
@@ -61,6 +64,9 @@ struct CpSignInView: View {
             guard owner == captured, latestToken == token,
                   try CpSessionStore.context().context.accountGeneration == accepted.context.accountGeneration else { return }
             WidgetCenter.shared.reloadAllTimelines()
+            if !CpSessionStore.fixtureReloadHandled() {
+                RefreshSignal.shared.chargePointSourceChanged()
+            }
             onSignedIn()
         } catch {
             guard owner == captured, latestToken == token else { return }
