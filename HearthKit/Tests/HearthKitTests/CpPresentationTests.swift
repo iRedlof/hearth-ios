@@ -42,6 +42,73 @@ final class CpPresentationTests: XCTestCase {
         XCTAssertNotNil(snap.deadline)
     }
 
+    func testPassTimePolicyDistinguishesFutureEqualityPastAndUnknownWithoutDroppingReadings() {
+        let future = Int64(now.addingTimeInterval(600).timeIntervalSince1970 * 1000)
+        let cases: [(Int64?, Date, String?)] = [
+            (future, now, nil),
+            (future, now.addingTimeInterval(600), "Time elapsed"),
+            (future, now.addingTimeInterval(601), "Time elapsed"),
+            (nil, now, "Deadline unknown"), (0, now, "Deadline unknown"), (-1, now, "Deadline unknown")
+        ]
+        for (until, clock, reason) in cases {
+            for armed in [false, true] {
+                var state = held("PASS")
+                state.location = location
+                state.autoOn = armed
+                state.floors = [CpFloor(level: "P3", free: 7, total: 18)]
+                state.waitlist = .inLine(place: nil, state: "PASS", stations: 1,
+                    offer: until.map { CpOffer(deviceId: 0, port: 0, charger: "", untilMs: $0) }, auto: true)
+                let original = state
+                let snapshot = cpSnapshot(state, email: "person@example.test", checkedAt: "original stamp", now: clock)
+                XCTAssertEqual(state, original)
+                XCTAssertEqual(snapshot.site, location.title)
+                XCTAssertEqual(snapshot.account, "person")
+                XCTAssertEqual(snapshot.checkedAt, "original stamp")
+                XCTAssertEqual(snapshot.floors, state.floors)
+                XCTAssertNil(snapshot.origin)
+                XCTAssertNil(snapshot.goTo)
+                XCTAssertEqual(snapshot.autoOn, armed)
+                XCTAssertFalse(snapshot.keys.contains { $0.command == "snooze" })
+                if let reason {
+                    XCTAssertEqual(snapshot.bigAnswer, "—")
+                    XCTAssertEqual(snapshot.unit, "")
+                    XCTAssertNil(snapshot.deadline)
+                    XCTAssertTrue(snapshot.railNotes.isEmpty)
+                    XCTAssertEqual(snapshot.sub, "\(reason)\nRefresh to check")
+                    XCTAssertEqual(snapshot.statusDescription, "\(reason). Refresh to check.")
+                    XCTAssertEqual(snapshot.keys.map(\.command), ["open", "leave"])
+                    XCTAssertEqual(snapshot.keys.map(\.label), ["Open ChargePoint", "Leave"])
+                } else {
+                    XCTAssertEqual(snapshot.bigAnswer, "Snoozed")
+                    XCTAssertEqual(snapshot.deadline, now.addingTimeInterval(600))
+                    XCTAssertEqual(snapshot.sub, "Back in line at \(cpClockString(now.addingTimeInterval(600)))")
+                    XCTAssertNil(snapshot.statusDescription)
+                    XCTAssertEqual(snapshot.keys.map(\.command), ["unsnooze", "leave"])
+                }
+            }
+        }
+    }
+
+    func testPassCleanupNeverReplacesAuthenticationAndChargingPriority() {
+        for joinExpired in [false, true] {
+            var state = held("PASS")
+            state.location = location
+            state.signedOut = !joinExpired
+            state.account = cpAccount(hasSession: joinExpired, expired: !joinExpired, joinExpired: joinExpired)
+            let snapshot = cpSnapshot(state, email: "person@example.test", checkedAt: "old", now: now.addingTimeInterval(700))
+            XCTAssertEqual(snapshot.bigAnswer, "Sign in")
+            XCTAssertTrue(snapshot.keys.isEmpty)
+            XCTAssertNil(snapshot.statusDescription)
+        }
+        var charging = held("PASS")
+        charging.location = location
+        charging.charging = CpCharging(sessionId: 9, powerKw: 6.6, energyKwh: 7.4, minutes: 65, canStop: true)
+        let snapshot = cpSnapshot(charging, email: nil, checkedAt: "old", now: now.addingTimeInterval(700))
+        XCTAssertEqual(snapshot.bigAnswer, "7.4")
+        XCTAssertEqual(snapshot.keys.map(\.command), ["stop"])
+        XCTAssertNil(snapshot.statusDescription)
+    }
+
     func testChargingSnapshotUsesEnergyAndActualSessionStats() {
         var value = held("CHARGING")
         value.location = location

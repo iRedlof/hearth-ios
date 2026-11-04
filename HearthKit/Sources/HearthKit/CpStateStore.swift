@@ -742,7 +742,9 @@ public struct CpStateStore: Sendable {
         case .resume: return identity.queued && identity.sessionID == nil && identity.phase != "CHARGING"
         case .legacy: return false
         case .leave: return identity.queued && identity.sessionID == nil
-        case .unsnooze: return identity.phase == "PASS" && identity.sessionID == nil
+        case .unsnooze:
+            return identity.phase == "PASS" && identity.sessionID == nil &&
+                identity.deadlineMs.map { $0 > 0 && Double($0) > now.timeIntervalSince1970 * 1000 } == true
         case .stop: return false // Handled independently of queue readiness above.
         case .still, .done:
             return ["CHARGING_FAULT", "DIB_PLUG_OUT"].contains(identity.phase) && identity.token != nil &&
@@ -786,6 +788,10 @@ public struct CpStateStore: Sendable {
             case .mutation(let action):
                 guard action == operation.action, action != .resume, operation.stage == .preflighted,
                       operation.mutationAdmissionID == nil else { return nil }
+                // Rechecked at final send admission against the same preflight target.
+                guard let observation = stored.journal?.observation,
+                      observation.identity == operation.target,
+                      permits(action, observation: observation, now: now) else { return nil }
             case .acknowledgement(let id):
                 guard operation.stage == .admitted, operation.acknowledgementID == id else { return nil }
             default:

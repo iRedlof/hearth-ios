@@ -53,7 +53,7 @@ public func cpSnapshot(_ state: CpState, email: String?, checkedAt: String, now:
         notes = [ans.big] + (state.snoozesLeft.map { [$0 > 0 ? "\($0) snooze\($0 == 1 ? "" : "s") left" : "No snoozes left"] } ?? [])
     }
     let stats = state.charging.map(cpChargingStats) ?? []
-    return CpSnapshot(
+    var snapshot = CpSnapshot(
         site: state.location?.title ?? "ChargePoint",
         account: account,
         bigAnswer: ans.big,
@@ -70,6 +70,16 @@ public func cpSnapshot(_ state: CpState, email: String?, checkedAt: String, now:
         freeDetail: freeDetail, showOpen: showPlugs,
         railNotes: notes, stats: stats,
         tone: .orange, autoControl: cpAutoControl(state))
+    if configured, !charging, status == "PASS", deadline == nil || expired {
+        // Local time retires the return promise, not the provider's queued PASS identity.
+        snapshot.bigAnswer = "—"; snapshot.unit = ""
+        snapshot.deadline = nil; snapshot.railNotes = []
+        snapshot.sub = expired ? "Time elapsed\nRefresh to check" : "Deadline unknown\nRefresh to check"
+        snapshot.statusDescription = expired ? "Time elapsed. Refresh to check." : "Deadline unknown. Refresh to check."
+        snapshot.keys = [CpKey(command: "open", label: "Open ChargePoint"),
+                         CpKey(command: "leave", label: "Leave")]
+    }
+    return snapshot
 }
 
 private func cpChargingStats(_ session: CpCharging) -> [CpStat] {
