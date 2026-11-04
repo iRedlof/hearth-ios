@@ -28,6 +28,8 @@ public enum CpWidgetPreviewExample: String, CaseIterable, Identifiable, Sendable
     case unplugged
     case overstayed
     case blocked
+    case busy_snooze
+    case held_pending
 
     public var id: String { rawValue }
 
@@ -58,12 +60,27 @@ public enum CpWidgetPreviewExample: String, CaseIterable, Identifiable, Sendable
         case .unplugged: "Unplugged"
         case .overstayed: "Move your car"
         case .blocked: "Charger blocked"
+        case .busy_snooze: "Offer ready · snooze request pending"
+        case .held_pending: "Spot held · snooze request pending"
         }
     }
 }
 
 /// `now` is the retained gallery-visit reference, not a replacement for the live countdown clock.
 public func cpWidgetPreviewState(_ example: CpWidgetPreviewExample, now: Date) -> CpState {
+    if example == .busy_snooze || example == .held_pending {
+        let held = example == .held_pending
+        let location = CpLocation(name: "Workplace", address: "",
+                                  deviceIds: Array(1...43).map(Int64.init),
+                                  bounds: cpBounds(lat: 0, lon: 0))
+        let offer = CpOffer(deviceId: 1, port: 1, charger: "EXAMPLE-29 P3",
+                            untilMs: Int64(now.addingTimeInterval(held ? 1_690 : 833).timeIntervalSince1970 * 1_000))
+        return CpState(signedOut: false, account: cpAccount(hasSession: true, expired: false),
+                       location: location, now: CpNow(free: 78, inUse: 7, offline: 1, stations: 43),
+                       waitlist: .inLine(place: nil, state: held ? "PENDING_PLUG_IN" : "ACCEPT_PENDING",
+                                         stations: 43, offer: offer, auto: false),
+                       charging: nil, autoOn: false, floors: [], snoozesLeft: 1)
+    }
     if ![CpWidgetPreviewExample.heldSnoozeAvailable, .heldNoSnoozes,
           .sessionExpiredSignInRequired].contains(example) {
         return cpAdditionalWidgetPreviewState(example, now: now)
@@ -87,8 +104,16 @@ public func cpWidgetPreviewState(_ example: CpWidgetPreviewExample, now: Date) -
 
 /// Derive every displayed fact and action through the same pure mapper as production.
 public func cpWidgetPreviewSnapshot(_ example: CpWidgetPreviewExample, now: Date) -> CpSnapshot {
-    cpSnapshot(cpWidgetPreviewState(example, now: now), email: "example",
-               checkedAt: cpClockString(now), now: now)
+    let pending = example == .busy_snooze || example == .held_pending
+    let base = cpSnapshot(cpWidgetPreviewState(example, now: now),
+                          email: pending ? "example@example.test" : "example",
+                          checkedAt: cpClockString(pending ? now.addingTimeInterval(-19 * 60) : now),
+                          now: now)
+    guard pending else { return base }
+    // Pure illustrative feedback: no owned operation, rendered origin or request is created.
+    var snapshot = cpApplyingOperation(base, CpOperation(command: "snooze", startedAt: now), now: now)
+    snapshot.statusDescription = "\(snapshot.sub) · \(base.sub)"
+    return snapshot
 }
 
 /// Existing coherent pure conditions; deliberately excludes owned operation/expired overlays.
