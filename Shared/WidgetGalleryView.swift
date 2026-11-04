@@ -9,6 +9,8 @@ struct WidgetGalleryView: View {
     @State private var kind: WidgetPreviewKind?
     @State private var reference: PhoneReference = .large
     @State private var family: WidgetPreviewFamily = .medium
+    @State private var chargePointExample: CpWidgetPreviewExample = .heldSnoozeAvailable
+    @State private var exampleReferenceTime = Date()
     private let unsupportedInitialKind: String?
 
     init() {
@@ -66,6 +68,26 @@ struct WidgetGalleryView: View {
             .accessibilityLabel("Widget")
             .accessibilityValue(kind?.title ?? "None selected")
             .accessibilityIdentifier("widget.preview.kind")
+
+            if kind == .chargepoint {
+                Text("Example state")
+                    .font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
+                Menu {
+                    Picker("Example state", selection: $chargePointExample) {
+                        ForEach(CpWidgetPreviewExample.allCases) { example in
+                            Text(example.title).tag(example)
+                        }
+                    }
+                } label: {
+                    selectorLabel(chargePointExample.title, symbol: nil)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .accessibilityLabel("Example state")
+                .accessibilityValue(chargePointExample.title)
+                .accessibilityHint("Choose an illustrative state. Preview controls are inactive.")
+                .accessibilityIdentifier("widget.preview.state")
+            }
 
             if let kind, kind.supportedFamilies.count > 1 {
                 Text("Widget size").font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
@@ -127,6 +149,7 @@ struct WidgetGalleryView: View {
         let size = reference.size(for: selectedFamily)
         let scale = min(1, availableWidth / size.width)
         let percentage = Int((scale * 100).rounded())
+        let chargePointSnapshot = cpWidgetPreviewSnapshot(chargePointExample, now: exampleReferenceTime)
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Text(kind.title).font(.headline)
@@ -139,7 +162,19 @@ struct WidgetGalleryView: View {
                 .font(.body).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            InertWidgetPreview(content: widget(for: kind))
+            if kind == .chargepoint {
+                Text(chargePointExample.title)
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("widget.preview.stateCaption")
+                Text("Illustrative sample, not your account or a live reading. Preview controls are inactive.")
+                    .font(.body).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityLabel(chargePointSummary(chargePointSnapshot, size: size, percentage: percentage))
+                    .accessibilityIdentifier("widget.preview.stateSummary")
+            }
+
+            InertWidgetPreview(content: widget(for: kind, chargePointSnapshot: chargePointSnapshot))
                 .frame(width: size.width, height: size.height)
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .scaleEffect(scale)
@@ -165,7 +200,16 @@ struct WidgetGalleryView: View {
         .accessibilityIdentifier("widget.preview.example")
     }
 
-    @ViewBuilder private func widget(for kind: WidgetPreviewKind) -> some View {
+    private func chargePointSummary(_ snapshot: CpSnapshot, size: CGSize, percentage: Int) -> String {
+        let facts = ([snapshot.bigAnswer, snapshot.unit, snapshot.sub] +
+                     snapshot.railNotes + snapshot.keys.map(\.label))
+            .filter { !$0.isEmpty }.joined(separator: ". ")
+        return "ChargePoint. \(chargePointExample.title). \(facts). \(reference.title), " +
+            "\(Int(size.width)) by \(Int(size.height)) points. Shown at \(percentage) percent. " +
+            "Illustrative sample, not your account or a live reading. Preview controls are inactive."
+    }
+
+    @ViewBuilder private func widget(for kind: WidgetPreviewKind, chargePointSnapshot: CpSnapshot) -> some View {
         switch kind {
         case .car:
             if selectedFamily(for: kind) == .small {
@@ -181,7 +225,7 @@ struct WidgetGalleryView: View {
                 ThermostatBeaconView(ThermostatParityInputs.payload("auto"),
                     family: selectedFamily(for: kind).widgetKitFamily)
             }
-        case .chargepoint: CpBeaconView(.sample)
+        case .chargepoint: CpBeaconView(chargePointSnapshot)
         case .battery: BatteryView(.sample, layoutFamily: kind.family.widgetKitFamily)
         case .activity: ActivityView(.sample)
         case .lights: LightTileView(.sample)
