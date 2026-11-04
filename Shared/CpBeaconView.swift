@@ -81,7 +81,7 @@ public struct CpBeaconView: View {
     private var autoLabel: some View {
         HStack(spacing: 5) {
             Text("Auto").font(.system(size: 12, weight: .bold))
-            Circle().fill(Color(argb: snap.autoOn ? 0xFF34C759 : 0xFF626A63))
+            Circle().fill(Color(argb: snap.autoIndicatorARGB))
                 .overlay(Circle().strokeBorder(ink.opacity(0.45), lineWidth: 0.7))
                 .frame(width: 8, height: 8)
         }
@@ -92,17 +92,15 @@ public struct CpBeaconView: View {
 
     @ViewBuilder private var autoPill: some View {
         if snap.autoControl == .disabled || (snap.working && !snap.autoOn) || (snap.origin == nil && snap.autoControl != .signin) {
-            autoLabel.accessibilityLabel(snap.origin == nil && snap.account == "Unavailable"
-                ? "Auto status unavailable" : snap.autoOn ? "Auto on. Command in progress" : "Auto off. Unavailable")
+            autoLabel.accessibilityLabel(snap.autoAccessibilityLabel)
         } else if snap.autoControl == .signin {
             Button(intent: CpSetupIntent("signin")) { autoLabel }
-                .buttonStyle(.plain).accessibilityLabel("Auto off. Sign in to start Auto")
+                .buttonStyle(.plain).accessibilityLabel(snap.autoAccessibilityLabel)
         } else {
             Button(intent: CpControlIntent(snap.autoControl == .stop ? "pause" : snap.autoControl == .join ? "join" : "resume",
                                           origin: CpSessionStore.encodedActionOrigin(snap.origin))) { autoLabel }
                 .buttonStyle(.plain)
-                .accessibilityLabel(snap.autoOn ? "Auto on. Stop Auto" :
-                    snap.autoControl == .join ? "Auto off. Join and start Auto" : "Auto off. Resume Auto")
+                .accessibilityLabel(snap.autoAccessibilityLabel)
         }
     }
 
