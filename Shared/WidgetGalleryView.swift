@@ -9,7 +9,10 @@ struct WidgetGalleryView: View {
     @State private var kind: WidgetPreviewKind?
     @State private var reference: PhoneReference = .large
     @State private var family: WidgetPreviewFamily = .medium
-    @State private var chargePointExample: CpWidgetPreviewExample = .heldSnoozeAvailable
+    @State private var examples = WidgetPreviewExampleSelection()
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    @State private var activitySample = ActivitySnapshot.sample
+    @ScaledMetric(relativeTo: .body) private var collectionTextScale: CGFloat = 1
     @State private var exampleReferenceTime = Date()
     private let unsupportedInitialKind: String?
 
@@ -69,23 +72,34 @@ struct WidgetGalleryView: View {
             .accessibilityValue(kind?.title ?? "None selected")
             .accessibilityIdentifier("widget.preview.kind")
 
-            if kind == .chargepoint {
+            if let kind {
+                let selected = examples.selected(for: kind)
+                let choices = widgetPreviewExamples(for: kind)
+                let groups = choices.reduce(into: [String]()) { result, item in
+                    if !result.contains(item.group) { result.append(item.group) }
+                }
                 Text("Example state")
                     .font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
                 Menu {
-                    Picker("Example state", selection: $chargePointExample) {
-                        ForEach(CpWidgetPreviewExample.allCases) { example in
-                            Text(example.title).tag(example)
+                    Picker("Example state", selection: Binding(
+                        get: { examples.selected(for: kind).id },
+                        set: { examples.select(id: $0, for: kind) })) {
+                        ForEach(groups, id: \.self) { group in
+                            Section(group) {
+                                ForEach(choices.filter { $0.group == group }) { example in
+                                    Text(example.title).tag(example.id)
+                                }
+                            }
                         }
                     }
                 } label: {
-                    selectorLabel(chargePointExample.title, symbol: nil)
+                    selectorLabel(selected.title, symbol: nil)
                         .multilineTextAlignment(.leading)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .accessibilityLabel("Example state")
-                .accessibilityValue(chargePointExample.title)
-                .accessibilityHint("Choose an illustrative state. Preview controls are inactive.")
+                .accessibilityValue(selected.title)
+                .accessibilityHint("Changes the illustrative example. Does not change your widget or account.")
                 .accessibilityIdentifier("widget.preview.state")
             }
 
@@ -149,7 +163,8 @@ struct WidgetGalleryView: View {
         let size = reference.size(for: selectedFamily)
         let scale = min(1, availableWidth / size.width)
         let percentage = Int((scale * 100).rounded())
-        let chargePointSnapshot = cpWidgetPreviewSnapshot(chargePointExample, now: exampleReferenceTime)
+        let selected = examples.selected(for: kind)
+        let projection = projectedExample(kind, id: selected.id, family: selectedFamily, size: size)
         return VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Text(kind.title).font(.headline)
@@ -158,23 +173,23 @@ struct WidgetGalleryView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
+            Text(selected.title)
+                .font(.body)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("widget.preview.stateCaption")
             Text("\(selectedFamily.title) widget · approximately \(Int(size.width)) × \(Int(size.height)) pt")
                 .font(.body).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
-
-            if kind == .chargepoint {
-                Text(chargePointExample.title)
-                    .font(.body)
+            Text(projection.facts)
+                .font(.body).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("widget.preview.stateSummary")
+            if let disclosure = projection.disclosure {
+                Text(disclosure).font(.body).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityIdentifier("widget.preview.stateCaption")
-                Text("Illustrative sample, not your account or a live reading. Preview controls are inactive.")
-                    .font(.body).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityLabel(chargePointSummary(chargePointSnapshot, size: size, percentage: percentage))
-                    .accessibilityIdentifier("widget.preview.stateSummary")
             }
 
-            InertWidgetPreview(content: widget(for: kind, chargePointSnapshot: chargePointSnapshot))
+            InertWidgetPreview(content: projection.card)
                 .frame(width: size.width, height: size.height)
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .scaleEffect(scale)
@@ -184,6 +199,10 @@ struct WidgetGalleryView: View {
                 .focusable(false)
                 .frame(maxWidth: .infinity, alignment: .center)
 
+            Text("Illustrative sample, not your account or a live reading. Preview controls are inactive.")
+                .font(.body).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityIdentifier("widget.preview.inactive")
             Text("Shown at \(percentage)% to fit this screen, with the full layout in proportion. Preview controls are inactive.")
                 .font(.body).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -200,39 +219,248 @@ struct WidgetGalleryView: View {
         .accessibilityIdentifier("widget.preview.example")
     }
 
-    private func chargePointSummary(_ snapshot: CpSnapshot, size: CGSize, percentage: Int) -> String {
-        let facts = ([snapshot.bigAnswer, snapshot.unit, snapshot.sub] +
-                     snapshot.railNotes + snapshot.keys.map(\.label))
-            .filter { !$0.isEmpty }.joined(separator: ". ")
-        return "ChargePoint. \(chargePointExample.title). \(facts). \(reference.title), " +
-            "\(Int(size.width)) by \(Int(size.height)) points. Shown at \(percentage) percent. " +
-            "Illustrative sample, not your account or a live reading. Preview controls are inactive."
+    /// The selected builder runs once per projection; caption, facts and card share its input.
+    private struct ExampleProjection {
+        let card: AnyView
+        let facts: String
+        var disclosure: String? = nil
     }
 
-    @ViewBuilder private func widget(for kind: WidgetPreviewKind, chargePointSnapshot: CpSnapshot) -> some View {
+    private func words(_ values: [String?]) -> String {
+        values.compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: ". ")
+    }
+
+    private func checked(_ stamp: String, historical: Bool = false) -> String? {
+        stamp.isEmpty ? nil : "\(historical ? "Last checked" : "Checked") \(stamp)"
+    }
+
+    private func tileStatus(_ state: TileSnapshotState, error: String?, choice: String, empty: String) -> String? {
+        switch state {
+        case .setup: "Connect Home Assistant"
+        case .loading: "Checking"
+        case .choose: choice
+        case .empty: empty
+        case .failed: error ?? "Could not load reading"
+        case .ready: error
+        }
+    }
+
+    private func projectedExample(_ kind: WidgetPreviewKind, id: String,
+                                  family: WidgetPreviewFamily, size: CGSize) -> ExampleProjection {
         switch kind {
         case .car:
-            if selectedFamily(for: kind) == .small {
-                CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
+            let payload = CarParityInputs.productionPayload(id, destination: .inert)
+            let content = carSmallContent(payload)
+            // Small and enlarged Medium deliberately hand off additional details.
+            let compact = family == .small || dynamicType >= .xxxLarge
+            let snap = payload.snapshot
+            let facts: String
+            if family == .medium && dynamicType >= .xxxLarge {
+                // Enlarged Medium suppresses secondary battery, openings and checked time.
+                facts = payload.readingsUnavailable ? "Not saved" : carPrimarySummary(payload.primary)
+            } else if compact {
+                facts = words(content.criticalTexts.map(Optional.init) +
+                    [content.battery.map { "Battery \($0)" }, content.openingDetail,
+                     content.openingsUnknown ? "Openings unknown" : nil])
             } else {
-                CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
-                    snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
+                facts = words([snap.name, snap.chargeLine, snap.battery.map { "Battery \($0)%" },
+                               snap.lock, snap.doors, snap.place, snap.error,
+                               checked(snap.checkedAt, historical: snap.stale)])
             }
-        case .alarm: AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"), family: selectedFamily(for: kind).widgetKitFamily)
+            return ExampleProjection(card: AnyView(CarWidgetPresentation(payload: payload,
+                family: family.widgetKitFamily)), facts: facts,
+                disclosure: compact ? "These are the selected primary example facts. Small may reduce to an inactive Readings handoff when text cannot fit; enlarged Medium shows only its main answer. Additional readings and controls are not shown here." : nil)
+        case .alarm:
+            let snap = AlarmParityInputs.snapshot(id)
+            let compact = family == .small
+            let content = alarmSmallContent(snap)
+            let facts = compact ? words(content.criticalTexts.map(Optional.init)) :
+                words([snap.stateWord, snap.detail, snap.doorSelected ? "\(snap.doorName): \(snap.doorState)" : nil,
+                       snap.doorSince, snap.error, snap.doorError, snap.commandFeedback, snap.commandError,
+                       snap.actions.isEmpty ? nil : "Displayed actions: " + snap.actions.map(\.label).joined(separator: ", "),
+                       checked(snap.checkedAt, historical: snap.stale)])
+            return ExampleProjection(card: AnyView(AlarmBeaconView(snap, family: family.widgetKitFamily)),
+                facts: facts, disclosure: compact ? "These are the selected primary example facts. Small may reduce to an inactive Open handoff when text cannot fit. Companion detail, dates and action meanings belong to Medium." : nil)
         case .thermostat:
-            if selectedFamily(for: kind) == .medium { ThermostatBeaconView(.sample) }
-            else {
-                ThermostatBeaconView(ThermostatParityInputs.payload("auto"),
-                    family: selectedFamily(for: kind).widgetKitFamily)
+            let payload = ThermostatParityInputs.payload(id)
+            let snap = payload.snapshot
+            let focused = thermostatSmallContent(payload.presentation, destination: .inert)
+            let compact = family == .small || (family == .medium && dynamicType >= .xxxLarge)
+            let facts = compact ? words([thermostatFocusedReadingAccessibility(focused.focused.room,
+                attribution: focused.focused.roomAttribution), focused.status, focused.mode]) :
+                words([snap.roomTemp, snap.roomSub, "Mode: \(snap.mode)", snap.status,
+                       snap.heatSetpoint.map { "Heat target \($0)" }, snap.coolSetpoint.map { "Cool target \($0)" },
+                       snap.fan.map { "Fan \($0)" }, snap.error,
+                       checked(snap.checkedAt, historical: snap.stale)])
+            return ExampleProjection(card: AnyView(ThermostatBeaconView(payload, family: family.widgetKitFamily)),
+                facts: facts, disclosure: compact ? "These are the selected primary example facts. Small may reduce to an inactive Readings handoff when text cannot fit. Additional targets, sensors and controls are not guaranteed to be shown in this family or text size." : nil)
+        case .chargepoint:
+            guard let example = CpWidgetPreviewExample(rawValue: id) else {
+                return ExampleProjection(card: AnyView(Text("Example unavailable")), facts: "Example unavailable")
             }
-        case .chargepoint: CpBeaconView(chargePointSnapshot)
-        case .battery: BatteryView(.sample, layoutFamily: kind.family.widgetKitFamily)
-        case .activity: ActivityView(.sample)
-        case .lights: LightTileView(.sample)
-        case .quick: QuickView(.sample)
-        case .favourites: FavouritesView(.sample)
-        case .doors: DoorsView(.sample)
+            let snap = cpWidgetPreviewSnapshot(example, now: exampleReferenceTime)
+            var facts: [String?] = [
+                snap.bigAnswer, snap.unit, snap.sub, "Account: \(snap.account)", snap.site,
+                snap.autoOn ? "Auto on" : "Auto off",
+                example == .held_unknown ? "Allowance unknown" : nil
+            ]
+            facts.append(contentsOf: snap.railNotes.map { Optional($0) })
+            facts.append(contentsOf: snap.keys.map { Optional("Displayed action: \($0.label)") })
+            facts.append(checked(snap.checkedAt))
+            return ExampleProjection(card: AnyView(CpBeaconView(snap)), facts: words(facts))
+        case .lights:
+            let snap: LightsSnapshot = id == "sample" ? .sample : TileParityInputs.lights(id)
+            let page = lightTilePage(snap.summary)
+            let status = tileStatus(snap.state, error: snap.error, choice: "", empty: "No lights found")
+            let rows = status == nil ? page.main.map { lightFact($0) } +
+                page.pinned.map { "Always show " + lightFact($0) } : []
+            return ExampleProjection(card: AnyView(LightTileView(snap)), facts: words(
+                [status ?? snap.summary.headline] + rows.map(Optional.init) +
+                [status == nil && page.hiddenCount > 0 ? "+\(page.hiddenCount) more" : nil, checked(snap.checkedAt)]))
+        case .favourites:
+            let snap: FavSnapshot = id == "sample" ? .sample : TileParityInputs.favourites(id)
+            let rows = snap.items.prefix(4).map { "\($0.name): \(!$0.available ? "Unavailable" : $0.domain == "script" ? "Run" : $0.on ? "On" : "Off")" }
+            return ExampleProjection(card: AnyView(FavouritesView(snap)), facts: words(
+                [tileStatus(snap.state, error: snap.error, choice: "Choose your favourites", empty: "No favourites found")] +
+                rows.map(Optional.init) + [snap.items.count > 4 ? "+\(snap.items.count - 4) more" : nil, checked(snap.checkedAt)]))
+        case .quick:
+            let snap: QuickSnapshot = id == "sample" ? .sample : TileParityInputs.quick(id)
+            return ExampleProjection(card: AnyView(QuickView(snap)), facts: words(
+                [tileStatus(snap.state, error: snap.error, choice: "Choose your scripts", empty: "No scripts found")] +
+                snap.keys.prefix(4).map { "\($0.name): \($0.available ? "Run" : "Unavailable")" } +
+                [snap.keys.count > 4 ? "+\(snap.keys.count - 4) more" : nil]))
+        case .doors:
+            let snap: DoorsSnapshot = id == "sample" ? .sample : CollectionParityInputs.doors(id)
+            let summary = doorsCommandPresentation(snap.summary, operation: snap.operation)
+            let scale = max(1, Double(collectionTextScale))
+            let identityWidth = max(0, Double(size.width) - 30 - 20 - 20 - 9 - (5 * 14 * scale + 24) - 8)
+            let identities = doorRowIdentities(snap.summary.rows, nameCapacity: Int(identityWidth / (14 * scale)),
+                detailCapacity: Int(identityWidth / (12 * scale * 0.62)))
+            let priorityID = snap.summary.rows.first {
+                identities[$0.id]?.identifiable == true && displayedDoorAction($0, snapshot: snap) == .stop
+            }?.id
+            let layout = doorsCollectionLayout(width: Double(size.width), height: Double(size.height), fontScale: scale,
+                rows: snap.summary.rows, hasError: snap.error != nil, priorityID: priorityID)
+            let shown = layout.priorityID.flatMap { id in snap.summary.rows.first { $0.id == id }.map { [$0] } }
+                ?? (layout.budget.summaryOnly ? [] : Array(snap.summary.rows.prefix(layout.budget.count)))
+            let rows = shown.map { row -> String in
+                let pending = snap.operation.flatMap { operation in
+                    operation.pending && operation.entityID == row.id ? DoorAction(rawValue: operation.action)?.pending : nil
+                }
+                return "\(row.name): \(pending ?? row.status)"
+            }
+            let headerVisible = layout.priorityID == nil && !layout.budget.summaryOnly
+            let headline: String
+            switch snap.state {
+            case .setup: headline = "Set up Home Assistant"
+            case .choose: headline = "Choose doors"
+            case .loading: headline = "Loading doors"
+            case .failed: headline = snap.summary.rows.isEmpty ? "Can't read doors" : summary.headline
+            default: headline = summary.headline
+            }
+            return ExampleProjection(card: AnyView(DoorsView(snap)), facts: words(
+                [headerVisible ? headline : nil, headerVisible ? snap.error : nil] + rows.map(Optional.init) +
+                layout.lines.map(Optional.init) + [headerVisible ? checked(snap.checkedAt, historical: snap.error != nil) : nil]),
+                disclosure: snap.operation != nil ? "This example request is not a confirmed physical result. Preview controls are inactive." : nil)
+        case .activity:
+            let snap = id == "sample" ? activitySample : CollectionParityInputs.activity(id)
+            let now = id == "sample" ? exampleReferenceTime : CollectionParityInputs.now
+            let items = activityInWindow(snap.items, now: now)
+            let headline = activitySnapshotHeadline(snap, now: now)
+            let checkedText = checked(snap.checkedAt, historical: snap.error != nil)
+            let layout = activityLayout(width: Double(size.width), height: Double(size.height),
+                fontScale: Double(collectionTextScale), items: items, hasError: snap.error != nil,
+                now: now, headline: headline, checkedText: checkedText)
+            let rows = layout.shown.map { item in
+                words([item.text, activityTimeLabel(item.at, now: now), item.by.map { "by \($0)" }])
+            }
+            let facts = layout.summaryOnly ? words([layout.showSummaryTitle ? (snap.error != nil ? "Unavailable" : "Activity") : nil,
+                layout.summaryLabel, layout.checkedLines > 0 ? layout.checkedText : nil]) :
+                words([headline, snap.error, layout.checkedLines > 0 ? layout.checkedText : nil] +
+                rows.map(Optional.init) + [layout.hiddenCount > 0 ? "+\(layout.hiddenCount) more events" : nil])
+            return ExampleProjection(card: AnyView(ActivityView(snap, now: now)), facts: facts)
+        case .battery:
+            let snap: BatterySnapshot = id == "sample" ? .sample : CollectionParityInputs.batteries(id)
+            let budget = batteryCollectionBudget(width: Double(size.width), height: Double(size.height),
+                fontScale: Double(collectionTextScale), rows: snap.summary.rows,
+                hasError: snap.error != nil, compact: family == .medium)
+            let headline: String
+            switch snap.state {
+            case .setup: headline = "Connect"
+            case .choose: headline = "Choose batteries"
+            case .loading: headline = "Checking…"
+            case .failed: headline = snap.summary.rows.isEmpty ? "No reading" : "Last reading"
+            default: headline = snap.summary.headline
+            }
+            let header: String?
+            switch budget.headerMode {
+            case .none: header = nil
+            case .compact: header = snap.state == .failed ? "Last read" : "Batteries"
+            case .full: header = words(["Batteries", headline])
+            }
+            var facts: [String?] = [header]
+            if snap.summary.rows.isEmpty {
+                let status: String
+                switch snap.state {
+                case .setup: status = "Connect Home Assistant"
+                case .choose: status = "Choose batteries"
+                case .loading: status = "Checking…"
+                case .failed: status = "Couldn't read your home"
+                case .ready, .empty: status = "No batteries found"
+                }
+                facts.append(status)
+                facts.append(snap.error)
+                if snap.state == .setup || snap.state == .choose || beaconNeedsSettings(snap.error) {
+                    facts.append(snap.state == .choose ? "Displayed action: Open Settings" : "Displayed action: Connect")
+                }
+            } else {
+                facts.append(contentsOf: snap.summary.rows.prefix(budget.rows).map {
+                    Optional("\($0.name): \($0.readingLabel)")
+                })
+                if budget.showOverflow {
+                    facts.append(contentsOf: budget.overflowLines.map { Optional($0) })
+                }
+                if budget.showError { facts.append(snap.error) }
+            }
+            if budget.headerMode == .full && !snap.checkedAt.isEmpty {
+                facts.append("\(snap.state == .failed ? "Last read" : "Checked") \(snap.checkedAt)")
+            }
+            return ExampleProjection(card: AnyView(BatteryView(snap, layoutFamily: family.widgetKitFamily)),
+                facts: words(facts))
+
         }
+    }
+
+    private func lightFact(_ row: LightView) -> String {
+        words(["\(row.name): \(row.tile)", row.percent.map { "\($0)%" }])
+    }
+
+    private func carPrimarySummary(_ primary: CarReadingsPrimary) -> String {
+        switch primary {
+        case .setup: "Set up"
+        case .signIn: "Sign in"
+        case .noCar: "No car"
+        case .changed: "Changed"
+        case .unidentified: "Unknown"
+        case .identityMismatch: "Check car"
+        case .storageUnavailable, .readFailed, .noReading: "No reading"
+        case .lastKnown(let authenticationRequired): authenticationRequired ? "Sign in" : "Last known"
+        case .openings: "Open"
+        case .unlocked: "Unlocked"
+        case .tireWarning: "Check tires"
+        case .lowBattery: "Low battery"
+        case .charging(let starting): starting ? "Starting" : "Charging"
+        case .battery(let value): value.isFinite && (0...100).contains(value) ? "\(Int(value.rounded()))%" : "No reading"
+        }
+    }
+
+    private func displayedDoorAction(_ row: DoorView, snapshot: DoorsSnapshot) -> DoorAction? {
+        if snapshot.doors.first(where: { $0.id == row.id })?.supportsStop == false,
+           row.action == .stop || snapshot.operation?.pending == true && snapshot.operation?.entityID == row.id { return nil }
+        guard let operation = snapshot.operation, operation.pending else { return row.action }
+        guard operation.entityID == row.id, row.id.hasPrefix("cover."),
+              ["open", "close"].contains(operation.action) else { return nil }
+        return .stop
     }
 
     private func selectedFamily(for kind: WidgetPreviewKind) -> WidgetPreviewFamily {
