@@ -2,6 +2,36 @@ import XCTest
 @testable import HearthKit
 
 final class CpPresentationTests: XCTestCase {
+    func testFourTimedPhasesTreatNonpositiveTimeAsUnknownWithoutChangingSource() {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            for deadline: Int64 in [0, -1] {
+                var value = held(phase)
+                value.location = location
+                value.waitlist = .inLine(place: nil, state: phase, stations: 1,
+                    offer: CpOffer(deviceId: 1, port: 1, charger: "SEA41 - 29 P3", untilMs: deadline), auto: false)
+                value.snoozesLeft = 1
+                let original = value
+                let snapshot = cpSnapshot(value, email: "person@example.invalid", checkedAt: "9:41 AM", now: now)
+                XCTAssertEqual(snapshot.sub, "Deadline unknown\nRefresh to check")
+                XCTAssertEqual(snapshot.statusDescription, "Deadline unknown. Refresh to check.")
+                XCTAssertEqual(snapshot.bigAnswer, "—")
+                XCTAssertEqual(snapshot.keys.map(\.command), ["open", "leave"])
+                XCTAssertNil(snapshot.deadline)
+                XCTAssertNil(snapshot.goTo)
+                XCTAssertTrue(snapshot.railNotes.isEmpty)
+                XCTAssertEqual(snapshot.checkedAt, "9:41 AM")
+                XCTAssertEqual(snapshot.account, "person")
+                XCTAssertNil(snapshot.origin)
+                XCTAssertEqual(value, original)
+                XCTAssertEqual(value.snoozesLeft, 1)
+                var expired = value
+                expired.account = cpAccount(hasSession: true, expired: false, joinExpired: true)
+                XCTAssertTrue(cpSnapshot(expired, email: "person@example.invalid", checkedAt: "9:41 AM",
+                                          now: now).keys.isEmpty)
+            }
+        }
+    }
+
     private func held(_ state: String = "PENDING_PLUG_IN") -> CpState {
         CpState(signedOut: false, account: cpAccount(hasSession: true, expired: false),
                 location: nil, now: nil,
@@ -155,7 +185,9 @@ final class CpPresentationTests: XCTestCase {
         value.location = location
         let snap = cpSnapshot(value, email: nil, checkedAt: "9:41 AM", now: now.addingTimeInterval(600))
         XCTAssertNil(snap.deadline)
-        XCTAssertEqual(snap.sub, "Time elapsed · Refresh to check")
+        XCTAssertEqual(snap.sub, "Time elapsed\nRefresh to check")
+        XCTAssertEqual(snap.keys.map(\.command), ["open", "leave"])
+        XCTAssertNil(snap.goTo)
     }
 
     func testAutoIsOnlyActiveWhenAccountLocationAndSessionPermitIt() {

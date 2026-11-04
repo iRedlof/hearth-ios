@@ -3,6 +3,94 @@ import XCTest
 @testable import HearthKit
 
 final class CpOwnedRuntimeTests: XCTestCase {
+    func testElapsedResumeExecutesFreshLocalModeWithoutProviderMutation() async throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            for offset in [60.0, 61.0] {
+                let (store, directory) = try configured()
+                let clock = CpFixtureClock()
+                let transport = CpRuntimeTransport()
+                transport.status = CpRuntimeTransport.offer.replacingOccurrences(of: "ACCEPT_PENDING", with: phase)
+                transport.allowance = 0
+                let runtime = CpOwnedRuntime(store: store, directory: directory, transport: transport,
+                                             now: { clock.now })
+                _ = try await runtime.refresh(runAuto: false)
+                let initial = try store.snapshot(now: clock.now)
+                clock.advance(offset)
+                let elapsed = try initial.displaySnapshot(now: clock.now)
+                XCTAssertEqual(elapsed.autoControl, .resume)
+                XCTAssertEqual(elapsed.autoAccessibilityLabel, "Auto off. Resume Auto")
+                let before = transport.paths.count
+                let resumed = try await runtime.setAuto(origin: XCTUnwrap(elapsed.origin), desired: .resume)
+                let current = try store.snapshot(now: clock.now)
+                XCTAssertTrue(current.run.armed)
+                XCTAssertNotNil(resumed.activatedMode)
+                XCTAssertEqual(resumed.snapshot.autoControl, .stop)
+                XCTAssertEqual(resumed.snapshot.sub, "Time elapsed\nRefresh to check")
+                XCTAssertEqual(current.reading?.provider.waitlist, initial.reading?.provider.waitlist)
+                XCTAssertEqual(current.reading?.provider.snoozesLeft, phase == "PASS" ? nil : 0)
+                XCTAssertEqual(transport.mutations, 0)
+                XCTAssertGreaterThan(transport.paths.count, before)
+            }
+        }
+    }
+
+    func testTimelineMatchesOneOrdinaryRefreshAndCapturesClockAfterResponses() async throws {
+        for armed in [false, true] {
+            var expectedPaths: [String] = []
+            for timeline in [false, true] {
+                let (store, directory) = try configured(armed: armed)
+                let clock = CpFixtureClock()
+                let transport = CpRuntimeTransport()
+                transport.status = CpRuntimeTransport.offer
+                    .replacingOccurrences(of: "ACCEPT_PENDING", with: "PASS")
+                    .replacingOccurrences(of: "\"duration\":61", with: "\"duration\":3601")
+                transport.onResponse = { clock.advance(1) }
+                let runtime = CpOwnedRuntime(store: store, directory: directory, transport: transport,
+                                             now: { clock.now })
+                if timeline {
+                    let displays = try await runtime.refreshTimeline()
+                    let captured = try store.snapshot(now: clock.now)
+                    XCTAssertEqual(displays.map(\.date), [clock.now, Date(timeIntervalSince1970: 4_600)])
+                    XCTAssertEqual(displays[0].snapshot, try captured.displaySnapshot(now: clock.now))
+                    XCTAssertEqual(displays[1].snapshot, try captured.displaySnapshot(now: displays[1].date))
+                    XCTAssertEqual(displays[1].snapshot.origin, captured.renderedOrigin)
+                    XCTAssertEqual(captured.reading?.observedAt, clock.now)
+                    XCTAssertEqual(displays[1].snapshot.checkedAt, cpClockString(clock.now))
+                    XCTAssertEqual(transport.paths, expectedPaths)
+                } else {
+                    _ = try await runtime.refresh()
+                    expectedPaths = transport.paths
+                    XCTAssertFalse(expectedPaths.isEmpty)
+                }
+                XCTAssertGreaterThan(clock.now, CpStoreFixture.now)
+                XCTAssertEqual(clock.now.timeIntervalSince(CpStoreFixture.now), Double(transport.paths.count))
+                XCTAssertEqual(transport.mutations, 0)
+                XCTAssertEqual(try store.snapshot(now: clock.now).run.armed, armed)
+            }
+        }
+    }
+
+    func testTimelineFailureHasOneCurrentDisplayAndRetainsOriginalCheckedTime() async throws {
+        let (store, directory) = try configured()
+        let clock = CpFixtureClock()
+        let transport = CpRuntimeTransport()
+        transport.status = CpRuntimeTransport.offer
+        let runtime = CpOwnedRuntime(store: store, directory: directory, transport: transport, now: { clock.now })
+        _ = try await runtime.refresh(runAuto: false)
+        let original = try store.snapshot(now: clock.now)
+        let before = transport.paths.count
+        transport.status = "{}"
+        transport.onResponse = { clock.advance(1) }
+        let displays = try await runtime.refreshTimeline(runAuto: false)
+        XCTAssertEqual(displays.map(\.date), [clock.now])
+        XCTAssertTrue(displays[0].snapshot.stale)
+        XCTAssertEqual(displays[0].snapshot.checkedAt, cpClockString(CpStoreFixture.now))
+        XCTAssertEqual(displays[0].snapshot.statusDescription, "Couldn't check. Refresh to retry.")
+        XCTAssertEqual(try store.snapshot(now: clock.now).reading, original.reading)
+        XCTAssertEqual(transport.paths.count - before, 1)
+        XCTAssertEqual(transport.mutations, 0)
+    }
+
     private func configured(armed: Bool = false) throws -> (CpStateStore, URL) {
         let directory = try CpStoreFixture.directory(self)
         let store = CpStateStore(directory: directory)
@@ -253,12 +341,15 @@ private final class CpRuntimeTransport: CpOwnedTransport, @unchecked Sendable {
     private var raw = empty
     private var failing = false
     private var count = 0
+    private var startedPaths: [String] = []
+    var onResponse: @Sendable () -> Void = {}
     private var reply = "{\"result\":true,\"response\":{\"success\":true}}"
     private var left: Int?
     private var ackStatus = 200
     var status: String { get { lock.withLock { raw } } set { lock.withLock { raw = newValue } } }
     var failMutation: Bool { get { lock.withLock { failing } } set { lock.withLock { failing = newValue } } }
     var mutations: Int { lock.withLock { count } }
+    var paths: [String] { lock.withLock { startedPaths } }
     var mutationBody: String { get { lock.withLock { reply } } set { lock.withLock { reply = newValue } } }
     var allowance: Int? { get { lock.withLock { left } } set { lock.withLock { left = newValue } } }
     var acknowledgementStatus: Int { get { lock.withLock { ackStatus } } set { lock.withLock { ackStatus = newValue } } }
@@ -277,9 +368,10 @@ private final class CpRuntimeTransport: CpOwnedTransport, @unchecked Sendable {
             body = object?["user_status"] != nil ? status : "{}"
         }
         return CpRuntimePrepared(url: request.url!, body: body, fail: mutates && failMutation,
-            status: path.hasSuffix("/ack") ? acknowledgementStatus : 200) { [self] in
-            if mutates { lock.withLock { count += 1 } }
-        }
+            status: path.hasSuffix("/ack") ? acknowledgementStatus : 200,
+            onStart: { [self] in
+                lock.withLock { startedPaths.append(path); if mutates { count += 1 } }
+            }, onResponse: onResponse)
     }
 }
 
@@ -289,9 +381,11 @@ private struct CpRuntimePrepared: CpPreparedRequest {
     let fail: Bool
     var status = 200
     let onStart: @Sendable () -> Void
+    let onResponse: @Sendable () -> Void
     func start() { onStart() }
     func cancel() {}
     func response() async throws -> (Data, HTTPURLResponse) {
+        onResponse()
         if fail { throw URLError(.networkConnectionLost) }
         return (Data(body.utf8), HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil)!)
     }

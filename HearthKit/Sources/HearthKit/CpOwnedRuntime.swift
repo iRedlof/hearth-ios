@@ -35,6 +35,14 @@ public struct CpOwnedRuntime: Sendable {
         }
         return try store.snapshot(now: now()).displaySnapshot(now: now())
     }
+
+    public func refreshTimeline(runAuto: Bool = true) async throws -> [CpTimelineDisplay] {
+        _ = try await refresh(runAuto: runAuto)
+        let capturedAt = now()
+        let captured = try store.snapshot(now: capturedAt)
+        return try captured.timelineDisplays(now: capturedAt)
+    }
+
     public func perform(origin: CpRenderedOrigin, action: CpOwnedAction) async throws -> CpSnapshot {
         try await act(origin: origin, claim: store.claim(origin: origin, action: action, now: now()))
     }

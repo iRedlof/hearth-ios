@@ -18,8 +18,8 @@ final class WidgetPreviewExampleCatalogTests: XCTestCase {
     }
 
     func testReleasedChargePointProjectionAndChoiceFingerprintsRemainExact() throws {
-        // Captured from the released mapper before adding the pair. Normalize only local clock
-        // formatting; exact deadlines and the separate checked-time tests remain authoritative.
+        // Released projections remain exact except the deliberately corrected unknown deadline.
+        // Normalize only clock formatting; separate deadline/checked-time tests remain authoritative.
         let expected: [String: UInt64] = [
             "heldSnoozeAvailable": 17137810557257717043,
             "heldNoSnoozes": 13620251624840115571,
@@ -30,7 +30,7 @@ final class WidgetPreviewExampleCatalogTests: XCTestCase {
             "offer": 16196332642236928389, "offer_last": 1556769344160279047,
             "held": 7619324071020847156, "held_unknown": 1419528308267677199,
             "dib_held": 7118996603891716517, "offer_no_floor": 10658080650022928117,
-            "unknown_deadline": 9407876919753512807, "snoozed": 16605775391549707368,
+            "unknown_deadline": 5869111896774769412, "snoozed": 16605775391549707368,
             "auto_snoozed": 8409005935305985384, "charging": 12239304037065263076,
             "charging_no_stop": 3593845756182000207, "done": 9063043480204704872,
             "fault": 13434545119555273884, "unplugged": 6437700408204563791,
@@ -42,7 +42,14 @@ final class WidgetPreviewExampleCatalogTests: XCTestCase {
             let snapshot = cpWidgetPreviewSnapshot(CpWidgetPreviewExample(rawValue: id)!, now: now)
             XCTAssertEqual(snapshot.checkedAt, cpClockString(now), id)
             XCTAssertFalse(snapshot.working, id)
-            XCTAssertNil(snapshot.statusDescription, id)
+            if id == "unknown_deadline" {
+                XCTAssertEqual(snapshot.statusDescription, "Deadline unknown. Refresh to check.")
+                XCTAssertEqual(snapshot.sub, "Deadline unknown\nRefresh to check")
+                XCTAssertEqual(snapshot.keys.map(\.command), ["open", "leave"])
+                XCTAssertNil(snapshot.origin)
+            } else {
+                XCTAssertNil(snapshot.statusDescription, id)
+            }
         }
     }
 

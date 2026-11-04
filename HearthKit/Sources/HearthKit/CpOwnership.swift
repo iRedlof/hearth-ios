@@ -248,8 +248,9 @@ public struct CpStoreSnapshot: Sendable, Equatable {
             display.sub = "\(reason)\nAuto waiting"
             display.statusDescription = "\(reason). Auto waiting."
         }
-        if run.snoozeUsed, case let .inLine(_, phase, _, _, _) = reading?.provider.waitlist,
-           phase == "ACCEPT_PENDING" || CP_HELD.contains(phase) {
+        if run.snoozeUsed, case let .inLine(_, phase, _, offer?, _) = reading?.provider.waitlist,
+           phase == "ACCEPT_PENDING" || CP_HELD.contains(phase),
+           offer.untilMs > 0, Double(offer.untilMs) > now.timeIntervalSince1970 * 1_000 {
             // Local completed history can be newer than retained provider allowance evidence.
             display.railNotes = [display.bigAnswer, "Snooze used"]
         }
@@ -268,24 +269,25 @@ public struct CpStoreSnapshot: Sendable, Equatable {
            providerActionable != nil, reading?.provider.charging == nil,
            case .inLine(_, let phase, _, let offer?, _) = reading?.provider.waitlist,
            offer.untilMs > 0, Double(offer.untilMs) <= now.timeIntervalSince1970 * 1_000 {
-            if phase != "PASS" {
+            if !["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"].contains(phase) {
                 display.deadline = nil; display.goTo = nil; display.keys = []
                 display.bigAnswer = "—"; display.unit = ""
                 display.railNotes = []; display.sub = "Time\nelapsed"
                 display.statusDescription = "Time elapsed. Refresh to check."
+                if !run.armed { display.autoControl = .disabled }
             }
-            if !run.armed { display.autoControl = .disabled }
         }
-        let passCleanup: Bool
+        let timedCleanup: Bool
         if case let .inLine(_, phase, _, offer, _) = reading?.provider.waitlist {
             let future = offer.map {
                 $0.untilMs > 0 && Double($0.untilMs) > now.timeIntervalSince1970 * 1_000
             } ?? false
-            passCleanup = phase == "PASS" && reading?.provider.charging == nil &&
-                !future
-        } else { passCleanup = false }
+            timedCleanup = ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"].contains(phase) &&
+                reading?.provider.charging == nil && !future
+        } else { timedCleanup = false }
         if providerActionable == false || operation != nil ||
-            (passCleanup && (providerActionable != true || renderedOrigin?.observationID == nil)) {
+            (timedCleanup && (providerActionable != true || renderedOrigin?.observationID == nil ||
+                              failure != nil || ownershipFeedback != nil)) {
             display.keys = []
             if display.actionLabel == "Join" { display.actionLabel = "Open"; display.showOpen = false }
             if !run.armed, session.isSignedIn { display.autoControl = .disabled }
@@ -321,6 +323,33 @@ public struct CpStoreSnapshot: Sendable, Equatable {
         }
         display.origin = renderedOrigin
         return display
+    }
+
+    /// Only display values leave this transient secret-bearing owned capture.
+    public func timelineDisplays(now: Date = .now) throws -> [CpTimelineDisplay] {
+        let current = try displaySnapshot(now: now)
+        var displays = [CpTimelineDisplay(date: now, snapshot: current)]
+        guard session.isSignedIn, !session.joinExpired, location != nil,
+              providerActionable == true, let origin = renderedOrigin,
+              origin.context == context, origin.observationID != nil,
+              failure == nil, operation == nil, ownershipFeedback == nil, activeRead == nil,
+              reading?.provider.charging == nil,
+              case let .inLine(_, phase, _, offer?, _) = reading?.provider.waitlist,
+              ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"].contains(phase),
+              offer.untilMs > 0 else { return displays }
+        let deadline = Date(timeIntervalSince1970: Double(offer.untilMs) / 1_000)
+        guard deadline.timeIntervalSinceReferenceDate.isFinite, deadline > now,
+              current.deadline == deadline else { return displays }
+        displays.append(CpTimelineDisplay(date: deadline, snapshot: try displaySnapshot(now: deadline)))
+        return displays
+    }
+}
+
+public struct CpTimelineDisplay: Sendable, Equatable {
+    public let date: Date
+    public let snapshot: CpSnapshot
+    public init(date: Date, snapshot: CpSnapshot) {
+        self.date = date; self.snapshot = snapshot
     }
 }
 

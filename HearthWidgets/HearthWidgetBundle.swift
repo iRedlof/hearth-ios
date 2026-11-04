@@ -538,10 +538,21 @@ struct CpProvider: TimelineProvider {
     func getTimeline(in context: Context, completion: @escaping (Timeline<CpEntry>) -> Void) {
         nonisolated(unsafe) let completion = completion
         Task {
-            let snap = await CpProvider.fetch()
-            completion(Timeline(entries: [CpEntry(date: .now, snap: snap)],
-                                policy: .after(Date().addingTimeInterval(15 * 60))))
+            let displays = await CpProvider.fetchTimeline()
+            let entries = displays.map { CpEntry(date: $0.date, snap: $0.snapshot) }
+            let capturedAt = displays[0].date
+            completion(Timeline(entries: entries,
+                                policy: .after(capturedAt.addingTimeInterval(15 * 60))))
         }
+    }
+
+    private static func fetchTimeline() async -> [CpTimelineDisplay] {
+        #if DEBUG
+        if ParityCatalog.activeWidgetID(prefix: "chargepoint") != nil {
+            return [CpTimelineDisplay(date: .now, snapshot: .sample)]
+        }
+        #endif
+        return await CpLiveSnapshot.fetchTimeline()
     }
 
     private static func fetch(advanceAuto: Bool = true) async -> CpSnapshot {
