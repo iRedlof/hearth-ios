@@ -179,7 +179,15 @@ final class LiveSettingsRuntime: SettingsRuntime {
         if let localEdit {
             guard let value = try repository.store.edit(expected: expected, edit: localEdit) else { throw CpFeedback.detailsChanged }
             accepted = value
-            if !CpSessionStore.fixtureReloadHandled() { refreshWidgets(kinds: ["com.rohit.hearth.chargepoint"]) }
+            if !CpSessionStore.fixtureReloadHandled() {
+                refreshWidgets(kinds: ["com.rohit.hearth.chargepoint"])
+                switch edit {
+                case .location, .locationName, .signOut:
+                    SettingsEffectAudit.reached("appUpdater")
+                    RefreshSignal.shared.chargePointSourceChanged()
+                case .alert, .auto: break
+                }
+            }
         }
         guard let accepted else { throw CpFeedback.detailsChanged }
         return try cpState(accepted)

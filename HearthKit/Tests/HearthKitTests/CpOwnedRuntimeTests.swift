@@ -3,6 +3,45 @@ import XCTest
 @testable import HearthKit
 
 final class CpOwnedRuntimeTests: XCTestCase {
+    func testForegroundTimelineExplicitlySkipsEligibleAutoAndCapturesAfterReads() async throws {
+        let (store, directory) = try configured(armed: true)
+        let clock = CpFixtureClock()
+        let transport = CpRuntimeTransport()
+        transport.status = CpRuntimeTransport.offer
+        transport.allowance = 1
+        transport.onResponse = { clock.advance(1) }
+        let initialRun = try store.snapshot(now: clock.now).run
+        let runtime = CpOwnedRuntime(store: store, directory: directory, transport: transport, now: { clock.now })
+        let plan = try await runtime.refreshTimeline(runAuto: false)
+        let captured = try store.snapshot(now: clock.now)
+        XCTAssertEqual(plan.first?.date, clock.now)
+        XCTAssertGreaterThan(clock.now, CpStoreFixture.now)
+        XCTAssertEqual(captured.reading?.observedAt, clock.now)
+        XCTAssertEqual(captured.run, initialRun)
+        XCTAssertNil(captured.operation)
+        XCTAssertEqual(transport.mutations, 0)
+        let paths = transport.paths
+        let bytes = try Data(contentsOf: directory.appendingPathComponent("cp-state.json"))
+        let elapsed = try XCTUnwrap(cpTimelineSnapshot(plan, at: Date(timeIntervalSince1970: 1_060)))
+        XCTAssertEqual(elapsed.keys.map(\.command), ["open", "leave"])
+        XCTAssertEqual(elapsed.autoControl, .stop)
+        XCTAssertEqual(elapsed.origin, captured.renderedOrigin)
+        XCTAssertEqual(elapsed.checkedAt, cpClockString(clock.now))
+        XCTAssertEqual(transport.paths, paths)
+        XCTAssertEqual(try Data(contentsOf: directory.appendingPathComponent("cp-state.json")), bytes)
+        // One ordinary refresh has exactly the same request sequence; default Auto would Accept.
+        let (ordinaryStore, ordinaryDirectory) = try configured(armed: true)
+        let ordinaryTransport = CpRuntimeTransport()
+        ordinaryTransport.status = CpRuntimeTransport.offer
+        ordinaryTransport.allowance = 1
+        let ordinary = CpOwnedRuntime(store: ordinaryStore, directory: ordinaryDirectory,
+            transport: ordinaryTransport, now: { CpStoreFixture.now })
+        _ = try await ordinary.refresh(runAuto: false)
+        XCTAssertEqual(paths, ordinaryTransport.paths)
+        _ = try await ordinary.refresh()
+        XCTAssertEqual(ordinaryTransport.mutations, 1)
+    }
+
     func testElapsedResumeExecutesFreshLocalModeWithoutProviderMutation() async throws {
         for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
             for offset in [60.0, 61.0] {

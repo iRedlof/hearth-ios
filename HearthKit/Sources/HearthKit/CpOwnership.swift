@@ -353,6 +353,11 @@ public struct CpTimelineDisplay: Sendable, Equatable {
     }
 }
 
+/// Selects an existing public display; the clock never creates a reading or action authority.
+public func cpTimelineSnapshot(_ displays: [CpTimelineDisplay], at now: Date) -> CpSnapshot? {
+    displays.last(where: { $0.date <= now })?.snapshot ?? displays.first?.snapshot
+}
+
 public enum CpStateStoreError: Error, Equatable {
     case invalidClock
     case corrupt

@@ -10,7 +10,9 @@ import HearthKit
     static let shared = RefreshSignal()
     private init() {}
     @Published var tick = 0
+    @Published private(set) var cpSourceTick = 0
     @Published var thermostatRefresh: ThermostatRefreshRequest?
     func bump() { tick &+= 1 }
+    func chargePointSourceChanged() { cpSourceTick &+= 1 }
     func requestThermostatRefresh(_ request: ThermostatRefreshRequest) { thermostatRefresh = request }
 }

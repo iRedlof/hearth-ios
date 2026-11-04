@@ -5,6 +5,99 @@ import XCTest
 final class CpOwnedActionStoreTests: XCTestCase {
     private let now = CpStoreFixture.now
 
+    func testForegroundSelectsWholeCapturedTimedPresentationAtEquality() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            for allowance: Int? in [1, 0, nil] {
+                for armed in [false, true] {
+                    let captured = try observed(try store(armed: armed), observation(phase, allowance: allowance))
+                    let plan = try captured.timelineDisplays(now: now)
+                    let futureKeys = phase == "PASS" ? ["unsnooze", "leave"] :
+                        [phase == "ACCEPT_PENDING" ? "accept" : "open", allowance == 1 ? "snooze" : "leave"]
+                    for offset in [-1.0, 0, 299.9, 300, 301, 3_600] {
+                        let selected = try XCTUnwrap(cpTimelineSnapshot(plan, at: now.addingTimeInterval(offset)))
+                        XCTAssertEqual(selected.origin, captured.renderedOrigin)
+                        XCTAssertEqual(selected.checkedAt, cpClockString(now))
+                        XCTAssertEqual(selected.autoControl, armed ? .stop : .resume)
+                        XCTAssertEqual(selected.autoAccessibilityLabel,
+                                       armed ? "Auto on. Stop Auto" : "Auto off. Resume Auto")
+                        if offset < 300 {
+                            XCTAssertEqual(selected.keys.map(\.command), futureKeys)
+                            XCTAssertEqual(selected.deadline, now.addingTimeInterval(300))
+                            XCTAssertEqual(selected, plan.first?.snapshot)
+                        } else {
+                            XCTAssertEqual(selected.keys.map(\.command), ["open", "leave"])
+                            XCTAssertEqual(selected.sub, "Time elapsed\nRefresh to check")
+                            XCTAssertEqual(selected.statusDescription, "Time elapsed. Refresh to check.")
+                            XCTAssertNil(selected.deadline)
+                            XCTAssertNil(selected.goTo)
+                            XCTAssertTrue(selected.railNotes.isEmpty)
+                            XCTAssertEqual(selected, plan.last?.snapshot)
+                        }
+                    }
+                    XCTAssertEqual(captured.reading?.provider.snoozesLeft, allowance)
+                }
+            }
+        }
+    }
+
+    func testForegroundEmptyUnknownAndReplacementPlansDoNotReviveOldSource() throws {
+        XCTAssertNil(cpTimelineSnapshot([], at: now))
+        let old = try observed(try store(), observation("PASS"))
+        let oldPlan = try old.timelineDisplays(now: now)
+        let replacement = try observed(try store(armed: false),
+            observation("PENDING_PLUG_IN", token: "replacement", allowance: 1, duration: 601))
+        let newPlan = try replacement.timelineDisplays(now: now)
+        XCTAssertNotEqual(old.renderedOrigin, replacement.renderedOrigin)
+        let current = try XCTUnwrap(cpTimelineSnapshot(newPlan, at: now.addingTimeInterval(300)))
+        XCTAssertEqual(current.origin, replacement.renderedOrigin)
+        XCTAssertEqual(current.keys.map(\.command), ["open", "snooze"])
+        XCTAssertEqual(current.deadline, now.addingTimeInterval(600))
+        XCTAssertEqual(cpTimelineSnapshot(oldPlan, at: now.addingTimeInterval(300))?.keys.map(\.command),
+                       ["open", "leave"])
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            let unknown = try observed(try store(armed: false), observation(phase, timed: false))
+            let plan = try unknown.timelineDisplays(now: now)
+            let selected = try XCTUnwrap(cpTimelineSnapshot(plan, at: now.addingTimeInterval(3_600)))
+            XCTAssertEqual(selected.sub, "Deadline unknown\nRefresh to check")
+            XCTAssertEqual(selected.keys.map(\.command), ["open", "leave"])
+            XCTAssertNil(selected.deadline)
+            XCTAssertEqual(selected.origin, unknown.renderedOrigin)
+            XCTAssertEqual(selected.checkedAt, cpClockString(now))
+            let healthy = try observed(try store(armed: false), observation(phase, allowance: 1))
+            let alreadyElapsed = try healthy.timelineDisplays(now: now.addingTimeInterval(300))
+            let elapsed = try XCTUnwrap(cpTimelineSnapshot(alreadyElapsed, at: now.addingTimeInterval(3_600)))
+            XCTAssertEqual(elapsed.sub, "Time elapsed\nRefresh to check")
+            XCTAssertEqual(elapsed.keys.map(\.command), ["open", "leave"])
+            XCTAssertEqual(elapsed.origin, healthy.renderedOrigin)
+            XCTAssertEqual(elapsed.checkedAt, cpClockString(now))
+            XCTAssertNil(elapsed.deadline)
+        }
+    }
+
+    func testForegroundSelectionCannotWriteOrExpirePendingOwnedLeases() throws {
+        for pendingOperation in [false, true] {
+            let directory = try CpStoreFixture.directory(self)
+            let value = CpStateStore(directory: directory)
+            _ = try value.bootstrap(legacy: CpStoreFixture.legacy, now: now)
+            let initial = try observed(value, observation())
+            if pendingOperation {
+                _ = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .accept, now: now))
+            } else {
+                _ = try XCTUnwrap(value.beginRead(expected: initial.context, now: now))
+            }
+            let captured = try value.snapshot(now: now)
+            let plan = try captured.timelineDisplays(now: now)
+            let file = directory.appendingPathComponent("cp-state.json")
+            let bytes = try Data(contentsOf: file)
+            for offset in [-1.0, 0, 300, 3_600] {
+                XCTAssertEqual(cpTimelineSnapshot(plan, at: now.addingTimeInterval(offset)), plan.first?.snapshot)
+                XCTAssertEqual(try Data(contentsOf: file), bytes)
+            }
+            XCTAssertEqual(try value.snapshot(now: now), captured)
+            XCTAssertEqual(captured.reading, initial.reading)
+        }
+    }
+
     func testElapsedTimedQueuesRetainResumeThroughLocalPreflightWithoutMutationCredential() throws {
         for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
             for allowance: Int? in [1, 0, nil] {
