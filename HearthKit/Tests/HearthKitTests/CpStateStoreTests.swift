@@ -323,6 +323,9 @@ final class CpStateStoreTests: XCTestCase {
         XCTAssertEqual(display.checkedAt, "—")
         XCTAssertTrue(display.autoOn)
         XCTAssertEqual(display.autoControl, .stop)
+        XCTAssertEqual(display.autoWaitingForSignIn, false)
+        XCTAssertEqual(display.autoIndicatorARGB, 0xFF34C759)
+        XCTAssertEqual(display.autoAccessibilityLabel, "Auto on. Stop Auto")
         let paused = try XCTUnwrap(store.edit(expected: armed.settingsOrigin, edit: .pause, now: CpStoreFixture.now))
         let pending = try paused.displaySnapshot(now: CpStoreFixture.now)
         XCTAssertFalse(pending.autoOn)
@@ -505,11 +508,16 @@ final class CpStateStoreTests: XCTestCase {
         XCTAssertNil(armed.reading)
         let display = try armed.displaySnapshot(now: CpStoreFixture.now)
         XCTAssertEqual(display.bigAnswer, "Sign in")
+        XCTAssertEqual(display.sub, "Session expired\nAuto waiting")
         XCTAssertEqual(display.actionLabel, "Sign in")
         XCTAssertEqual(display.account, "person")
         XCTAssertEqual(display.site, "Office")
         XCTAssertTrue(display.autoOn)
         XCTAssertEqual(display.autoControl, .stop)
+        XCTAssertEqual(display.checkedAt, "—")
+        XCTAssertEqual(display.autoWaitingForSignIn, true)
+        XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+        XCTAssertEqual(display.autoAccessibilityLabel, "Auto enabled. Waiting for sign in. Pause Auto.")
         _ = try XCTUnwrap(store.edit(expected: armed.settingsOrigin, edit: .pause, now: CpStoreFixture.now))
         let paused = try CpStateStore(directory: directory).snapshot(now: CpStoreFixture.now)
         XCTAssertEqual(paused.run, cpPauseRun(CpStoreFixture.run))
@@ -518,6 +526,8 @@ final class CpStateStoreTests: XCTestCase {
         XCTAssertFalse(after.autoOn)
         XCTAssertEqual(after.autoControl, .signin)
         XCTAssertEqual(after.actionLabel, "Sign in")
+        XCTAssertEqual(after.autoWaitingForSignIn, false)
+        XCTAssertEqual(after.autoAccessibilityLabel, "Auto off. Sign in to start Auto")
     }
 
     func testJoinExpiredCachedProviderReadingRetainsLocalAutoAndObservedTimeUntilPause() throws {
@@ -538,10 +548,14 @@ final class CpStateStoreTests: XCTestCase {
         XCTAssertEqual(armed.reading?.observedAt, observedAt)
         let display = try armed.displaySnapshot(now: observedAt.addingTimeInterval(10))
         XCTAssertEqual(display.bigAnswer, "Sign in")
+        XCTAssertEqual(display.sub, "Session expired\nAuto waiting")
         XCTAssertEqual(display.actionLabel, "Sign in")
         XCTAssertEqual(display.checkedAt, cpClockString(observedAt))
         XCTAssertTrue(display.autoOn)
         XCTAssertEqual(display.autoControl, .stop)
+        XCTAssertEqual(display.autoWaitingForSignIn, true)
+        XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+        XCTAssertEqual(display.autoAccessibilityLabel, "Auto enabled. Waiting for sign in. Pause Auto.")
         _ = try XCTUnwrap(store.edit(expected: armed.settingsOrigin, edit: .pause, now: observedAt))
         let paused = try CpStateStore(directory: directory).snapshot(now: observedAt)
         XCTAssertEqual(paused.run, cpPauseRun(before.run))
@@ -550,6 +564,7 @@ final class CpStateStoreTests: XCTestCase {
         XCTAssertFalse(after.autoOn)
         XCTAssertEqual(after.autoControl, .signin)
         XCTAssertEqual(after.checkedAt, cpClockString(observedAt))
+        XCTAssertEqual(after.autoWaitingForSignIn, false)
     }
 
     func testChargingProviderReadingKeepsLocalAutoUntilPauseWithoutOfferingResume() throws {
@@ -573,6 +588,8 @@ final class CpStateStoreTests: XCTestCase {
         XCTAssertEqual(display.checkedAt, cpClockString(observedAt))
         XCTAssertTrue(display.autoOn)
         XCTAssertEqual(display.autoControl, .stop)
+        XCTAssertEqual(display.autoWaitingForSignIn, false)
+        XCTAssertEqual(display.autoIndicatorARGB, 0xFF34C759)
         _ = try XCTUnwrap(store.edit(expected: armed.settingsOrigin, edit: .pause, now: observedAt))
         let paused = try CpStateStore(directory: directory).snapshot(now: observedAt)
         XCTAssertEqual(paused.run, cpPauseRun(before.run))
@@ -583,5 +600,232 @@ final class CpStateStoreTests: XCTestCase {
         XCTAssertFalse(after.autoOn)
         XCTAssertEqual(after.autoControl, .disabled)
         XCTAssertEqual(after.checkedAt, cpClockString(observedAt))
+    }
+
+    private func authenticationWaitingStore() throws -> CpStateStore {
+        let value = try store()
+        var session = CpStoreFixture.session
+        session.joinExpired = true
+        _ = try value.bootstrap(legacy: CpLegacyState(session: session, location: CpStoreFixture.location,
+            runWire: CpStoreFixture.runWire, alerts: CpStoreFixture.alerts), now: CpStoreFixture.now)
+        return value
+    }
+
+    func testAuthenticationWaitingPauseUsesLocalRuntimeAndRejectsStaleModeOrigin() async throws {
+        let directory = try CpStoreFixture.directory(self)
+        let value = CpStateStore(directory: directory)
+        var session = CpStoreFixture.session
+        session.joinExpired = true
+        let before = try value.bootstrap(legacy: CpLegacyState(session: session,
+            location: CpStoreFixture.location, runWire: CpStoreFixture.runWire), now: CpStoreFixture.now)
+        let read = try XCTUnwrap(value.beginRead(expected: before.context, now: CpStoreFixture.now))
+        let saved = try XCTUnwrap(value.commitRead(owner: read, provider: CpStoreFixture.reading(3),
+            observedAt: CpStoreFixture.now, now: CpStoreFixture.now))
+        let origin = try XCTUnwrap(saved.renderedOrigin)
+        let instant = CpStoreFixture.now
+        let runtime = CpOwnedRuntime(store: value, directory: directory, transport: CpPauseNoRequestTransport(),
+            now: { instant })
+        let result = try await runtime.setAuto(origin: origin, desired: .pause)
+        XCTAssertNil(result.activatedMode)
+        XCTAssertFalse(result.snapshot.autoOn)
+        XCTAssertEqual(result.snapshot.autoWaitingForSignIn, false)
+        let paused = try value.snapshot(now: instant)
+        XCTAssertEqual(paused.run, cpPauseRun(saved.run))
+        XCTAssertEqual(paused.session, saved.session)
+        XCTAssertEqual(paused.location, saved.location)
+        XCTAssertEqual(paused.reading, saved.reading)
+        XCTAssertNil(paused.operation)
+        XCTAssertEqual(try value.claimAuto(origin: origin, desired: .pause, now: instant), .rejected(.detailsChanged))
+    }
+
+    func testCurrent401WaitsWithSignedOutIdentityAndKeepsCachedDataAndIntent() throws {
+        let value = try store()
+        let before = try value.bootstrap(legacy: CpStoreFixture.legacy, now: CpStoreFixture.now)
+        let first = try XCTUnwrap(value.beginRead(expected: before.context, now: CpStoreFixture.now))
+        let saved = try XCTUnwrap(value.commitRead(owner: first, provider: CpStoreFixture.reading(3),
+            observedAt: CpStoreFixture.now, now: CpStoreFixture.now))
+        let read = try XCTUnwrap(value.beginRead(expected: saved.context, now: CpStoreFixture.now))
+        let credential = try XCTUnwrap(value.requestCredential(authority: .read(read), purpose: .status, now: CpStoreFixture.now))
+        let admission = try XCTUnwrap(value.authorizeAndStart(credential: credential, purpose: .status,
+            now: CpStoreFixture.now) { _ in })
+        XCTAssertTrue(try value.commitResponse(admission: admission, metadata: CpResponseMetadata(status: 401),
+            now: CpStoreFixture.now))
+        let expired = try value.snapshot(now: CpStoreFixture.now)
+        let display = try expired.displaySnapshot(now: CpStoreFixture.now.addingTimeInterval(10))
+        XCTAssertEqual(display.bigAnswer, "Sign in")
+        XCTAssertEqual(display.account, "Signed out")
+        XCTAssertEqual(display.site, "Office")
+        XCTAssertEqual(display.sub, "Session expired\nAuto waiting")
+        XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+        XCTAssertEqual(display.autoAccessibilityLabel, "Auto enabled. Waiting for sign in. Pause Auto.")
+        XCTAssertEqual(display.autoControl, .stop)
+        XCTAssertEqual(expired.run, saved.run)
+        XCTAssertEqual(expired.reading, saved.reading)
+        XCTAssertEqual(display.checkedAt, cpClockString(CpStoreFixture.now))
+        XCTAssertEqual(expired.session.token, saved.session.token)
+    }
+
+    func testKnownSignInRequirementDoesNotInventAnExpiryCause() throws {
+        let base = try store().bootstrap(legacy: CpStoreFixture.legacy, now: CpStoreFixture.now)
+        // A display input contract, not a claim that explicit Sign out preserves armed state.
+        var required = CpStoreSnapshot(session: CpSession(), location: base.location, run: base.run,
+            alerts: base.alerts, udid: base.udid, context: base.context, reading: nil, failure: nil, activeRead: nil)
+        required.renderedOrigin = base.renderedOrigin
+        let display = try required.displaySnapshot(now: CpStoreFixture.now)
+        XCTAssertEqual(display.bigAnswer, "Sign in")
+        XCTAssertEqual(display.account, "Signed out")
+        XCTAssertEqual(display.sub, "Sign in required\nAuto waiting")
+        XCTAssertEqual(display.autoWaitingForSignIn, true)
+        XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+    }
+
+    func testExplicitSignOutDoesNotKeepAnArmedWaitingClaim() throws {
+        let value = try authenticationWaitingStore()
+        let before = try value.snapshot(now: CpStoreFixture.now)
+        let signedOut = try XCTUnwrap(value.edit(expected: before.settingsOrigin, edit: .signOut, now: CpStoreFixture.now))
+        let display = try signedOut.displaySnapshot(now: CpStoreFixture.now)
+        XCTAssertFalse(signedOut.run.armed)
+        XCTAssertNil(signedOut.location)
+        XCTAssertNil(signedOut.reading)
+        XCTAssertFalse(display.autoOn)
+        XCTAssertEqual(display.autoWaitingForSignIn, false)
+        XCTAssertEqual(display.autoControl, .disabled)
+        XCTAssertEqual(display.autoAccessibilityLabel, "Auto off. Unavailable")
+    }
+
+    func testAuthenticationWaitingWithNoOriginAnnouncesStatusWithoutPause() throws {
+        var owned = try authenticationWaitingStore().snapshot(now: CpStoreFixture.now)
+        owned.renderedOrigin = nil
+        let display = try owned.displaySnapshot(now: CpStoreFixture.now)
+        XCTAssertNil(display.origin)
+        XCTAssertEqual(display.autoControl, .stop)
+        XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+        XCTAssertEqual(display.autoAccessibilityLabel, "Auto enabled. Waiting for sign in.")
+    }
+
+    func testElapsedCachedAssignmentCannotEraseAuthenticationSignIn() throws {
+        let value = try authenticationWaitingStore()
+        let before = try value.snapshot(now: CpStoreFixture.now)
+        let read = try XCTUnwrap(value.beginRead(expected: before.context, now: CpStoreFixture.now))
+        let observation = try cpOwnedObservation(statusJson:
+            "{\"user_status\":{\"waitlist\":{\"state\":{\"state\":\"ACCEPT_PENDING\",\"token\":\"inert-offer\",\"deviceId\":1,\"portNo\":1,\"startTimeUTC\":999,\"duration\":1},\"stations\":[{\"deviceId\":1},{\"deviceId\":2}]}}}")
+        let saved = try XCTUnwrap(value.commitObservation(owner: read, observation: observation,
+            observedAt: CpStoreFixture.now, now: CpStoreFixture.now))
+        XCTAssertNotNil(saved.providerActionable)
+        let display = try saved.displaySnapshot(now: CpStoreFixture.now)
+        XCTAssertEqual(display.bigAnswer, "Sign in")
+        XCTAssertEqual(display.actionLabel, "Sign in")
+        XCTAssertEqual(display.sub, "Session expired\nAuto waiting")
+        XCTAssertNil(display.deadline)
+        XCTAssertTrue(display.keys.isEmpty)
+        XCTAssertEqual(try value.snapshot(now: CpStoreFixture.now).reading, saved.reading)
+        XCTAssertEqual(try value.snapshot(now: CpStoreFixture.now).run, before.run)
+    }
+
+    func testAuthenticationWaitingPreservesReadFailureHelperAndObservedTime() throws {
+        let value = try authenticationWaitingStore()
+        let before = try value.snapshot(now: CpStoreFixture.now)
+        let first = try XCTUnwrap(value.beginRead(expected: before.context, now: CpStoreFixture.now))
+        _ = try value.commitRead(owner: first, provider: CpStoreFixture.reading(3),
+            observedAt: CpStoreFixture.now, now: CpStoreFixture.now)
+        let later = CpStoreFixture.now.addingTimeInterval(10)
+        let read = try XCTUnwrap(value.beginRead(expected: before.context, now: later))
+        let failed = try XCTUnwrap(value.failRead(owner: read, message: "Fixture offline", now: later))
+        let display = try failed.displaySnapshot(now: later)
+        XCTAssertEqual(display.sub, "Couldn't check · Refresh to retry")
+        XCTAssertEqual(display.statusDescription, "Couldn't check. Refresh to retry.")
+        XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+        XCTAssertEqual(display.autoAccessibilityLabel, "Auto enabled. Waiting for sign in. Pause Auto.")
+        XCTAssertEqual(display.checkedAt, cpClockString(CpStoreFixture.now))
+        XCTAssertTrue(display.stale)
+    }
+
+    func testAuthenticationWaitingDoesNotEraseOwnershipFeedback() throws {
+        let base = try authenticationWaitingStore().snapshot(now: CpStoreFixture.now)
+        for feedback in [CpFeedback.detailsChanged, .offerChanged, .sessionChanged, .noResponse] {
+            var owned = base
+            owned.ownershipFeedback = feedback
+            let display = try owned.displaySnapshot(now: CpStoreFixture.now)
+            XCTAssertEqual(display.sub, feedback.caption)
+            XCTAssertEqual(display.statusDescription, feedback.message)
+            XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+            XCTAssertEqual(display.autoAccessibilityLabel, "Auto enabled. Waiting for sign in. Pause Auto.")
+        }
+    }
+
+    func testAuthenticationWaitingDoesNotEraseBusyOrUncertainOperation() throws {
+        let base = try authenticationWaitingStore().snapshot(now: CpStoreFixture.now)
+        let owner = CpOperationOwner(operationID: UUID().uuidString, claimRevision: UUID().uuidString,
+            context: base.context, cause: .manual)
+        let target = CpObservedIdentity(phase: "UNKNOWN", stationIDs: [], token: nil, deviceID: nil,
+            port: nil, startMs: nil, deadlineMs: nil, sessionID: nil)
+        for (stage, caption, spoken) in [
+            (CpOperationStage.claimed, "Waiting\nto send", "Waiting to send join."),
+            (.admitted, "Joining…", "Joining…"),
+            (.uncertain, "No\nresponse", "No response · Refresh to check")
+        ] {
+            var owned = base
+            owned.operation = CpOwnedOperation(owner: owner, action: .join, target: target,
+                startedAt: CpStoreFixture.now, expiresAt: CpStoreFixture.now.addingTimeInterval(60),
+                stage: stage)
+            let display = try owned.displaySnapshot(now: CpStoreFixture.now)
+            XCTAssertEqual(display.sub, caption)
+            XCTAssertEqual(display.statusDescription, spoken)
+            XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+            XCTAssertEqual(display.autoAccessibilityLabel, "Auto enabled. Waiting for sign in. Pause Auto.")
+            XCTAssertEqual(display.autoControl, .stop)
+            XCTAssertTrue(display.keys.isEmpty)
+        }
+    }
+
+    func testMissingLocationAndUnknownProviderReadinessDoNotInventAuthenticationExpiry() throws {
+        let value = try store()
+        let base = try value.bootstrap(legacy: CpStoreFixture.legacy, now: CpStoreFixture.now)
+        var unknown = base
+        unknown.providerActionable = false
+        let display = try unknown.displaySnapshot(now: CpStoreFixture.now)
+        XCTAssertEqual(display.sub, "Reading pending")
+        XCTAssertEqual(display.autoWaitingForSignIn, false)
+        let missing = try XCTUnwrap(value.edit(expected: base.settingsOrigin, edit: .location(nil), now: CpStoreFixture.now))
+        let setup = try missing.displaySnapshot(now: CpStoreFixture.now)
+        XCTAssertEqual(setup.bigAnswer, "Set up")
+        XCTAssertEqual(setup.autoWaitingForSignIn, false)
+    }
+
+    func testOlderSnapshotPayloadDecodesWithoutAuthenticationWaitingFact() throws {
+        let display = try authenticationWaitingStore().snapshot(now: CpStoreFixture.now)
+            .displaySnapshot(now: CpStoreFixture.now)
+        let data = try JSONEncoder().encode(display)
+        var payload = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        payload.removeValue(forKey: "autoWaitingForSignIn")
+        let legacy = try JSONDecoder().decode(CpSnapshot.self, from: JSONSerialization.data(withJSONObject: payload))
+        XCTAssertNil(legacy.autoWaitingForSignIn)
+        XCTAssertEqual(legacy.autoIndicatorARGB, 0xFF34C759)
+        XCTAssertEqual(legacy.autoAccessibilityLabel, "Auto on. Stop Auto")
+        XCTAssertEqual(legacy.origin, display.origin)
+        XCTAssertEqual(legacy.checkedAt, display.checkedAt)
+        XCTAssertEqual(try JSONDecoder().decode(CpSnapshot.self, from: data), display)
+    }
+
+    func testPureGalleryExamplesKeepExistingIntentAndAuthenticationPresentation() {
+        let held = cpWidgetPreviewSnapshot(.heldSnoozeAvailable, now: CpStoreFixture.now)
+        XCTAssertNil(held.autoWaitingForSignIn)
+        XCTAssertEqual(held.autoIndicatorARGB, 0xFF34C759)
+        XCTAssertNil(held.origin)
+        let expired = cpWidgetPreviewSnapshot(.sessionExpiredSignInRequired, now: CpStoreFixture.now)
+        XCTAssertNil(expired.autoWaitingForSignIn)
+        XCTAssertFalse(expired.autoOn)
+        XCTAssertEqual(expired.sub, "Use its own sign-in page")
+        XCTAssertEqual(expired.autoAccessibilityLabel, "Auto off. Sign in to start Auto")
+        XCTAssertNil(CpSnapshot.sample.autoWaitingForSignIn)
+        XCTAssertEqual(CpSnapshot.sample.bigAnswer, "Your turn")
+    }
+}
+
+/// A local Pause must return before any transport is prepared, including status reads.
+private struct CpPauseNoRequestTransport: CpOwnedTransport {
+    func prepare(_ request: URLRequest) throws -> any CpPreparedRequest {
+        XCTFail("Local authentication-waiting Pause must not prepare a provider request")
+        throw CpFeedback.unavailable
     }
 }

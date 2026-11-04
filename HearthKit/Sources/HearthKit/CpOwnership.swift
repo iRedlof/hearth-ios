@@ -242,6 +242,12 @@ public struct CpStoreSnapshot: Sendable, Equatable {
         guard now.timeIntervalSinceReferenceDate.isFinite else { throw CpStateStoreError.invalidClock }
         var display = cpSnapshot(try viewState, email: session.email,
             checkedAt: reading.map { cpClockString($0.observedAt) } ?? "—", now: now)
+        display.autoWaitingForSignIn = run.armed && (!session.isSignedIn || session.joinExpired)
+        if display.autoWaitingForSignIn == true {
+            let reason = session.expired || session.joinExpired ? "Session expired" : "Sign in required"
+            display.sub = "\(reason)\nAuto waiting"
+            display.statusDescription = "\(reason). Auto waiting."
+        }
         if run.snoozeUsed, case let .inLine(_, phase, _, _, _) = reading?.provider.waitlist,
            phase == "ACCEPT_PENDING" || CP_HELD.contains(phase) {
             // Local completed history can be newer than retained provider allowance evidence.
@@ -258,7 +264,8 @@ public struct CpStoreSnapshot: Sendable, Equatable {
             display.sub = "Couldn't check · Refresh to retry"
             display.statusDescription = "Couldn't check. Refresh to retry."
         }
-        if providerActionable != nil, reading?.provider.charging == nil,
+        if session.isSignedIn, !session.joinExpired,
+           providerActionable != nil, reading?.provider.charging == nil,
            case .inLine(_, _, _, let offer?, _) = reading?.provider.waitlist,
            offer.untilMs > 0, Double(offer.untilMs) <= now.timeIntervalSince1970 * 1_000 {
             display.deadline = nil; display.goTo = nil; display.keys = []

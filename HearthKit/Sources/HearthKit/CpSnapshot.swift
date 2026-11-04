@@ -33,6 +33,29 @@ public struct CpSnapshot: Sendable, Equatable, Codable {
     public var autoControl: CpAutoControl
     public var origin: CpRenderedOrigin? = nil
     public var statusDescription: String? = nil
+    /// Known authentication blockage of retained Auto intent, not a general readiness verdict.
+    /// Optional so snapshots encoded before this presentation fact still decode.
+    public var autoWaitingForSignIn: Bool? = nil
+
+    public var autoIndicatorARGB: UInt32 {
+        autoOn && autoWaitingForSignIn != true ? 0xFF34C759 : 0xFF626A63
+    }
+
+    /// Mirrors the existing control's executable/static branches; the store validates its origin.
+    public var autoAccessibilityLabel: String {
+        if autoWaitingForSignIn == true {
+            return autoControl == .stop && origin != nil
+                ? "Auto enabled. Waiting for sign in. Pause Auto."
+                : "Auto enabled. Waiting for sign in."
+        }
+        if autoControl == .disabled || (working && !autoOn) || (origin == nil && autoControl != .signin) {
+            return origin == nil && account == "Unavailable" ? "Auto status unavailable"
+                : autoOn ? "Auto on. Command in progress" : "Auto off. Unavailable"
+        }
+        if autoControl == .signin { return "Auto off. Sign in to start Auto" }
+        return autoOn ? "Auto on. Stop Auto"
+            : autoControl == .join ? "Auto off. Join and start Auto" : "Auto off. Resume Auto"
+    }
 
     public init(site: String, account: String, bigAnswer: String, unit: String, sub: String,
                 plugsFree: String?, autoOn: Bool, actionLabel: String, keys: [CpKey] = [],
