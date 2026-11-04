@@ -4,6 +4,109 @@ import XCTest
 final class CpWidgetPreviewExamplesTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
 
+    func testIllustrativeSnoozePairRetainsDistinctCoreAssignmentAndHealthyManualIdentity() {
+        let cases: [(CpWidgetPreviewExample, String, TimeInterval)] = [
+            (.busy_snooze, "ACCEPT_PENDING", 833),
+            (.held_pending, "PENDING_PLUG_IN", 1690)
+        ]
+        for (example, phase, duration) in cases {
+            let state = cpWidgetPreviewState(example, now: now)
+            guard case let .inLine(place, actualPhase, stations, offer?, providerAuto) = state.waitlist else {
+                XCTFail("Selected feedback requires its own assignment"); continue
+            }
+            XCTAssertEqual(actualPhase, phase)
+            XCTAssertNil(place)
+            XCTAssertEqual(stations, 43)
+            XCTAssertFalse(providerAuto)
+            XCTAssertEqual(offer.deviceId, 1)
+            XCTAssertEqual(offer.port, 1)
+            XCTAssertEqual(offer.charger, "EXAMPLE-29 P3")
+            XCTAssertEqual(offer.untilMs, Int64(now.addingTimeInterval(duration).timeIntervalSince1970 * 1000))
+            XCTAssertEqual(cpDeadline(state), now.addingTimeInterval(duration))
+            XCTAssertEqual(state.snoozesLeft, 1)
+            XCTAssertFalse(state.signedOut)
+            XCTAssertTrue(state.account.signedIn)
+            XCTAssertFalse(state.account.needsReauth)
+            XCTAssertEqual(state.account, cpAccount(hasSession: true, expired: false, joinExpired: false))
+            XCTAssertFalse(state.autoOn)
+            XCTAssertNil(state.charging)
+            XCTAssertTrue(state.floors.isEmpty)
+            XCTAssertEqual(state.location?.name, "Workplace")
+            XCTAssertEqual(state.location?.fullAddress, "")
+            XCTAssertEqual(state.location?.deviceIds, Array(1...43).map(Int64.init))
+            XCTAssertEqual(state.now, CpNow(free: 78, inUse: 7, offline: 1, stations: 43))
+        }
+    }
+
+    func testIllustrativeSnoozePairConsumesActualBaseCaptionAndWorkingOverlayWithoutOrigin() {
+        let cases: [(CpWidgetPreviewExample, String, String, String, String, TimeInterval)] = [
+            (.busy_snooze, "Your turn", "to accept", "accept", "Accept", 833),
+            (.held_pending, "Held for you", "to plug in", "open", "Open ChargePoint", 1690)
+        ]
+        for (example, context, unit, command, label, duration) in cases {
+            let state = cpWidgetPreviewState(example, now: now)
+            let base = cpSnapshot(state, email: "example@example.test",
+                                  checkedAt: cpClockString(now.addingTimeInterval(-19 * 60)), now: now)
+            let deadline = now.addingTimeInterval(duration)
+            let caption = "\(example == .busy_snooze ? "Respond by" : "Plug in by") \(cpClockString(deadline))"
+            XCTAssertEqual(base.sub, caption)
+            XCTAssertFalse(base.working)
+            var expected = cpApplyingOperation(base, CpOperation(command: "snooze", startedAt: now), now: now)
+            expected.statusDescription = "\(expected.sub) · \(base.sub)"
+            let snapshot = cpWidgetPreviewSnapshot(example, now: now)
+            XCTAssertEqual(snapshot, expected)
+            XCTAssertEqual(snapshot.bigAnswer, context)
+            XCTAssertEqual(snapshot.unit, unit)
+            XCTAssertEqual(snapshot.railNotes, [context, "1 snooze left"])
+            XCTAssertEqual(snapshot.keys.map(\.command), [command, "snooze"])
+            XCTAssertEqual(snapshot.keys.map(\.label), [label, "Snoozing…"])
+            XCTAssertTrue(snapshot.working)
+            XCTAssertEqual(snapshot.sub, "Snoozing…")
+            XCTAssertEqual(snapshot.statusDescription, "Snoozing… · \(caption)")
+            XCTAssertEqual(snapshot.deadline, deadline)
+            XCTAssertEqual(snapshot.checkedAt, cpClockString(now.addingTimeInterval(-19 * 60)))
+            XCTAssertEqual(snapshot.account, "example")
+            XCTAssertEqual(snapshot.site, "Workplace")
+            XCTAssertEqual(snapshot.goTo, "EXAMPLE-29 P3")
+            XCTAssertFalse(snapshot.autoOn)
+            XCTAssertEqual(snapshot.autoControl, .resume)
+            XCTAssertEqual(snapshot.autoAccessibilityLabel, "Auto off. Unavailable")
+            XCTAssertNil(snapshot.origin)
+            XCTAssertNil(snapshot.autoWaitingForSignIn)
+            XCTAssertFalse(snapshot.stale)
+            XCTAssertFalse(snapshot.showOpen)
+            XCTAssertNil(snapshot.plugsFree)
+            XCTAssertTrue(snapshot.stats.isEmpty)
+        }
+    }
+
+    func testIllustrativeSnoozeInputsAndSnapshotsAreImmutableAcrossSelectionsAndReferenceChanges() {
+        for example in [CpWidgetPreviewExample.busy_snooze, .held_pending] {
+            let original = cpWidgetPreviewSnapshot(example, now: now)
+            var changedState = cpWidgetPreviewState(example, now: now)
+            changedState.signedOut = true
+            changedState.account = cpAccount(hasSession: false, expired: true)
+            changedState.waitlist = .notQueued
+            changedState.snoozesLeft = 0
+            changedState.autoOn = true
+            XCTAssertTrue(cpManualKeys(changedState).isEmpty)
+            var changedSnapshot = original
+            changedSnapshot.keys.removeAll()
+            changedSnapshot.deadline = nil
+            changedSnapshot.statusDescription = "Changed"
+            XCTAssertNotEqual(changedSnapshot, original)
+            XCTAssertEqual(cpWidgetPreviewSnapshot(example, now: now), original)
+            let later = cpWidgetPreviewSnapshot(example, now: now.addingTimeInterval(90))
+            XCTAssertEqual(later.deadline, original.deadline?.addingTimeInterval(90))
+            XCTAssertEqual(later.checkedAt, cpClockString(now.addingTimeInterval(90 - 19 * 60)))
+            XCTAssertTrue(later.working)
+            XCTAssertNil(later.origin)
+        }
+        XCTAssertFalse(cpWidgetPreviewSnapshot(.offer, now: now).working)
+        XCTAssertFalse(cpWidgetPreviewSnapshot(.held, now: now).working)
+        XCTAssertEqual(cpWidgetPreviewSnapshot(.heldSnoozeAvailable, now: now).keys.last?.label, "Snooze")
+    }
+
     func testHeldWithoutSnoozesOffersOpenAndLeave() {
         let snapshot = cpWidgetPreviewSnapshot(.heldNoSnoozes, now: now)
         XCTAssertEqual(snapshot.keys.map(\.command), ["open", "leave"])

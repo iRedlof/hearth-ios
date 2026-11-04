@@ -299,15 +299,22 @@ struct WidgetGalleryView: View {
                 return ExampleProjection(card: AnyView(Text("Example unavailable")), facts: "Example unavailable")
             }
             let snap = cpWidgetPreviewSnapshot(example, now: exampleReferenceTime)
+            let pending = example == .busy_snooze || example == .held_pending
             var facts: [String?] = [
-                snap.bigAnswer, snap.unit, snap.sub, "Account: \(snap.account)", snap.site,
+                snap.bigAnswer, snap.unit, pending ? snap.statusDescription : snap.sub,
+                "Account: \(snap.account)", snap.site,
                 snap.autoOn ? "Auto on" : "Auto off",
                 example == .held_unknown ? "Allowance unknown" : nil
             ]
             facts.append(contentsOf: snap.railNotes.map { Optional($0) })
-            facts.append(contentsOf: snap.keys.map { Optional("Displayed action: \($0.label)") })
+            if pending {
+                facts.append("Inactive footer meanings: \(snap.keys.map(\.label).joined(separator: ", "))")
+            } else {
+                facts.append(contentsOf: snap.keys.map { Optional("Displayed action: \($0.label)") })
+            }
             facts.append(checked(snap.checkedAt))
-            return ExampleProjection(card: AnyView(CpBeaconView(snap)), facts: words(facts))
+            return ExampleProjection(card: AnyView(CpBeaconView(snap)), facts: words(facts),
+                disclosure: pending ? "Illustrative request feedback. No request was sent." : nil)
         case .lights:
             let snap: LightsSnapshot = id == "sample" ? .sample : TileParityInputs.lights(id)
             let page = lightTilePage(snap.summary)

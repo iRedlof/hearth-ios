@@ -260,7 +260,9 @@ public func widgetPreviewExamples(for kind: WidgetPreviewKind) -> [WidgetPreview
             ("fault", "Charging stopped", "Charging"),
             ("unplugged", "Unplugged", "Charging"),
             ("overstayed", "Move your car", "Charging"),
-            ("blocked", "Charger blocked", "Charging")
+            ("blocked", "Charger blocked", "Charging"),
+            ("busy_snooze", "Offer ready · snooze request pending", "Illustrative request feedback"),
+            ("held_pending", "Spot held · snooze request pending", "Illustrative request feedback")
         ]
     }
     return rows.map { WidgetPreviewExample(kind: kind, id: $0.0, title: $0.1, group: $0.2) }
