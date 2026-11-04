@@ -5,6 +5,325 @@ import XCTest
 final class CpOwnedActionStoreTests: XCTestCase {
     private let now = CpStoreFixture.now
 
+    func testElapsedTimedQueuesRetainResumeThroughLocalPreflightWithoutMutationCredential() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            for allowance: Int? in [1, 0, nil] {
+                for offset in [300.0, 301.0] {
+                    let directory = try CpStoreFixture.directory(self)
+                    let value = CpStateStore(directory: directory)
+                    _ = try value.bootstrap(legacy: CpLegacyState(session: CpStoreFixture.session,
+                        location: CpStoreFixture.location, runWire: "0|1|0|7|0|||"), now: now)
+                    let evidence = try observation(phase, allowance: allowance)
+                    let initial = try observed(value, evidence)
+                    let clock = now.addingTimeInterval(offset)
+                    let display = try initial.displaySnapshot(now: clock)
+                    XCTAssertEqual(display.autoControl, .resume)
+                    XCTAssertEqual(display.autoAccessibilityLabel, "Auto off. Resume Auto")
+                    XCTAssertEqual(display.autoIndicatorARGB, 0xFF626A63)
+                    XCTAssertEqual(display.sub, "Time elapsed\nRefresh to check")
+                    XCTAssertEqual(display.keys.map(\.command), ["open", "leave"])
+                    XCTAssertEqual(display.origin, initial.renderedOrigin)
+                    XCTAssertEqual(display.checkedAt, cpClockString(now))
+                    let operation = try owner(value.claimAuto(origin: XCTUnwrap(display.origin),
+                                                              desired: .resume, now: clock))
+                    XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: clock))
+                    let credential = try value.requestCredential(authority: .operation(operation),
+                                                                  purpose: .mutation(.resume), now: clock)
+                    XCTAssertNil(credential)
+                    var starts = 0
+                    if let credential {
+                        _ = try value.authorizeAndStart(credential: credential, purpose: .mutation(.resume),
+                                                        now: clock) { _ in starts += 1 }
+                    }
+                    XCTAssertEqual(starts, 0)
+                    let completed = try XCTUnwrap(value.commitOutcome(owner: operation, outcome: .success, now: clock))
+                    XCTAssertTrue(completed.run.armed)
+                    XCTAssertTrue(completed.run.snoozeUsed)
+                    XCTAssertEqual(completed.run.startedAt, initial.run.startedAt)
+                    XCTAssertEqual(completed.reading, initial.reading)
+                    XCTAssertEqual(completed.session, initial.session)
+                    XCTAssertEqual(completed.location, initial.location)
+                    XCTAssertNil(completed.operation)
+                    XCTAssertEqual(try completed.displaySnapshot(now: clock).autoControl, .stop)
+                }
+            }
+        }
+    }
+
+    func testPlannedExpiryPreservesCurrentLocalModeForAllTimedQueues() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            for allowance: Int? in [1, 0, nil] {
+                for armed in [false, true] {
+                    let captured = try observed(try store(armed: armed), observation(phase, allowance: allowance))
+                    let plan = try captured.timelineDisplays(now: now)
+                    XCTAssertEqual(plan.map(\.date), [now, now.addingTimeInterval(300)])
+                    for display in plan {
+                        XCTAssertEqual(display.snapshot.autoControl, armed ? .stop : .resume)
+                        XCTAssertEqual(display.snapshot.autoAccessibilityLabel,
+                                       armed ? "Auto on. Stop Auto" : "Auto off. Resume Auto")
+                        XCTAssertEqual(display.snapshot.origin, captured.renderedOrigin)
+                        XCTAssertEqual(display.snapshot.checkedAt, cpClockString(now))
+                    }
+                    XCTAssertEqual(plan.last?.snapshot.sub, "Time elapsed\nRefresh to check")
+                    XCTAssertEqual(plan.last?.snapshot.keys.map(\.command), ["open", "leave"])
+                    for offset in [300.0, 301.0] {
+                        let elapsed = try captured.displaySnapshot(now: now.addingTimeInterval(offset))
+                        XCTAssertEqual(elapsed.autoControl, armed ? .stop : .resume)
+                        XCTAssertEqual(elapsed.autoAccessibilityLabel,
+                                       armed ? "Auto on. Stop Auto" : "Auto off. Resume Auto")
+                        XCTAssertEqual(elapsed.sub, "Time elapsed\nRefresh to check")
+                        XCTAssertEqual(elapsed.keys.map(\.command), ["open", "leave"])
+                        XCTAssertEqual(elapsed.origin, captured.renderedOrigin)
+                        XCTAssertEqual(elapsed.checkedAt, cpClockString(now))
+                    }
+                }
+            }
+        }
+    }
+
+    func testElapsedResumeStillRejectsFailedUnselectedAndFreshIdentityChanges() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            let value = try store(armed: false)
+            let evidence = try observation(phase)
+            let initial = try observed(value, evidence)
+            let clock = now.addingTimeInterval(300)
+            let read = try XCTUnwrap(value.beginRead(expected: initial.context, now: clock))
+            _ = try value.failRead(owner: read, message: "inert failed check", now: clock)
+            let failed = try value.snapshot(now: clock)
+            XCTAssertEqual(try failed.displaySnapshot(now: clock).autoControl, .disabled)
+            XCTAssertEqual(try value.claimAuto(origin: XCTUnwrap(failed.renderedOrigin), desired: .resume, now: clock),
+                           .rejected(.detailsChanged))
+            let unselectedStore = try store(armed: false)
+            let foreign = try observed(unselectedStore, observation(phase, ids: [3]))
+            XCTAssertEqual(try foreign.displaySnapshot(now: clock).autoControl, .disabled)
+            XCTAssertEqual(try unselectedStore.claimAuto(origin: XCTUnwrap(foreign.renderedOrigin),
+                                                        desired: .resume, now: clock), .rejected(.detailsChanged))
+            let changedStore = try store(armed: false)
+            let selected = try observed(changedStore, evidence)
+            let operation = try owner(changedStore.claimAuto(origin: XCTUnwrap(selected.renderedOrigin),
+                                                             desired: .resume, now: clock))
+            XCTAssertFalse(try changedStore.validatePreflight(owner: operation,
+                observation: observation(phase, token: "replacement"), now: clock))
+            XCTAssertNil(try changedStore.commitOutcome(owner: operation, outcome: .success, now: clock))
+            XCTAssertFalse(try changedStore.snapshot(now: clock).run.armed)
+            XCTAssertEqual(try changedStore.snapshot(now: clock).displaySnapshot(now: clock).autoControl, .disabled)
+        }
+    }
+
+    func testOwnedTimelineProjectsEqualityFromSameCaptureWithoutChangingStore() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            let value = try store()
+            let initial = try observed(value, observation(phase, allowance: 1))
+            let before = now.addingTimeInterval(299.5)
+            let displays = try initial.timelineDisplays(now: before)
+            XCTAssertEqual(displays.map(\.date), [before, now.addingTimeInterval(300)])
+            guard displays.count == 2 else { continue }
+            XCTAssertEqual(displays[0].snapshot, try initial.displaySnapshot(now: before))
+            XCTAssertEqual(displays[1].snapshot.keys.map(\.command), ["open", "leave"])
+            XCTAssertEqual(displays[1].snapshot.sub, "Time elapsed\nRefresh to check")
+            XCTAssertEqual(displays[1].snapshot.origin, initial.renderedOrigin)
+            XCTAssertEqual(displays[1].snapshot.checkedAt, cpClockString(now))
+            XCTAssertEqual(displays[0].snapshot.autoControl, .stop)
+            XCTAssertEqual(displays[1].snapshot.autoControl, .stop)
+            XCTAssertEqual(try value.snapshot(now: before).reading, initial.reading)
+        }
+    }
+
+    func testOwnedTimelineUsesActualDeadlineBeforeAndBeyondReloadHorizon() throws {
+        for duration: Int64 in [2, 301, 901, 3_601] {
+            let value = try store(armed: false)
+            let captured = try observed(value, observation("PASS", duration: duration))
+            let deadline = Date(timeIntervalSince1970: Double(999 + duration))
+            let displays = try captured.timelineDisplays(now: now)
+            XCTAssertEqual(displays.map(\.date), [now, deadline])
+            XCTAssertEqual(displays.last?.snapshot.keys.map(\.command), ["open", "leave"])
+            XCTAssertEqual(displays.last?.snapshot.origin, captured.renderedOrigin)
+            XCTAssertEqual(displays.last?.snapshot.checkedAt, cpClockString(now))
+            XCTAssertEqual(displays.first?.snapshot.autoControl, .resume)
+            XCTAssertEqual(displays.last?.snapshot.autoControl, .resume)
+            XCTAssertEqual(displays.last?.snapshot.autoAccessibilityLabel, "Auto off. Resume Auto")
+            XCTAssertEqual(try captured.timelineDisplays(now: deadline).map(\.date), [deadline])
+            XCTAssertEqual(try captured.timelineDisplays(now: deadline.addingTimeInterval(1)).count, 1)
+        }
+    }
+
+    func testTimelinePlanningCannotExpireReadOrOperationLeasesOrWriteStore() throws {
+        for pendingOperation in [false, true] {
+            let directory = try CpStoreFixture.directory(self)
+            let value = CpStateStore(directory: directory)
+            _ = try value.bootstrap(legacy: CpStoreFixture.legacy, now: now)
+            let initial = try observed(value, observation())
+            if pendingOperation {
+                _ = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .accept, now: now))
+            } else {
+                _ = try XCTUnwrap(value.beginRead(expected: initial.context, now: now))
+            }
+            let captured = try value.snapshot(now: now)
+            let file = directory.appendingPathComponent("cp-state.json")
+            let bytes = try Data(contentsOf: file)
+            let displays = try captured.timelineDisplays(now: now.addingTimeInterval(3_600))
+            XCTAssertEqual(displays.count, 1)
+            XCTAssertEqual(try Data(contentsOf: file), bytes)
+            XCTAssertEqual(try value.snapshot(now: now), captured)
+            XCTAssertEqual(captured.reading, initial.reading)
+            XCTAssertEqual(displays[0].snapshot.origin, captured.renderedOrigin)
+            XCTAssertEqual(displays[0].snapshot.checkedAt, cpClockString(now))
+        }
+    }
+
+    func testTimelineExcludesUnknownUnownedBlockedFailedWorkingAndChangedSources() throws {
+        let value = try store()
+        let healthy = try observed(value, observation())
+        XCTAssertEqual(try healthy.timelineDisplays(now: now).count, 2)
+        for phase in ["NOT_QUEUED", "WAITING", "UNKNOWN", "PASS", "ACCEPT_PENDING",
+                      "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN"] {
+            let captured = try observed(try store(), observation(phase,
+                ids: phase == "NOT_QUEUED" ? [] : [1, 2], timed: false))
+            XCTAssertEqual(try captured.timelineDisplays(now: now).count, 1, phase)
+        }
+        for actionable: Bool? in [nil, false] {
+            var blocked = healthy
+            blocked.providerActionable = actionable
+            XCTAssertEqual(try blocked.timelineDisplays(now: now).count, 1)
+        }
+        var unowned = healthy
+        unowned.renderedOrigin = nil
+        XCTAssertEqual(try unowned.timelineDisplays(now: now).count, 1)
+        var mismatched = healthy
+        mismatched.renderedOrigin = try observed(try store(), observation()).renderedOrigin
+        XCTAssertNotEqual(mismatched.renderedOrigin?.context, healthy.context)
+        XCTAssertEqual(try mismatched.timelineDisplays(now: now).count, 1)
+        var feedback = healthy
+        feedback.ownershipFeedback = .offerChanged
+        XCTAssertEqual(try feedback.timelineDisplays(now: now).count, 1)
+        XCTAssertTrue(try feedback.displaySnapshot(now: now.addingTimeInterval(300)).keys.isEmpty)
+        XCTAssertEqual(try feedback.displaySnapshot(now: now.addingTimeInterval(300)).statusDescription,
+                       CpFeedback.offerChanged.message)
+        let read = try XCTUnwrap(value.beginRead(expected: healthy.context, now: now))
+        XCTAssertEqual(try value.snapshot(now: now).timelineDisplays(now: now).count, 1)
+        _ = try value.failRead(owner: read, message: "inert failure", now: now)
+        let failed = try value.snapshot(now: now)
+        XCTAssertEqual(try failed.timelineDisplays(now: now).count, 1)
+        XCTAssertEqual(try failed.displaySnapshot(now: now.addingTimeInterval(300)).statusDescription,
+                       "Couldn't check. Refresh to retry.")
+        let workingStore = try store()
+        let working = try observed(workingStore, observation())
+        _ = try owner(workingStore.claim(origin: XCTUnwrap(working.renderedOrigin), action: .accept, now: now))
+        XCTAssertEqual(try workingStore.snapshot(now: now).timelineDisplays(now: now).count, 1)
+        _ = try value.edit(expected: failed.settingsOrigin, edit: .signOut, now: now)
+        let signedOut = try value.snapshot(now: now)
+        XCTAssertEqual(try signedOut.timelineDisplays(now: now).count, 1)
+        XCTAssertEqual(try value.claim(origin: XCTUnwrap(healthy.renderedOrigin), action: .leave, now: now),
+                       .rejected(.detailsChanged))
+        for invalid in [Double.infinity, -Double.infinity, Double.nan] {
+            XCTAssertThrowsError(try healthy.timelineDisplays(now: Date(timeIntervalSinceReferenceDate: invalid))) {
+                XCTAssertEqual($0 as? CpStateStoreError, .invalidClock)
+            }
+        }
+    }
+
+    func testFutureTimedProjectionPreservesQuotaSemanticsAndSpentHistoryCleanup() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            for allowance: Int? in [1, 0, nil] {
+                let captured = try observed(try store(armed: false), observation(phase, allowance: allowance))
+                let display = try captured.displaySnapshot(now: now)
+                let expected = phase == "PASS" ? ["unsnooze", "leave"] :
+                    [phase == "ACCEPT_PENDING" ? "accept" : "open", allowance == 1 ? "snooze" : "leave"]
+                XCTAssertEqual(display.keys.map(\.command), expected)
+                XCTAssertEqual(display.deadline, now.addingTimeInterval(300))
+                XCTAssertEqual(captured.reading?.provider.snoozesLeft, allowance)
+            }
+        }
+        let directory = try CpStoreFixture.directory(self)
+        let value = CpStateStore(directory: directory)
+        _ = try value.bootstrap(legacy: CpLegacyState(session: CpStoreFixture.session,
+            location: CpStoreFixture.location, runWire: "1|1|0|7|0|||"), now: now)
+        let captured = try observed(value, observation("PENDING_PLUG_IN", allowance: 1))
+        let elapsed = try captured.displaySnapshot(now: now.addingTimeInterval(300))
+        XCTAssertTrue(captured.run.snoozeUsed)
+        XCTAssertTrue(elapsed.railNotes.isEmpty)
+        XCTAssertEqual(elapsed.autoControl, .stop)
+    }
+
+    func testAllTimedCleanupPhasesRespectFailedWorkingAndUnselectedQueueGuards() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            let evidence = try observation(phase)
+            let value = try store()
+            let initial = try observed(value, evidence)
+            let read = try XCTUnwrap(value.beginRead(expected: initial.context, now: now))
+            _ = try value.failRead(owner: read, message: "inert read failure", now: now)
+            let failed = try value.snapshot(now: now)
+            let elapsed = try failed.displaySnapshot(now: now.addingTimeInterval(300))
+            XCTAssertTrue(elapsed.keys.isEmpty)
+            XCTAssertEqual(elapsed.sub, "Couldn't check · Refresh to retry")
+            XCTAssertEqual(elapsed.autoControl, .stop)
+            let workingStore = try store()
+            let working = try observed(workingStore, evidence)
+            _ = try owner(workingStore.claim(origin: XCTUnwrap(working.renderedOrigin), action: .leave, now: now))
+            let pending = try workingStore.snapshot(now: now)
+            XCTAssertTrue(try pending.displaySnapshot(now: now.addingTimeInterval(300)).keys.isEmpty)
+            XCTAssertEqual(try pending.displaySnapshot(now: now.addingTimeInterval(300)).sub, "Waiting\nto send")
+            XCTAssertEqual(try pending.timelineDisplays(now: now).count, 1)
+            let foreign = try observed(try store(), observation(phase, ids: [3]))
+            XCTAssertTrue(try foreign.displaySnapshot(now: now.addingTimeInterval(300)).keys.isEmpty)
+            XCTAssertEqual(try foreign.timelineDisplays(now: now).count, 1)
+        }
+    }
+
+    func testTimedOfferAndHeldElapsedCleanupRetainsCurrentQueueLeave() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN"] {
+            let allowances: [Int?] = [1, 0, nil]
+            for allowance in allowances {
+                for armed in [false, true] {
+                    let value = try store(armed: armed)
+                    let evidence = try observation(phase, allowance: allowance)
+                    let initial = try observed(value, evidence)
+                    let elapsed = now.addingTimeInterval(300)
+                    let display = try initial.displaySnapshot(now: elapsed)
+                    XCTAssertEqual(display.keys.map(\.command), ["open", "leave"])
+                    XCTAssertEqual(display.sub, "Time elapsed\nRefresh to check")
+                    XCTAssertEqual(display.statusDescription, "Time elapsed. Refresh to check.")
+                    XCTAssertNil(display.deadline)
+                    XCTAssertNil(display.goTo)
+                    XCTAssertTrue(display.railNotes.isEmpty)
+                    XCTAssertEqual(display.autoControl, armed ? .stop : .resume)
+                    XCTAssertEqual(display.origin, initial.renderedOrigin)
+                    XCTAssertEqual(display.checkedAt, cpClockString(now))
+                    try verifyLeave(value, initial: initial, evidence: evidence, at: elapsed)
+                }
+            }
+        }
+    }
+
+    func testTimedUnknownCleanupRetiresUnadmittedKeysWithoutDisablingHealthyResume() throws {
+        for phase in ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"] {
+            let allowances: [Int?] = [1, 0, nil]
+            for allowance in allowances {
+                for armed in [false, true] {
+                    let value = try store(armed: armed)
+                    let evidence = try observation(phase, allowance: allowance, timed: false)
+                    XCTAssertNil(evidence.identity.deadlineMs)
+                    let initial = try observed(value, evidence)
+                    XCTAssertEqual(initial.providerActionable, true)
+                    let display = try initial.displaySnapshot(now: now)
+                    XCTAssertEqual(display.bigAnswer, "—")
+                    XCTAssertEqual(display.unit, "")
+                    XCTAssertEqual(display.keys.map(\.command), ["open", "leave"])
+                    XCTAssertEqual(display.sub, "Deadline unknown\nRefresh to check")
+                    XCTAssertEqual(display.statusDescription, "Deadline unknown. Refresh to check.")
+                    XCTAssertNil(display.deadline)
+                    XCTAssertNil(display.goTo)
+                    XCTAssertTrue(display.railNotes.isEmpty)
+                    XCTAssertEqual(display.autoControl, armed ? .stop : .resume)
+                    XCTAssertEqual(initial.reading?.provider.snoozesLeft, allowance)
+                    XCTAssertEqual(display.origin, initial.renderedOrigin)
+                    XCTAssertEqual(display.checkedAt, cpClockString(now))
+                    try verifyLeave(value, initial: initial, evidence: evidence, at: now)
+                }
+            }
+        }
+    }
+
     func testPassElapsedOwnedProjectionRetainsLeaveWithoutInventingProviderTransition() throws {
         for armed in [false, true] {
             let value = try store(armed: armed)
@@ -25,7 +344,7 @@ final class CpOwnedActionStoreTests: XCTestCase {
             XCTAssertEqual(saved.run, initial.run)
             XCTAssertEqual(display.origin, initial.renderedOrigin)
             XCTAssertEqual(display.checkedAt, cpClockString(now))
-            XCTAssertEqual(display.autoControl, armed ? .stop : .disabled)
+            XCTAssertEqual(display.autoControl, armed ? .stop : .resume)
         }
     }
 
@@ -248,11 +567,15 @@ final class CpOwnedActionStoreTests: XCTestCase {
     }
 
     private func observation(_ phase: String = "ACCEPT_PENDING", token: String = "private-offer",
-                             ids: [Int64] = [1, 2], allowance: Int? = nil) throws -> CpObservation {
+                             ids: [Int64] = [1, 2], allowance: Int? = nil,
+                             timed: Bool = true, duration: Int64 = 301) throws -> CpObservation {
         var state: [String: Any] = ["state": phase]
         if !["NOT_QUEUED", "WAITING", "UNKNOWN"].contains(phase) {
-            state.merge(["token": token, "deviceId": 1, "portNo": 2,
-                "startTimeUTC": 999, "duration": 301]) { _, new in new }
+            state["token"] = token
+            if timed {
+                state.merge(["deviceId": 1, "portNo": 2,
+                    "startTimeUTC": 999, "duration": duration]) { _, new in new }
+            }
         }
         let raw = String(decoding: try JSONSerialization.data(withJSONObject:
             ["user_status": ["waitlist": ["state": state, "stations": ids.map { ["deviceId": $0] }]]]), as: UTF8.self)
@@ -282,6 +605,23 @@ final class CpOwnedActionStoreTests: XCTestCase {
         let credential = try XCTUnwrap(store.requestCredential(authority: .operation(owner),
             purpose: .mutation(action), now: time))
         return try XCTUnwrap(store.authorizeAndStart(credential: credential, purpose: .mutation(action), now: time) { _ in })
+    }
+
+    private func verifyLeave(_ value: CpStateStore, initial: CpStoreSnapshot,
+                             evidence: CpObservation, at clock: Date) throws {
+        let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .leave, now: clock))
+        XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: clock))
+        let credential = try XCTUnwrap(value.requestCredential(authority: .operation(operation),
+                                                               purpose: .mutation(.leave), now: clock))
+        var starts = 0
+        XCTAssertNotNil(try value.authorizeAndStart(credential: credential, purpose: .mutation(.leave),
+                                                   now: clock) { _ in starts += 1 })
+        XCTAssertEqual(starts, 1)
+        let after = try value.snapshot(now: clock)
+        XCTAssertEqual(after.reading, initial.reading)
+        XCTAssertEqual(after.session, initial.session)
+        XCTAssertEqual(after.location, initial.location)
+        XCTAssertEqual(after.run, initial.run)
     }
 
     func testRenderedOriginContainsOnlyOpaqueLocalGenerations() throws {
@@ -738,13 +1078,13 @@ final class CpOwnedActionStoreTests: XCTestCase {
         XCTAssertTrue(display.keys.isEmpty)
     }
 
-    func testElapsedOfferHidesProviderControlsAndInstructionButRetainsLocalPause() throws {
+    func testElapsedOfferRetiresTimedControlsAndInstructionButRetainsLeaveAndLocalPause() throws {
         let value = try store()
         _ = try observed(value, observation(allowance: 1))
         let display = try value.snapshot(now: now.addingTimeInterval(301)).displaySnapshot(now: now.addingTimeInterval(301))
         XCTAssertNil(display.deadline)
         XCTAssertNil(display.goTo)
-        XCTAssertTrue(display.keys.isEmpty)
+        XCTAssertEqual(display.keys.map(\.command), ["open", "leave"])
         XCTAssertEqual(display.autoControl, .stop)
     }
 

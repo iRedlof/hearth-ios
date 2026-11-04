@@ -70,10 +70,12 @@ public func cpSnapshot(_ state: CpState, email: String?, checkedAt: String, now:
         freeDetail: freeDetail, showOpen: showPlugs,
         railNotes: notes, stats: stats,
         tone: .orange, autoControl: cpAutoControl(state))
-    if configured, !charging, status == "PASS", deadline == nil || expired {
-        // Local time retires the return promise, not the provider's queued PASS identity.
+    if configured, !charging,
+       ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN", "PASS"].contains(status),
+       deadline == nil || expired {
+        // Local timing retires timed promises, not the observed queued provider phase.
         snapshot.bigAnswer = "—"; snapshot.unit = ""
-        snapshot.deadline = nil; snapshot.railNotes = []
+        snapshot.deadline = nil; snapshot.goTo = nil; snapshot.railNotes = []
         snapshot.sub = expired ? "Time elapsed\nRefresh to check" : "Deadline unknown\nRefresh to check"
         snapshot.statusDescription = expired ? "Time elapsed. Refresh to check." : "Deadline unknown. Refresh to check."
         snapshot.keys = [CpKey(command: "open", label: "Open ChargePoint"),

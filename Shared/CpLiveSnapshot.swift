@@ -11,4 +11,12 @@ enum CpLiveSnapshot {
             return CpSessionStore.unavailableSnapshot
         }
     }
+
+    static func fetchTimeline(advanceAuto: Bool = true) async -> [CpTimelineDisplay] {
+        do {
+            return try await CpSessionStore.runtime().refreshTimeline(runAuto: advanceAuto)
+        } catch {
+            return [CpTimelineDisplay(date: .now, snapshot: CpSessionStore.unavailableSnapshot)]
+        }
+    }
 }

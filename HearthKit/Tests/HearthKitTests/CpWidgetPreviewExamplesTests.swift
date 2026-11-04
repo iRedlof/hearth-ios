@@ -231,7 +231,7 @@ final class CpWidgetPreviewExamplesTests: XCTestCase {
             (.offer, "Your turn", ["accept", "snooze"]), (.offer_last, "Your turn", ["accept", "leave"]),
             (.held, "Held for you", ["open", "snooze"]), (.held_unknown, "Held for you", ["open", "leave"]),
             (.dib_held, "Held again", ["open", "snooze"]), (.offer_no_floor, "Your turn", ["accept", "snooze"]),
-            (.unknown_deadline, "Your turn", ["accept", "snooze"]),
+            (.unknown_deadline, "—", ["open", "leave"]),
             (.snoozed, "Snoozed", ["unsnooze", "leave"]), (.auto_snoozed, "Snoozed", ["unsnooze", "leave"]),
             (.charging, "7.4", ["stop"]), (.charging_no_stop, "7.4", ["open"]),
             (.done, "Done charging", ["open"]), (.fault, "Not charging", ["still", "done"]),
@@ -260,9 +260,12 @@ final class CpWidgetPreviewExamplesTests: XCTestCase {
         XCTAssertEqual(available.deadline, now.addingTimeInterval(1690))
         let deadlineUnknown = cpWidgetPreviewSnapshot(.unknown_deadline, now: now)
         XCTAssertNil(deadlineUnknown.deadline)
-        XCTAssertEqual(deadlineUnknown.sub, "Deadline unknown")
+        XCTAssertEqual(deadlineUnknown.sub, "Deadline unknown\nRefresh to check")
+        XCTAssertEqual(deadlineUnknown.statusDescription, "Deadline unknown. Refresh to check.")
+        XCTAssertNil(deadlineUnknown.goTo)
+        XCTAssertTrue(deadlineUnknown.railNotes.isEmpty)
         XCTAssertTrue(deadlineUnknown.autoOn)
-        XCTAssertEqual(deadlineUnknown.keys.map(\.command), ["accept", "snooze"])
+        XCTAssertEqual(deadlineUnknown.keys.map(\.command), ["open", "leave"])
         guard case let .inLine(_, _, _, offer?, _) = cpWidgetPreviewState(.offer, now: now).waitlist else {
             return XCTFail("Offer must carry an assignment")
         }
