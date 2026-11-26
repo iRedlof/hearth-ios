@@ -379,6 +379,19 @@ struct ContentView: View {
                         }
                 }
                 .id(sheet.id)
+            case .morningCommute(_):
+                NavigationStack {
+                    MorningCommutePage()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
             }
         }
     }
@@ -579,6 +592,8 @@ struct ContentView: View {
             presentedSheet = .cardStylePage(nil, UUID())
         } else if args.contains("-glancePreview") {
             presentedSheet = .widgetPage(.glance, UUID())
+        } else if args.contains("-morningCommute") {
+            presentedSheet = .morningCommute(UUID())
         }
     }
     #endif
@@ -599,6 +614,7 @@ private enum HearthSheet: Identifiable {
     case widgetPage(HomeWidgetKind, UUID)
     case addWidgetGallery(UUID)
     case cardStylePage(HomeWidgetKind?, UUID)
+    case morningCommute(UUID)
     var id: String {
         switch self {
         case .reconnect(let id, _): "reconnect:\(id)"
@@ -611,6 +627,7 @@ private enum HearthSheet: Identifiable {
         case .widgetPage(let kind, let id): "widgetPage:\(kind.rawValue):\(id)"
         case .addWidgetGallery(let id): "addWidgetGallery:\(id)"
         case .cardStylePage(let kind, let id): "cardStylePage:\(kind?.rawValue ?? "global"):\(id)"
+        case .morningCommute(let id): "morningCommute:\(id)"
         }
     }
 }

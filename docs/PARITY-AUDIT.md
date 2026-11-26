@@ -217,6 +217,43 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 
 ---
 
+## Morning commute (Phase 5a)
+
+**Status:** ✅ Shipped
+
+**Feature ported:** Morning commute auto-join from Android `ChargePointCommute.kt`
+
+**Components built:**
+- `MorningCommutePage` — Enable/disable morning commute, sensor detection status, copy-paste YAML config
+- `CommuteStore` — Persistent enable/disable state via UserDefaults
+- `CommuteEngine` — TCA reducer implementing the morning commute logic (ported 1:1 from Android)
+- `cpCommuteDecide` — Pure state machine (9 tests) determining whether to arm/notify based on sensor inputs
+
+**States implemented:**
+- Enabled: Shows green enable toggle, detection status row (Found/Last heard/Waiting), sensor YAML copy cards
+- Disabled: Shows off toggle, dimmed status showing "Off", sensor YAML copy cards remain visible
+- Notification permission: Requests permission when enabling if not yet determined
+- Detection status: "Found" (green) when both sensors true, "Last heard X hours ago" when one sensor was recently true, "Waiting to detect" (neutral) otherwise
+
+**Integration:**
+- Reachable via Settings → ChargePoint → Morning commute
+- Engine runs in ChargePoint widget's 15-min refresh cycle (Phase 4 `CpWidgetProvider.timeline`)
+- Reads two Home Assistant booleans: `commute_charge_now` and `commute_signin_needed` via `/api/template`
+- Google Routes, geofence, and ETA calculations live in the owner's Home Assistant configuration (app only reads sensor values)
+- Once-per-day guarantee: Never arms/notifies more than once per calendar day; a failed arm does NOT burn the day (retries allowed within the morning window)
+- Sends iOS local notification when both sensors are true for the first time each day
+
+**DEBUG hook:** `-morningCommute` presents MorningCommutePage directly for screenshots
+
+**Parity vs Android:**
+- Engine logic is a 1:1 port from Android `ChargePointCommute.kt`
+- 9 `cpCommuteDecide` tests port all Android test cases (never arms twice, retries within window, respects calendar day boundary)
+- Detection status row is honest (shows real sensor state: Found/Last heard/Waiting)
+- Both sensor YAML configs ship as copy-paste cards in the settings page
+- Minor: iOS uses local notifications instead of Android system notifications (platform API difference)
+
+---
+
 ## Fix log (newest first)
 - A3 ✅ improved: `invalidatableContent` added to the freshness stamp in all 7 refreshable widgets (Car/Alarm/Thermostat/Battery/Lights/Favourites/Doors) → "updating" redaction on tap. Spinner itself is an iOS wall. Build + screenshot `invalidatable.png` confirm normal render intact.
 - A2 ⚠️ resolved as platform wall (researched, 8 Apple/dev sources): the under-widget label is system-drawn and NOT removable by any WidgetKit API; user-side hide only. Documented.
