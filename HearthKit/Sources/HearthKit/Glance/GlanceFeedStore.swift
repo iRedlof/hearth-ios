@@ -22,18 +22,34 @@ public enum GlanceFeedStore {
     }
 
     /// Load all feeds from the App Group.
+    ///
+    /// Distinguishes a genuinely absent key (no widgets have written yet → `[]`, correct "not
+    /// configured" signal) from present-but-undecodable data (corruption). Corrupt data returns a
+    /// single sentinel error feed so `glanceSummary` yields `.cantCheck` — never a false `.empty`
+    /// "Set up" for a user who has already placed widgets.
     public static func load() -> [GlanceFeed] {
         guard let data = defaults.data(forKey: key) else {
-            return []
+            return []  // Absent key: genuinely empty.
         }
 
-        // Corrupt/unreadable JSON → treat as empty (never crash)
+        // Present-but-undecodable JSON → surface as an honest error feed (never crash, never
+        // masquerade as "not set up").
         guard let feeds = try? glanceFeedsFromJson(data) else {
-            return []
+            return [corruptSentinelFeed]
         }
 
         return feeds
     }
+
+    /// Sentinel feed emitted when stored data cannot be decoded. Carries `error: true` with no
+    /// items so the summary resolves to `.cantCheck`.
+    static let corruptSentinelFeed = GlanceFeed(
+        kind: .glance,
+        checkedAt: nil,
+        error: true,
+        items: [],
+        calm: false
+    )
 
     // MARK: - Private Helpers
 

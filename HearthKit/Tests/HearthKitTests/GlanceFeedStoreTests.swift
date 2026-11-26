@@ -122,25 +122,43 @@ struct GlanceFeedStoreTests {
         defaults?.removeObject(forKey: "glanceFeeds")
     }
 
-    @Test("Corrupt JSON returns empty array")
-    func corruptJSONReturnsEmpty() throws {
+    @Test("Corrupt JSON yields an error feed that reads as can't-check, not empty")
+    func corruptJSONYieldsErrorFeed() throws {
         // Clear at start to avoid state leakage
         let defaults = UserDefaults(suiteName: "group.com.rohit.hearth")
         defaults?.removeObject(forKey: "glanceFeeds")
 
         let corruptData = "not valid json".data(using: .utf8)!
 
-        // Should not throw, just return nil
+        // Decoding itself still throws (returns nil via try?).
         let feeds = try? glanceFeedsFromJson(corruptData)
-        #expect(feeds == nil) // Returns nil on decode failure
+        #expect(feeds == nil)
 
-        // Load should handle this gracefully
+        // Present-but-undecodable data must surface as an error feed, NOT an empty store —
+        // the user has placed widgets, so "Set up" would be a lie.
         defaults?.set(corruptData, forKey: "glanceFeeds")
         let loaded = GlanceFeedStore.load()
-        #expect(loaded.isEmpty)
+        #expect(loaded.count == 1)
+        #expect(loaded.first?.error == true)
+        #expect(loaded.first?.items.isEmpty == true)
+
+        // The summary of a corrupt store must be .cantCheck (never .empty / "Set up").
+        let summary = glanceSummary(loaded, now: Date())
+        #expect(summary.verdict == .cantCheck)
+        #expect(summary.word == "Can't check")
 
         // Clean up
         defaults?.removeObject(forKey: "glanceFeeds")
+    }
+
+    @Test("Absent key returns a genuinely empty store")
+    func absentKeyReturnsEmpty() {
+        let defaults = UserDefaults(suiteName: "group.com.rohit.hearth")
+        defaults?.removeObject(forKey: "glanceFeeds")
+
+        let loaded = GlanceFeedStore.load()
+        #expect(loaded.isEmpty)
+        #expect(glanceSummary(loaded, now: Date()).verdict == .empty)
     }
 
     @Test("Empty store returns empty array")
