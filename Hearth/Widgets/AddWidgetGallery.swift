@@ -77,7 +77,7 @@ struct AddWidgetGallery: View {
         Button {
             onPick(kind)
         } label: {
-            HStack(spacing: 14) {
+            HStack(alignment: .top, spacing: 14) {
                 // Mini specimen (small preview)
                 if let previewKind = previewKind(for: kind) {
                     miniSpecimen(previewKind)
@@ -85,8 +85,11 @@ struct AddWidgetGallery: View {
                         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
 
-                // Title and description
-                VStack(alignment: .leading, spacing: 4) {
+                // Title, description, and status chip in one left-aligned column.
+                // The chip sits BELOW the description so "Needs Home Assistant" /
+                // "Needs ChargePoint" gets the full text-column width (never truncates to
+                // "Needs…") without starving the title/description into per-word wrapping.
+                VStack(alignment: .leading, spacing: 6) {
                     Text(kind.displayName)
                         .font(HearthFont.rowTitle.font)
                         .foregroundStyle(HearthColor.ink(scheme))
@@ -96,15 +99,11 @@ struct AddWidgetGallery: View {
                         .font(HearthFont.subtitle.font)
                         .foregroundStyle(HearthColor.sub(scheme))
                         .fixedSize(horizontal: false, vertical: true)
+
+                    chip(for: kind)
                 }
 
-                Spacer(minLength: 8)
-
-                // Chip — wins the width contest so "Needs Home Assistant" / "Needs ChargePoint"
-                // never truncate to "Needs…"; the title/description VStack truncates first instead.
-                chip(for: kind)
-                    .layoutPriority(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                Spacer(minLength: 0)
             }
             .padding(.horizontal, HearthMetrics.rowSidePadding)
             .padding(.vertical, 12)
