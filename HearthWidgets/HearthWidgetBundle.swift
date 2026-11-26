@@ -9,6 +9,7 @@ struct HearthWidgetBundle: WidgetBundle {
     }
 
     var body: some Widget {
+        GlanceWidget()
         CarWidget()
         AlarmWidget()
         ThermostatWidget()
@@ -251,7 +252,11 @@ struct DoorsProvider: TimelineProvider {
         #if DEBUG
         if ParityCatalog.activeWidgetID(prefix: "doors") != nil { return .loading }
         #endif
-        return await CollectionLiveSnapshots.doors()
+        let snapshot = await CollectionLiveSnapshots.doors()
+        // Write Glance feed
+        let feed = glanceFeed(from: snapshot, checkedAt: .now)
+        GlanceFeedStore.save(feed)
+        return snapshot
     }
 }
 
@@ -369,19 +374,35 @@ struct CarProvider: TimelineProvider, Sendable {
                 ParityCatalog.activeWidgetID(prefix: "car") == nil &&
                     ParityCatalog.widgetInteractionGeneration() == generation
             })
+        // Write Glance feed
+        let feed = glanceFeed(from: payload.snapshot, checkedAt: .now)
+        GlanceFeedStore.save(feed)
         return CarEntry(payload: payload, interactionGeneration: generation)
         #else
-        return CarEntry(payload: await CarLiveSnapshot.loadEntry(selection: isPreview ? .inert : .live))
+        let payload = await CarLiveSnapshot.loadEntry(selection: isPreview ? .inert : .live)
+        // Write Glance feed
+        let feed = glanceFeed(from: payload.snapshot, checkedAt: .now)
+        GlanceFeedStore.save(feed)
+        return CarEntry(payload: payload)
         #endif
     }
 }
 
 private struct CarWidgetEntryView: View {
     let entry: CarEntry
+    // Resolve the card style at construction time, OUTSIDE the view-builder body: an inline
+    // store lookup inside the body expression pushes WidgetKit's already-complex configuration
+    // bodies past the Swift type-checker's limit (it then crashes instead of diagnosing).
+    private let style: CardStyle
     @Environment(\.widgetFamily) private var family
 
+    init(entry: CarEntry) {
+        self.entry = entry
+        self.style = CardStyleStore.effectiveStyle(for: .car)
+    }
+
     var body: some View {
-        CarWidgetPresentation(payload: entry.payload, family: family)
+        CarWidgetPresentation(payload: entry.payload, family: family, style: style)
     }
 }
 
@@ -430,6 +451,9 @@ struct AlarmProvider: TimelineProvider {
         if ParityCatalog.activeWidgetID(prefix: "alarm") != nil { return AlarmEntry(date: .now, snap: .sample) }
         #endif
         let snapshot = await AlarmLiveSnapshot.fetch()
+        // Write Glance feed
+        let feed = glanceFeed(from: snapshot, checkedAt: .now)
+        GlanceFeedStore.save(feed)
         return AlarmEntry(payload: AlarmReadingsStore.bind(snapshot))
     }
 }
@@ -448,14 +472,21 @@ struct AlarmWidget: Widget {
 
 private struct AlarmWidgetEntryView: View {
     let entry: AlarmEntry
+    private let style: CardStyle  // Resolved in init, not in body — see CarWidgetEntryView.
     @Environment(\.widgetFamily) private var family
+    init(entry: AlarmEntry) {
+        self.entry = entry
+        self.style = CardStyleStore.effectiveStyle(for: .alarm)
+    }
     var body: some View {
-        ParityWidgetContent(prefix: "alarm") {
-            if let payload = entry.payload { AlarmBeaconView(payload, family: family) }
-            else { AlarmBeaconView(entry.snap, family: family) }
-        }
-        .widgetURL(family == .systemSmall ? alarmReadingsURL(for: entry.payload?.destination ?? .inert) : nil)
-        .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        ParityWidgetContent(prefix: "alarm") { beacon }
+            .widgetURL(family == .systemSmall ? alarmReadingsURL(for: entry.payload?.destination ?? .inert) : nil)
+            .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+    }
+    // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
+    @ViewBuilder private var beacon: some View {
+        if let payload = entry.payload { AlarmBeaconView(payload, family: family, style: style) }
+        else { AlarmBeaconView(entry.snap, family: family, style: style) }
     }
 }
 
@@ -506,14 +537,21 @@ struct ThermostatWidget: Widget {
 
 private struct ThermostatWidgetEntryView: View {
     let entry: ThermostatEntry
+    private let style: CardStyle  // Resolved in init, not in body — see CarWidgetEntryView.
     @Environment(\.widgetFamily) private var family
+    init(entry: ThermostatEntry) {
+        self.entry = entry
+        self.style = CardStyleStore.effectiveStyle(for: .thermostat)
+    }
     var body: some View {
-        ParityWidgetContent(prefix: "thermostat") {
-            if let payload = entry.payload { ThermostatBeaconView(payload, family: family) }
-            else { ThermostatBeaconView(entry.snap, family: family) }
-        }
-        .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
-        .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        ParityWidgetContent(prefix: "thermostat") { beacon }
+            .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
+            .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+    }
+    // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
+    @ViewBuilder private var beacon: some View {
+        if let payload = entry.payload { ThermostatBeaconView(payload, family: family, style: style) }
+        else { ThermostatBeaconView(entry.snap, family: family, style: style) }
     }
 }
 
@@ -547,7 +585,11 @@ struct CpProvider: TimelineProvider {
         if ParityCatalog.activeWidgetID(prefix: "chargepoint") != nil { return .sample }
         #endif
         // iOS schedules refreshes at its discretion; Auto remains best-effort.
-        return await CpLiveSnapshot.fetch(advanceAuto: advanceAuto)
+        let snapshot = await CpLiveSnapshot.fetch(advanceAuto: advanceAuto)
+        // Write Glance feed
+        let feed = glanceFeed(from: snapshot, checkedAt: .now)
+        GlanceFeedStore.save(feed)
+        return snapshot
     }
 }
 

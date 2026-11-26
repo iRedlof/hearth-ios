@@ -7,12 +7,14 @@ struct SettingsView: View {
     @State private var config: HaConfig?
     let runtime: any SettingsRuntime
     let onChange: (HaConfig?) -> Void
+    let onOpenGallery: () -> Void
 
     init(config: HaConfig?, runtime: any SettingsRuntime = LiveSettingsRuntime.shared,
-         onChange: @escaping (HaConfig?) -> Void) {
+         onChange: @escaping (HaConfig?) -> Void, onOpenGallery: @escaping () -> Void = {}) {
         _config = State(initialValue: config)
         self.runtime = runtime
         self.onChange = onChange
+        self.onOpenGallery = onOpenGallery
     }
 
     var body: some View {
@@ -54,8 +56,8 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    NavigationLink {
-                        WidgetGalleryView()
+                    Button {
+                        onOpenGallery()
                     } label: {
                         HStack(spacing: 12) {
                             Image(systemName: "square.grid.2x2")
@@ -63,9 +65,14 @@ struct SettingsView: View {
                                 .symbolRenderingMode(.monochrome)
                                 .frame(width: 24, height: 24)
                             Text("Widget previews").font(.body)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(.tertiary)
                         }
                         .frame(minHeight: 48)
                     }
+                    .buttonStyle(.plain)
                     .accessibilityIdentifier("settings.widgetPreviews")
                 } footer: {
                     Text("Explore widget layouts with example data. No account connection is required.")

@@ -11,20 +11,34 @@ public struct ThermostatBeaconView: View {
     public let snap: ThermostatSnapshot
     private let payload: ThermostatEntryPayload?
     private let family: WidgetFamily
+    private let style: CardStyle
     @Environment(\.dynamicTypeSize) private var dynamicType
-    public init(_ snap: ThermostatSnapshot, family: WidgetFamily = .systemMedium) {
-        self.snap = snap; payload = nil; self.family = family
+    @Environment(\.colorScheme) private var scheme
+
+    public init(_ snap: ThermostatSnapshot, family: WidgetFamily = .systemMedium,
+                style: CardStyle = .default) {
+        self.snap = snap
+        self.payload = nil
+        self.family = family
+        self.style = style
     }
-    public init(_ payload: ThermostatEntryPayload, family: WidgetFamily = .systemMedium) {
-        snap = payload.snapshot; self.payload = payload; self.family = family
+    public init(_ payload: ThermostatEntryPayload, family: WidgetFamily = .systemMedium,
+                style: CardStyle = .default) {
+        self.snap = payload.snapshot
+        self.payload = payload
+        self.family = family
+        self.style = style
     }
 
-    private var fill: Color { Color(argb: snap.tone.fillARGB) }
+    private var fill: Color {
+        Color(argb: cardContentFillARGB(style.background, tone: snap.tone.fillARGB, scheme))
+    }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
     private var isSetup: Bool { snap.setup }
     private var isOff: Bool { snap.mode.caseInsensitiveCompare("Off") == .orderedSame }
     private var stale: Bool { snap.stale }
+    private var textScale: CGFloat { style.textSize.scale }
     private var selectionRevision: String { snap.evidence?.origin?.selectionRevision ?? "" }
     private var observedMode: String {
         snap.evidence.flatMap { $0.readings[$0.entityID] }.flatMap { ClimateState.fromJson($0.json)?.mode } ?? ""
@@ -36,7 +50,7 @@ public struct ThermostatBeaconView: View {
                 // Snapshot-only entries are inert gallery/WidgetKit placeholders.
                 ThermostatSmallCard(payload: payload ?? ThermostatParityInputs.payload("auto"))
             } else if let payload, family == .systemMedium, dynamicType >= .xxxLarge {
-                ThermostatFocusedCard(payload: payload)
+                ThermostatFocusedCard(payload: payload, style: style)
             } else {
                 ordinaryBody
             }
@@ -62,7 +76,7 @@ public struct ThermostatBeaconView: View {
         // At 155pt with humidity and all three sensors: 43+15+15+15+3+3×16+14 = 153pt.
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text(snap.roomTemp).font(.system(size: 36, weight: .heavy)).tracking(-1).foregroundStyle(ink)
+                Text(snap.roomTemp).font(.system(size: 36 * textScale, weight: .heavy)).tracking(-1).foregroundStyle(ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
                 Image(systemName: "thermometer.medium").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
@@ -103,12 +117,12 @@ public struct ThermostatBeaconView: View {
     private func right(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
-                Text(snap.name).font(.system(size: 16, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
+                Text(snap.name).font(.system(size: 16 * textScale, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
                 // Use the shared freshness cluster (Checked stamp + circular refresh button to its RIGHT),
                 // same as Alarm/Car/ChargePoint and Android — was a bespoke header (bare icon on the left).
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.thermostat", ink: surfaceInk,
-                    thermostatSelection: snap.evidence?.origin)
+                    thermostatSelection: snap.evidence?.origin, showSmallPrint: style.smallPrint)
             }
             .frame(height: 26, alignment: .top)
             BeaconMiddle(maximumHeight: 92) { middleContent }
@@ -415,6 +429,7 @@ private struct ThermostatSmallCard: View {
 /// The complete destination keeps the controls/readings; this card's footer only navigates.
 private struct ThermostatFocusedCard: View {
     let payload: ThermostatEntryPayload
+    let style: CardStyle
     @Environment(\.dynamicTypeSize) private var dynamicType
     @ScaledMetric(relativeTo: .largeTitle) private var roomSize: CGFloat = 36
     @ScaledMetric(relativeTo: .body) private var detailSize: CGFloat = 17
@@ -610,7 +625,7 @@ private struct ThermostatFocusedCard: View {
                     Spacer(minLength: 2)
                     BeaconFreshness(checkedAt: payload.snapshot.checkedAt, kind: "com.rohit.hearth.thermostat",
                         ink: surfaceInk, interactionsEnabled: payload.destination != .inert,
-                        thermostatSelection: payload.presentation.origin)
+                        thermostatSelection: payload.presentation.origin, showSmallPrint: style.smallPrint)
                 }
             }
             Spacer(minLength: 0)

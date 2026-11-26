@@ -8,18 +8,29 @@ public struct AlarmBeaconView: View {
     public let snap: AlarmSnapshot
     public let family: WidgetFamily
     private let destination: AlarmReadingsDestination
+    private let style: CardStyle
+    @Environment(\.colorScheme) private var scheme
+
     public init(_ snap: AlarmSnapshot, family: WidgetFamily = .systemMedium,
-                destination: AlarmReadingsDestination = .inert) {
-        self.snap = snap; self.family = family; self.destination = destination
+                destination: AlarmReadingsDestination = .inert,
+                style: CardStyle = .default) {
+        self.snap = snap
+        self.family = family
+        self.destination = destination
+        self.style = style
     }
-    public init(_ payload: AlarmReadingsEntryPayload, family: WidgetFamily) {
-        self.init(payload.snapshot, family: family, destination: payload.destination)
+    public init(_ payload: AlarmReadingsEntryPayload, family: WidgetFamily,
+                style: CardStyle = .default) {
+        self.init(payload.snapshot, family: family, destination: payload.destination, style: style)
     }
 
-    private var fill: Color { Color(argb: snap.tone.fillARGB) }
+    private var fill: Color {
+        Color(argb: cardContentFillARGB(style.background, tone: snap.tone.fillARGB, scheme))
+    }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }                 // dark text on the light tone rail
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) } // bright text on graphite
     private var hasOrigin: Bool { !snap.requestScope.isEmpty && !snap.alarmRevision.isEmpty }
+    private var textScale: CGFloat { style.textSize.scale }
     private var doorStatusColor: Color {
         if snap.doorStale || snap.doorError != nil { return surfaceInk.opacity(0.78) }
         switch snap.doorLocked {
@@ -47,10 +58,10 @@ public struct AlarmBeaconView: View {
     // MARK: Left — tone rail (the security state)
     private var rail: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: glyphSymbol).font(.system(size: 34, weight: .semibold)).foregroundStyle(ink)
+            Image(systemName: glyphSymbol).font(.system(size: 34 * textScale, weight: .semibold)).foregroundStyle(ink)
             Spacer(minLength: 4)
             Text(snap.stateWord)
-                .font(.system(size: snap.stateWord.count > 10 ? 20 : 25, weight: .heavy)).tracking(-0.5)
+                .font(.system(size: (snap.stateWord.count > 10 ? 20 : 25) * textScale, weight: .heavy)).tracking(-0.5)
                 .foregroundStyle(ink).lineLimit(2).minimumScaleFactor(0.7).fixedSize(horizontal: false, vertical: true)
             Text(snap.commandFeedback ?? snap.detail).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82))
                 .lineLimit(3).padding(.top, 3)
@@ -65,9 +76,10 @@ public struct AlarmBeaconView: View {
     private var surface: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
-                Text(alarmTitle).font(.system(size: 16, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
+                Text(alarmTitle).font(.system(size: 16 * textScale, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
-                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk)
+                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk,
+                                showSmallPrint: style.smallPrint)
             }
             BeaconMiddle(maximumHeight: 72) {
                 if snap.setup {

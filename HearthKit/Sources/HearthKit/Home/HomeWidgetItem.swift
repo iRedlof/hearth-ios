@@ -6,6 +6,8 @@ public enum HomeRoute: Sendable, Equatable {
     case homeAssistant
     case chargePoint
     case addWidget
+    /// Card-style editor. `nil` = the global (all-widgets) style; a kind = that widget's override.
+    case cardStyle(HomeWidgetKind?)
     case settings
 }
 

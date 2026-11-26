@@ -16,17 +16,25 @@ public struct CarBeaconView: View {
     public let snap: CarSnapshot
     public let interactionMode: CarInteractionMode
     private let readingsDestination: CarReadingsDestination
+    private let style: CardStyle
+    @Environment(\.colorScheme) private var scheme
+
     public init(_ snap: CarSnapshot, interactionMode: CarInteractionMode = .live,
-                readingsDestination: CarReadingsDestination = .inert) {
+                readingsDestination: CarReadingsDestination = .inert,
+                style: CardStyle = .default) {
         self.snap = snap
         self.interactionMode = interactionMode
         self.readingsDestination = readingsDestination
+        self.style = style
     }
 
-    private var fill: Color { Color(argb: snap.tone.fillARGB) }
+    private var fill: Color {
+        Color(argb: cardContentFillARGB(style.background, tone: snap.tone.fillARGB, scheme))
+    }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }                       // dark text on light mint
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }       // bright text on graphite
     private var sentryInk: Color { snap.sentry == .on && !snap.stale ? Color(argb: BeaconSurfaceColors.sentryOnARGB) : surfaceInk }
+    private var textScale: CGFloat { style.textSize.scale }
 
     public var body: some View {
         GeometryReader { geo in
@@ -49,8 +57,8 @@ public struct CarBeaconView: View {
         return VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text(snap.battery.map(String.init) ?? "—").font(.system(size: 34, weight: .heavy)).tracking(-1.2)
-                    if snap.battery != nil { Text("%").font(.system(size: 15, weight: .heavy)) }
+                    Text(snap.battery.map(String.init) ?? "—").font(.system(size: 34 * textScale, weight: .heavy)).tracking(-1.2)
+                    if snap.battery != nil { Text("%").font(.system(size: 15 * textScale, weight: .heavy)) }
                 }
                 Spacer(minLength: 0)
                 Image(systemName: "car.fill").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
@@ -112,10 +120,11 @@ public struct CarBeaconView: View {
     private func right(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
-                Text(snap.name).font(.system(size: 18, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
+                Text(snap.name).font(.system(size: 18 * textScale, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.car",
-                    ink: surfaceInk, interactionsEnabled: interactionMode == .live)
+                    ink: surfaceInk, interactionsEnabled: interactionMode == .live,
+                    showSmallPrint: style.smallPrint)
             }
             .frame(height: 26, alignment: .top)
             Text(snap.place).font(.system(size: 12.5)).foregroundStyle(surfaceInk)
@@ -192,6 +201,7 @@ public struct CarBeaconView: View {
 struct CarWidgetPresentation: View {
     let payload: CarReadingsEntryPayload
     let family: WidgetFamily
+    var style: CardStyle = .default
     @Environment(\.dynamicTypeSize) private var dynamicType
 
     var body: some View {
@@ -205,7 +215,8 @@ struct CarWidgetPresentation: View {
                 CarBeaconView(payload.snapshot,
                     interactionMode: payload.destination == .inert ? .inert : .live,
                     readingsDestination: payload.readingsUnavailable
-                        ? .storageUnavailable : payload.destination)
+                        ? .storageUnavailable : payload.destination,
+                    style: style)
             }
         }
         .widgetURL(destination)

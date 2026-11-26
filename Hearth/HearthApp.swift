@@ -210,6 +210,9 @@ struct ContentView: View {
             if let sheet = presentedSheet, case .thermostat = sheet { return }
             thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
         }
+        #if DEBUG
+        .onAppear { handleDebugLaunchArgs() }
+        #endif
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .reconnect(_, let original):
@@ -325,6 +328,57 @@ struct ContentView: View {
                         }
                 }
                 .id(sheet.id)
+            case .widgetPage(let kind, _):
+                NavigationStack {
+                    WidgetPage(kind: kind, config: config, onRoute: handleHomeRoute) { next in
+                        config = next
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                guard presentedSheet?.id == sheet.id else { return }
+                                if !inertTabs { config = HaConfigStore.load() }
+                                presentedSheet = nil
+                            }
+                        }
+                    }
+                }
+                .id(sheet.id)
+            case .addWidgetGallery(_):
+                NavigationStack {
+                    AddWidgetGallery(
+                        config: config,
+                        cpSignedIn: (try? CpSessionStore.context().session.isSignedIn) == true,
+                        onPick: { kind in
+                            presentedSheet = .widgetPage(kind, UUID())
+                        },
+                        onConnectHA: {
+                            presentedSheet = .homeAssistantPage(UUID())
+                        }
+                    )
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                guard presentedSheet?.id == sheet.id else { return }
+                                presentedSheet = nil
+                            }
+                        }
+                    }
+                }
+                .id(sheet.id)
+            case .cardStylePage(let kind, _):
+                NavigationStack {
+                    CardStylePage(kind: kind)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
             }
         }
     }
@@ -420,11 +474,23 @@ struct ContentView: View {
             settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .chargePointPage(nil, UUID())
-        case .addWidget, .settings:
+        case .widget(let kind):
+            // Present per-widget config page
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .widgetPage(kind, UUID())
+        case .addWidget:
+            // Present widget gallery
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .addWidgetGallery(UUID())
+        case .cardStyle(let kind):
+            // Present the card-style page (global when kind is nil, per-widget override otherwise)
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .cardStylePage(kind, UUID())
+        case .settings:
             // Go to Settings tab
-            selection = 1
-        case .widget:
-            // Phase 4 will add widget detail pages; for now go to Settings
             selection = 1
         }
     }
@@ -433,8 +499,10 @@ struct ContentView: View {
         Group {
             if inertTabs { Text("Controlled Car route fixture · Settings tab") }
             else {
-                SettingsView(config: config, onChange: { config = $0 })
-                    .id(HaConfigStore.requestScope())
+                SettingsView(config: config, onChange: { config = $0 }, onOpenGallery: {
+                    presentedSheet = .addWidgetGallery(UUID())
+                })
+                .id(HaConfigStore.requestScope())
             }
         }
         .safeAreaInset(edge: .top) {
@@ -470,8 +538,22 @@ struct ContentView: View {
     }
 
     @ViewBuilder private var previewTab: some View {
-        if inertTabs { Text("Controlled Car route fixture · Preview tab") }
-        else { WidgetGalleryView() }
+        if inertTabs {
+            Text("Controlled Car route fixture · Preview tab")
+        } else {
+            NavigationStack {
+                AddWidgetGallery(
+                    config: config,
+                    cpSignedIn: (try? CpSessionStore.context().session.isSignedIn) == true,
+                    onPick: { kind in
+                        presentedSheet = .widgetPage(kind, UUID())
+                    },
+                    onConnectHA: {
+                        presentedSheet = .homeAssistantPage(UUID())
+                    }
+                )
+            }
+        }
     }
 
     private func signOut() {
@@ -482,6 +564,24 @@ struct ContentView: View {
             config = nil
         } catch { signOutError = friendlyError(error) }
     }
+
+    #if DEBUG
+    /// Phase 4 widget DEBUG launch hooks (applied after initial tab/fixture setup)
+    private func handleDebugLaunchArgs() {
+        guard !inertTabs, presentedSheet == nil else { return }
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-addGallery") {
+            presentedSheet = .addWidgetGallery(UUID())
+        } else if let index = args.firstIndex(of: "-widgetPage"), index + 1 < args.count,
+                  let kind = HomeWidgetKind(rawValue: args[index + 1]) {
+            presentedSheet = .widgetPage(kind, UUID())
+        } else if args.contains("-cardStyle") {
+            presentedSheet = .cardStylePage(nil, UUID())
+        } else if args.contains("-glancePreview") {
+            presentedSheet = .widgetPage(.glance, UUID())
+        }
+    }
+    #endif
 }
 
 private struct ThermostatRecoveryReturn {
@@ -496,6 +596,9 @@ private enum HearthSheet: Identifiable {
     case thermostatReconnect(ThermostatRecoveryReturn)
     case homeAssistantPage(UUID)
     case chargePointPage(CpSetupRoute?, UUID)
+    case widgetPage(HomeWidgetKind, UUID)
+    case addWidgetGallery(UUID)
+    case cardStylePage(HomeWidgetKind?, UUID)
     var id: String {
         switch self {
         case .reconnect(let id, _): "reconnect:\(id)"
@@ -505,6 +608,9 @@ private enum HearthSheet: Identifiable {
         case .thermostatReconnect(let returning): "thermostatReconnect:\(returning.transitionID)"
         case .homeAssistantPage(let id): "homeAssistantPage:\(id)"
         case .chargePointPage(_, let id): "chargePointPage:\(id)"
+        case .widgetPage(let kind, let id): "widgetPage:\(kind.rawValue):\(id)"
+        case .addWidgetGallery(let id): "addWidgetGallery:\(id)"
+        case .cardStylePage(let kind, let id): "cardStylePage:\(kind?.rawValue ?? "global"):\(id)"
         }
     }
 }
