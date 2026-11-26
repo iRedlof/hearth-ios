@@ -18,6 +18,14 @@ struct WidgetPage: View {
     @State private var showRename = false
     @State private var showRemove = false
     @State private var saveError: String?
+    @State private var confirmWithBiometric: Bool
+
+    // Live snapshot state for real health/freshness
+    @State private var car: CarSnapshot?
+    @State private var alarm: AlarmSnapshot?
+    @StateObject private var thermostat = ThermostatLiveModel()
+    @State private var cp: CpSnapshot?
+    @State private var loading = false
 
     @Environment(\.colorScheme) private var scheme
 
@@ -31,6 +39,7 @@ struct WidgetPage: View {
         _editScope = State(initialValue: haSameConnection(current?.config, config) ? current?.scope : nil)
         _customName = State(initialValue: WidgetNameStore.name(for: kind))
         _previewFamily = State(initialValue: kind.previewKind.family)
+        _confirmWithBiometric = State(initialValue: config?.confirmWithBiometric ?? true)
     }
 
     var body: some View {
@@ -86,6 +95,8 @@ struct WidgetPage: View {
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .task { await loadNames() }
+        .task(id: config) { await loadSnapshot() }
+        .onDisappear { thermostat.close() }
         .sheet(isPresented: $showRename) {
             renameSheet
         }
@@ -250,8 +261,9 @@ struct WidgetPage: View {
     private var safetyGroup: some View {
         HearthGroup("Safety") {
             Button {
-                // Toggle confirmWith
-                try? apply { $0.confirmWith = $0.confirmWithBiometric ? CONFIRM_DIALOG : CONFIRM_BIOMETRIC }
+                // Toggle confirmWith with immediate UI update
+                confirmWithBiometric.toggle()
+                try? apply { $0.confirmWith = confirmWithBiometric ? CONFIRM_BIOMETRIC : CONFIRM_DIALOG }
             } label: {
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
@@ -263,7 +275,7 @@ struct WidgetPage: View {
                             .foregroundStyle(HearthColor.sub(scheme))
                     }
                     Spacer()
-                    HearthSwitch(isOn: .constant(config?.confirmWithBiometric ?? true))
+                    HearthSwitch(isOn: $confirmWithBiometric)
                 }
                 .padding(12)
                 .contentShape(Rectangle())
@@ -470,7 +482,7 @@ struct WidgetPage: View {
                 icon: icon,
                 hue: hue,
                 title: title,
-                subtitle: selection.isEmpty ? "Not set" : (entityNames[selection] ?? selection),
+                subtitle: selection.isEmpty ? "Not set" : notFound ? "Not found · Pick another" : (entityNames[selection] ?? selection),
                 subtitleWarn: notFound
             )
         }
@@ -527,7 +539,7 @@ struct WidgetPage: View {
 
     @ViewBuilder
     private func widget(for kind: WidgetPreviewKind) -> some View {
-        // Reuse the exact widget() function from WidgetGalleryView
+        // NOTE: Duplicates WidgetGalleryView.widget(for:) — extract to shared helper in polish phase (M1)
         switch kind {
         case .glance:
             let summary = GlanceSummary(verdict: .ok, word: "OK", tone: .ok, lines: [],
@@ -582,12 +594,71 @@ struct WidgetPage: View {
     }
 
     private var health: WidgetHealth {
-        // Simplified: just check if set up
-        isSetUp ? .ok : .setup
+        if !isSetUp { return .setup }
+
+        // Derive real health from live snapshots
+        switch kind {
+        case .car:
+            if let car {
+                return widgetHealth(stale: car.stale, error: car.error != nil,
+                                  needsSettings: car.needsSettings, needsSignIn: car.needsSignIn)
+            }
+        case .alarm:
+            if let alarm {
+                return widgetHealth(stale: alarm.stale, error: alarm.error != nil,
+                                  needsSettings: alarm.needsSettings, needsSignIn: alarm.needsSignIn)
+            }
+        case .thermostat:
+            if let entry = thermostat.entry {
+                let presentation = entry.presentation
+                let thermostatError = presentation.recovery != .none
+                return widgetHealth(stale: false, error: thermostatError,
+                                  needsSettings: presentation.configuration != .ready,
+                                  needsSignIn: presentation.configuration == .needsAuthentication)
+            }
+        case .chargePoint:
+            if let cp {
+                // CP snapshot doesn't have error/needsSettings/needsSignIn - infer from account
+                let needsSignIn = cp.account == "Signed out" || cp.account == "Account unknown"
+                return widgetHealth(stale: cp.stale, error: false,
+                                  needsSettings: false, needsSignIn: needsSignIn)
+            }
+        default:
+            // Other kinds: return ok if set up
+            break
+        }
+        return .ok
     }
 
     private var statusLine: String {
-        widgetPageStatus(health: health, fresh: isSetUp ? "2 min ago" : nil, isSetUp: isSetUp)
+        widgetPageStatus(health: health, fresh: freshness, isSetUp: isSetUp)
+    }
+
+    private var freshness: String? {
+        guard isSetUp else { return nil }
+
+        // Derive freshness from live snapshots' checkedAt
+        switch kind {
+        case .car:
+            return car?.checkedAt.isEmpty == false ? car?.checkedAt : nil
+        case .alarm:
+            return alarm?.checkedAt != "—" ? alarm?.checkedAt : nil
+        case .thermostat:
+            if let entry = thermostat.entry, let checkedAt = entry.presentation.room.checkedAt {
+                return formatCheckedAt(checkedAt)
+            }
+        case .chargePoint:
+            return cp?.checkedAt.isEmpty == false ? cp?.checkedAt : nil
+        default:
+            break
+        }
+        return nil
+    }
+
+    private func formatCheckedAt(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        return f.string(from: date)
     }
 
     private var requiredSteps: Int {
@@ -658,8 +729,33 @@ struct WidgetPage: View {
               let next = try runtime.saveHaEdit(expectedScope: editScope, edit: .fields(mutate)) else {
             throw HaError("Your account changed. Reopen Settings to continue.")
         }
+        // Sync confirmWithBiometric state
+        confirmWithBiometric = next.confirmWithBiometric
         runtime.refreshWidgets(kinds: [])
         onChange(next)
+    }
+
+    private func loadSnapshot() async {
+        guard isSetUp else { return }
+        loading = true
+        let now = Date()
+
+        switch kind {
+        case .car:
+            car = await CarLiveSnapshot.fetch(now: now)
+        case .alarm:
+            if let config, config.isComplete {
+                alarm = AlarmLiveSnapshot.currentFeedback(await AlarmLiveSnapshot.fetch(now: now))
+            }
+        case .thermostat:
+            thermostat.loadCache()
+        case .chargePoint:
+            cp = await CpLiveSnapshot.fetch(now: now)
+        default:
+            break
+        }
+
+        loading = false
     }
 
     private func encodeIds(_ ids: [String]) -> String {
