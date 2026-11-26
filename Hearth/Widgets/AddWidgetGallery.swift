@@ -100,8 +100,11 @@ struct AddWidgetGallery: View {
 
                 Spacer(minLength: 8)
 
-                // Chip
+                // Chip — wins the width contest so "Needs Home Assistant" / "Needs ChargePoint"
+                // never truncate to "Needs…"; the title/description VStack truncates first instead.
                 chip(for: kind)
+                    .layoutPriority(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
             .padding(.horizontal, HearthMetrics.rowSidePadding)
             .padding(.vertical, 12)

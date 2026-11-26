@@ -9,7 +9,6 @@ struct GlanceSummaryTests {
 
     private let now = Date(timeIntervalSince1970: 1700000000) // 2023-11-14 22:13:20 UTC
     private let fresh = Date(timeIntervalSince1970: 1700000000 - 10 * 60) // 10 min ago
-    private let stale = Date(timeIntervalSince1970: 1700000000 - 25 * 60 * 1000) // 25 min ago (beyond 20min threshold)
 
     // MARK: - Empty State
 

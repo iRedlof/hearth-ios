@@ -270,12 +270,10 @@ private func buildSupport(feeds: [GlanceFeed], stale: [GlanceFeed], now: Date) -
     return "Not checked yet"
 }
 
-/// Format a time as "9:41" (local time).
+/// Format a time as "9:41" (local time). Uses the thread-safe `Date.FormatStyle`
+/// (project rule A7.5 / gotchas) instead of a per-call `DateFormatter`.
 private func formatTime(_ date: Date) -> String {
-    let formatter = DateFormatter()
-    formatter.timeStyle = .short
-    formatter.dateStyle = .none
-    return formatter.string(from: date)
+    date.formatted(.dateTime.hour().minute())
 }
 
 // MARK: - JSON Encoding/Decoding
