@@ -13,6 +13,9 @@ struct ChargePointPage: View {
     @State private var showSignInAgain = false
     @State private var showFasterOffers = false
     @State private var showSignOutConfirm = false
+    @State private var nameDraft: String = ""
+    @State private var nameOrigin: CpSettingsOrigin?
+    @FocusState private var nameFocused: Bool
 
     let runtime: any SettingsRuntime
     let initialRoute: CpSetupRoute?
@@ -32,7 +35,7 @@ struct ChargePointPage: View {
                 // Connection Hero
                 ConnectionHero(
                     presentation: cpHeroPresentation(connectionStatus),
-                    title: cp.location?.label ?? "ChargePoint",
+                    title: "ChargePoint",
                     detail: heroDetail
                 ) {
                     ctaButton
@@ -60,6 +63,7 @@ struct ChargePointPage: View {
         .onAppear {
             editID = UUID()
             cp = runtime.loadCp()
+            nameDraft = cp.location?.label ?? ""
 
             // Auto-show sheet based on initialRoute
             if let route = initialRoute {
@@ -139,13 +143,11 @@ struct ChargePointPage: View {
 
     private var heroDetail: String {
         guard let location = cp.location else {
-            return cpHeroDetail(place: nil, plugsFree: nil, plugsTotal: nil)
+            return "Not set up"
         }
-        // For now, we don't have live plug counts, so just show the place
-        // In the future, could show plugsFree/plugsTotal if available
-        return cpHeroDetail(place: location.label.isEmpty ? location.name : location.label,
-                           plugsFree: nil,
-                           plugsTotal: nil)
+        // Show the place name (guard empty label)
+        let place = location.label.isEmpty ? location.name : location.label
+        return place
     }
 
     // MARK: - CTA Button
@@ -174,9 +176,42 @@ struct ChargePointPage: View {
     @ViewBuilder
     private var setupCard: some View {
         VStack(alignment: .leading, spacing: 16) {
+            // Show unavailable message if applicable
+            if cp.unavailable {
+                Text("ChargePoint unavailable")
+                    .font(HearthFont.cardHeading.font)
+                    .foregroundStyle(HearthColor.red(scheme))
+                Text("Shared storage unavailable. Open sign in to reset.")
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+            }
+
+            // Show "Stop Auto" if signed out but auto still on
+            if cp.auto {
+                Text("Auto is on")
+                    .font(HearthFont.cardHeading.font)
+                    .foregroundStyle(HearthColor.ink(scheme))
+                Text("Sign in to continue, or stop Auto.")
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+                Button {
+                    perform(.auto(.pause, cp.renderedOrigin))
+                } label: {
+                    Text("Stop Auto")
+                        .font(HearthFont.rowTitle.font)
+                        .foregroundStyle(HearthColor.onAccent(scheme))
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(HearthColor.red(scheme))
+                        .clipShape(Capsule())
+                }
+                .padding(.top, 4)
+            }
+
             Text("Set up in 2 steps")
                 .font(HearthFont.cardHeading.font)
                 .foregroundStyle(HearthColor.ink(scheme))
+                .padding(.top, cp.unavailable || cp.auto ? 12 : 0)
 
             VStack(spacing: 12) {
                 HStack(spacing: 12) {
@@ -254,6 +289,24 @@ struct ChargePointPage: View {
             }
             .buttonStyle(.plain)
 
+            if cp.location != nil {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Name (optional)")
+                        .font(HearthFont.subtitle.font)
+                        .foregroundStyle(HearthColor.sub(scheme))
+                        .padding(.horizontal, HearthMetrics.groupInset + 12)
+                    TextField("", text: $nameDraft, prompt: Text("Office charger"))
+                        .textFieldStyle(.roundedBorder)
+                        .focused($nameFocused)
+                        .onSubmit { nameFocused = false }
+                        .onChange(of: nameFocused) { _, editing in
+                            if editing { nameOrigin = cp.origin } else { saveName() }
+                        }
+                        .padding(.horizontal, HearthMetrics.groupInset + 12)
+                }
+                .padding(.vertical, 8)
+            }
+
             HearthRow(
                 icon: "checkmark.circle",
                 hue: .green,
@@ -278,14 +331,9 @@ struct ChargePointPage: View {
         guard !token.isEmpty else {
             return "Not signed in"
         }
-        let decoder = JSONDecoder()
-        let parts = token.split(separator: ".")
-        guard parts.count >= 2,
-              let data = Data(base64Encoded: String(parts[1]).base64PaddedString()),
-              let jwt = try? decoder.decode(CpJWT.self, from: data) else {
+        guard let minutesLeft = CpToken.minutesLeft(token: token, now: Date()) else {
             return "Signed in"
         }
-        let minutesLeft = max(0, Int((jwt.exp - Date().timeIntervalSince1970) / 60))
         if minutesLeft < 60 {
             return "Good for \(minutesLeft) min · then sign in again"
         } else {
@@ -344,9 +392,7 @@ struct ChargePointPage: View {
                     title: "Faster offers",
                     subtitle: nil
                 ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HearthColor.sub(scheme))
+                    HomeChevron()
                 }
             }
             .buttonStyle(.plain)
@@ -367,9 +413,7 @@ struct ChargePointPage: View {
                     title: "Alerts",
                     subtitle: alertsSummary
                 ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HearthColor.sub(scheme))
+                    HomeChevron()
                 }
             }
             .buttonStyle(.plain)
@@ -418,41 +462,21 @@ struct ChargePointPage: View {
         .padding(.top, 8)
     }
 
-    // MARK: - Perform Edit
+    // MARK: - Edit Helpers
 
     private func perform(_ edit: SettingsCpEdit, expected supplied: CpSettingsOrigin? = nil) {
-        let expected = supplied ?? cp.origin
-        let captured = UUID()
-        editID = captured
-        Task { @MainActor in
-            do {
-                let result = try await runtime.performCpEdit(edit, expected: expected)
-                guard editID == captured else { return }
-                cp = result
-            }
-            catch is CancellationError { return }
-            catch {
-                if editID == captured {
-                    editError = friendlyError(error)
-                }
-            }
-        }
+        performer.perform(edit, expected: supplied)
     }
-}
 
-// MARK: - JWT Decoding Helper
+    private var performer: CpEditPerformer {
+        CpEditPerformer(runtime: runtime, cp: $cp, editError: $editError, editID: $editID)
+    }
 
-private struct CpJWT: Codable {
-    let exp: TimeInterval
-}
-
-private extension String {
-    func base64PaddedString() -> String {
-        var base64 = self
-        while base64.count % 4 != 0 {
-            base64.append("=")
-        }
-        return base64
+    private func saveName() {
+        guard nameDraft != cp.location?.label else { return }
+        guard let origin = nameOrigin else { return }
+        nameOrigin = nil
+        perform(.locationName(nameDraft), expected: origin)
     }
 }
 
@@ -474,7 +498,7 @@ private struct FasterOffersSheet: View {
                             .foregroundStyle(HearthColor.amber(scheme))
 
                         Text("Faster Offers")
-                            .font(.title2.weight(.semibold))
+                            .font(HearthFont.pageTitle.font)
                     }
                     .padding(.top, 20)
 

@@ -212,30 +212,6 @@ struct ContentView: View {
         }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
-            case .chargepoint(let route, _):
-                NavigationStack {
-                    if inertTabs {
-                        ControlledSetupScreen(title: "Controlled ChargePoint setup",
-                            onCancel: {
-                                guard presentedSheet?.id == sheet.id else { return }
-                                presentedSheet = nil
-                            }, onComplete: {
-                                guard presentedSheet?.id == sheet.id else { return }
-                                presentedSheet = nil
-                            })
-                    } else if route == .signin {
-                        CpSignInView(onSignedIn: {
-                            guard presentedSheet?.id == sheet.id else { return }
-                            presentedSheet = nil
-                        })
-                    } else {
-                        CpLocationSearchView(onPicked: {
-                            guard presentedSheet?.id == sheet.id else { return }
-                            presentedSheet = nil
-                        })
-                    }
-                }
-                .id(sheet.id)
             case .reconnect(_, let original):
                 NavigationStack {
                     if inertTabs {
@@ -513,7 +489,6 @@ private struct ThermostatRecoveryReturn {
     let transitionID = UUID()
 }
 private enum HearthSheet: Identifiable {
-    case chargepoint(CpSetupRoute, UUID)
     case reconnect(UUID, returningTo: CarReadingsRequest?)
     case car(CarReadingsRequest)
     case alarm(AlarmReadingsDestination, UUID)
@@ -523,7 +498,6 @@ private enum HearthSheet: Identifiable {
     case chargePointPage(CpSetupRoute?, UUID)
     var id: String {
         switch self {
-        case .chargepoint(_, let id): "chargepoint:\(id)"
         case .reconnect(let id, _): "reconnect:\(id)"
         case .car(let request): "car:\(request.id)"
         case .alarm(_, let id): "alarm:\(id)"

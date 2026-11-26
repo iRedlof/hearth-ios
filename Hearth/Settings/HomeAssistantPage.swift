@@ -15,19 +15,23 @@ struct HomeAssistantPage: View {
     @State private var showSignInExplainer = false
     @State private var showSignOutConfirm = false
     @State private var saveError: String?
+    @State private var resetTask: Task<Void, Never>?
 
     let runtime: any SettingsRuntime
     let onChange: (HaConfig?) -> Void
+    let initialReconnect: Bool
 
     @Environment(\.colorScheme) private var scheme
 
     init(config: HaConfig?, runtime: any SettingsRuntime = LiveSettingsRuntime.shared,
-         onChange: @escaping (HaConfig?) -> Void) {
+         initialReconnect: Bool = false, onChange: @escaping (HaConfig?) -> Void) {
         _config = State(initialValue: config)
         self.runtime = runtime
+        self.initialReconnect = initialReconnect
         self.onChange = onChange
         let current = runtime.loadHa()
         _editScope = State(initialValue: haSameConnection(current?.config, config) ? current?.scope : nil)
+        _showSignIn = State(initialValue: initialReconnect)
     }
 
     var body: some View {
@@ -36,7 +40,7 @@ struct HomeAssistantPage: View {
                 // Connection Hero
                 ConnectionHero(
                     presentation: effectivePresentation,
-                    title: prettyHost(config?.baseUrl ?? ""),
+                    title: "Home Assistant",
                     detail: heroDetail
                 ) {
                     ctaButton
@@ -150,8 +154,8 @@ struct HomeAssistantPage: View {
         guard let config else {
             return "No server configured"
         }
-        // For now, show just the host. Device/widget counts would require a discovery call.
-        return haHeroDetail(host: prettyHost(config.baseUrl), deviceCount: nil, widgetCount: nil)
+        // Show the host (not title). Device/widget counts would require a discovery call.
+        return prettyHost(config.baseUrl)
     }
 
     // MARK: - CTA Button
@@ -197,12 +201,20 @@ struct HomeAssistantPage: View {
         checking = true
         heroOverride = nil
 
+        // Cancel any pending reset
+        resetTask?.cancel()
+        resetTask = nil
+
         do {
             _ = try await runtime.discoverHa(config: config, scope: editScope, purpose: .names)
             heroOverride = haHeroCheckOK()
-            // Reset to normal after 2 seconds
-            try? await Task.sleep(for: .seconds(2))
-            heroOverride = nil
+            // Reset to normal after 2 seconds (cancellation-safe)
+            resetTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(2))
+                guard !Task.isCancelled else { return }
+                heroOverride = nil
+                resetTask = nil
+            }
         } catch {
             heroOverride = haHeroOffline()
         }
@@ -524,7 +536,7 @@ private struct SignInExplainerSheet: View {
                             .foregroundStyle(HearthColor.green(scheme))
 
                         Text("About Sign-in")
-                            .font(.title2.weight(.semibold))
+                            .font(HearthFont.pageTitle.font)
                     }
                     .padding(.top, 20)
 

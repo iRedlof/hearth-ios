@@ -180,22 +180,11 @@ struct ChargePointAlertsPage: View {
     // MARK: - Perform Edit
 
     private func perform(_ edit: SettingsCpEdit, expected supplied: CpSettingsOrigin? = nil) {
-        let expected = supplied ?? cp.origin
-        let captured = UUID()
-        editID = captured
-        Task { @MainActor in
-            do {
-                let result = try await runtime.performCpEdit(edit, expected: expected)
-                guard editID == captured else { return }
-                cp = result
-            }
-            catch is CancellationError { return }
-            catch {
-                if editID == captured {
-                    editError = friendlyError(error)
-                }
-            }
-        }
+        performer.perform(edit, expected: supplied)
+    }
+
+    private var performer: CpEditPerformer {
+        CpEditPerformer(runtime: runtime, cp: $cp, editError: $editError, editID: $editID)
     }
 }
 
