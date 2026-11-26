@@ -390,11 +390,19 @@ struct CarProvider: TimelineProvider, Sendable {
 
 private struct CarWidgetEntryView: View {
     let entry: CarEntry
+    // Resolve the card style at construction time, OUTSIDE the view-builder body: an inline
+    // store lookup inside the body expression pushes WidgetKit's already-complex configuration
+    // bodies past the Swift type-checker's limit (it then crashes instead of diagnosing).
+    private let style: CardStyle
     @Environment(\.widgetFamily) private var family
 
+    init(entry: CarEntry) {
+        self.entry = entry
+        self.style = CardStyleStore.effectiveStyle(for: .car)
+    }
+
     var body: some View {
-        CarWidgetPresentation(payload: entry.payload, family: family,
-                              style: CardStyleStore.effectiveStyle(for: .car))
+        CarWidgetPresentation(payload: entry.payload, family: family, style: style)
     }
 }
 
@@ -464,15 +472,21 @@ struct AlarmWidget: Widget {
 
 private struct AlarmWidgetEntryView: View {
     let entry: AlarmEntry
+    private let style: CardStyle  // Resolved in init, not in body — see CarWidgetEntryView.
     @Environment(\.widgetFamily) private var family
+    init(entry: AlarmEntry) {
+        self.entry = entry
+        self.style = CardStyleStore.effectiveStyle(for: .alarm)
+    }
     var body: some View {
-        let style = CardStyleStore.effectiveStyle(for: .alarm)
-        return ParityWidgetContent(prefix: "alarm") {
-            if let payload = entry.payload { AlarmBeaconView(payload, family: family, style: style) }
-            else { AlarmBeaconView(entry.snap, family: family, style: style) }
-        }
-        .widgetURL(family == .systemSmall ? alarmReadingsURL(for: entry.payload?.destination ?? .inert) : nil)
-        .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        ParityWidgetContent(prefix: "alarm") { beacon }
+            .widgetURL(family == .systemSmall ? alarmReadingsURL(for: entry.payload?.destination ?? .inert) : nil)
+            .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+    }
+    // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
+    @ViewBuilder private var beacon: some View {
+        if let payload = entry.payload { AlarmBeaconView(payload, family: family, style: style) }
+        else { AlarmBeaconView(entry.snap, family: family, style: style) }
     }
 }
 
@@ -523,15 +537,21 @@ struct ThermostatWidget: Widget {
 
 private struct ThermostatWidgetEntryView: View {
     let entry: ThermostatEntry
+    private let style: CardStyle  // Resolved in init, not in body — see CarWidgetEntryView.
     @Environment(\.widgetFamily) private var family
+    init(entry: ThermostatEntry) {
+        self.entry = entry
+        self.style = CardStyleStore.effectiveStyle(for: .thermostat)
+    }
     var body: some View {
-        let style = CardStyleStore.effectiveStyle(for: .thermostat)
-        return ParityWidgetContent(prefix: "thermostat") {
-            if let payload = entry.payload { ThermostatBeaconView(payload, family: family, style: style) }
-            else { ThermostatBeaconView(entry.snap, family: family, style: style) }
-        }
-        .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
-        .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+        ParityWidgetContent(prefix: "thermostat") { beacon }
+            .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
+            .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+    }
+    // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
+    @ViewBuilder private var beacon: some View {
+        if let payload = entry.payload { ThermostatBeaconView(payload, family: family, style: style) }
+        else { ThermostatBeaconView(entry.snap, family: family, style: style) }
     }
 }
 

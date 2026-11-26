@@ -542,7 +542,7 @@ struct WidgetPage: View {
 
     @ViewBuilder
     private func widget(for kind: WidgetPreviewKind) -> some View {
-        // NOTE: overlaps AddWidgetGallery's specimen rendering — shared-helper extraction deferred (Phase 6 M1)
+        // NOTE: Duplicates WidgetGalleryView.widget(for:) — shared-helper extraction deferred (Phase 6 M1)
         switch kind {
         case .glance:
             let summary = GlanceSummary(verdict: .ok, word: "OK", tone: .ok, lines: [],
