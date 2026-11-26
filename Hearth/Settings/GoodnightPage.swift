@@ -188,16 +188,22 @@ struct GoodnightPage: View {
     }
 
     private var hoursSubtitle: String {
-        let startHour = config.startHour
-        let endHour = config.endHour
+        let calendar = Calendar.current
+        let now = Date()
 
-        func formatHour(_ hour: Int) -> String {
-            let period = hour < 12 ? "AM" : "PM"
-            let displayHour = hour == 0 ? 12 : (hour > 12 ? hour - 12 : hour)
-            return "\(displayHour) \(period)"
-        }
+        // Convert hours to Date objects for formatting
+        let startDate = calendar.date(bySettingHour: config.startHour, minute: 0, second: 0, of: now) ?? now
+        let endDate = calendar.date(bySettingHour: config.endHour, minute: 0, second: 0, of: now) ?? now
 
-        return "\(formatHour(startHour))–\(formatHour(endHour))"
+        // Use Date.FormatStyle to honor user's 24-hour locale setting
+        let formatter = Date.FormatStyle()
+            .hour(.defaultDigits(amPM: .abbreviated))
+            .locale(Locale.current)
+
+        let startFormatted = startDate.formatted(formatter)
+        let endFormatted = endDate.formatted(formatter)
+
+        return "\(startFormatted)–\(endFormatted)"
     }
 
     private var armModeSubtitle: String {
