@@ -74,48 +74,80 @@ final class ChargePointCommuteTests: XCTestCase {
 
     // MARK: - Commute Sensor Parser Tests
 
-    func testParseValidTrueFalse() {
+    func testParseProductionCapitalizedTrueFalse() {
+        let result = parseCommuteSensors("True|False")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, true)
+        XCTAssertEqual(result?.signinNeeded, false)
+    }
+
+    func testParseProductionCapitalizedFalseTrue() {
+        let result = parseCommuteSensors("False|True")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, false)
+        XCTAssertEqual(result?.signinNeeded, true)
+    }
+
+    func testParseProductionCapitalizedTrueTrue() {
+        let result = parseCommuteSensors("True|True")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, true)
+        XCTAssertEqual(result?.signinNeeded, true)
+    }
+
+    func testParseProductionCapitalizedFalseFalse() {
+        let result = parseCommuteSensors("False|False")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, false)
+        XCTAssertEqual(result?.signinNeeded, false)
+    }
+
+    func testParseWithTrailingNewline() {
+        let result = parseCommuteSensors("True|False\n")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, true)
+        XCTAssertEqual(result?.signinNeeded, false)
+    }
+
+    func testParseWithSurroundingWhitespace() {
+        let result = parseCommuteSensors(" True | False ")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, true)
+        XCTAssertEqual(result?.signinNeeded, false)
+    }
+
+    func testParseLowercaseCaseInsensitive() {
         let result = parseCommuteSensors("true|false")
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.chargeNow, true)
         XCTAssertEqual(result?.signinNeeded, false)
     }
 
-    func testParseValidFalseTrue() {
-        let result = parseCommuteSensors("false|true")
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.chargeNow, false)
-        XCTAssertEqual(result?.signinNeeded, true)
-    }
-
-    func testParseValidTrueTrue() {
-        let result = parseCommuteSensors("true|true")
+    func testParseMixedCaseCaseInsensitive() {
+        let result = parseCommuteSensors("TrUe|FaLsE")
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.chargeNow, true)
-        XCTAssertEqual(result?.signinNeeded, true)
-    }
-
-    func testParseValidFalseFalse() {
-        let result = parseCommuteSensors("false|false")
-        XCTAssertNotNil(result)
-        XCTAssertEqual(result?.chargeNow, false)
         XCTAssertEqual(result?.signinNeeded, false)
     }
 
     func testParseMalformedSingleToken() {
-        XCTAssertNil(parseCommuteSensors("true"))
+        XCTAssertNil(parseCommuteSensors("True"))
     }
 
     func testParseMalformedThreeTokens() {
-        XCTAssertNil(parseCommuteSensors("true|false|extra"))
+        XCTAssertNil(parseCommuteSensors("True|False|extra"))
     }
 
     func testParseMalformedEmptyString() {
         XCTAssertNil(parseCommuteSensors(""))
     }
 
-    func testParseMalformedNonBoolTokens() {
-        XCTAssertNil(parseCommuteSensors("on|off"))
+    func testParseNonTrueTokensMapToFalse() {
+        // Android semantics: anything that isn't "true" (case-insensitive) → false
+        let result = parseCommuteSensors("on|off")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, false)
+        XCTAssertEqual(result?.signinNeeded, false)
     }
 
     // MARK: - Commute Sensor Fetch Tests
@@ -123,7 +155,7 @@ final class ChargePointCommuteTests: XCTestCase {
     func testFetchReturnsNilWhenConfigMissing() async {
         let result = await fetchCommuteSensors(nil, now: Date(), read: {
             XCTFail("A disconnected fetch must not request sensors")
-            return "true|false"
+            return "True|False"
         })
         XCTAssertNil(result)
     }
@@ -133,7 +165,7 @@ final class ChargePointCommuteTests: XCTestCase {
         let config = HaConfig(baseUrl: "https://example.com", token: "", entityId: "")
         let result = await fetchCommuteSensors(config, now: Date(), read: {
             XCTFail("A not-ready fetch must not request sensors")
-            return "true|false"
+            return "True|False"
         })
         XCTAssertNil(result)
     }
@@ -141,7 +173,7 @@ final class ChargePointCommuteTests: XCTestCase {
     func testFetchReturnsValidResultWithTimestamp() async {
         let config = HaConfig(baseUrl: "https://example.com", token: "fixture", entityId: "sensor.car")
         let now = Date(timeIntervalSince1970: 1_793_399_400)
-        let result = await fetchCommuteSensors(config, now: now, read: { "true|false" })
+        let result = await fetchCommuteSensors(config, now: now, read: { "True|False" })
         XCTAssertNotNil(result)
         XCTAssertEqual(result?.chargeNow, true)
         XCTAssertEqual(result?.signinNeeded, false)

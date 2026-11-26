@@ -85,25 +85,27 @@ public func commuteDay(from date: Date, in timeZone: TimeZone) -> CommuteDay {
 }
 
 /**
- Parse the HA commute sensor template response (`true|false`) into a tuple of booleans.
+ Parse the HA commute sensor template response (`True|False`) into a tuple of booleans.
 
- The Home Assistant template renders `binary_sensor.commute_charge_now` and
- `binary_sensor.commute_signin_needed` as a pipe-joined string of `true`/`false` literals.
+ Home Assistant's `/api/template` renders `{{ is_state(...) }}` as Python-style capitalized
+ `True`/`False`. This parser matches Android's semantics (ChargePointCommute.kt:67-70):
+ - Trim the body and each token of whitespace/newlines (HA responses can carry trailing newlines).
+ - Exactly two pipe-separated parts → parse; otherwise → `nil` (malformed shape).
+ - Each token is case-insensitively compared to `"true"`; non-"true" → `false` (not `nil`).
 
- - Parameter body: The template response (e.g., `"true|false"`).
- - Returns: A tuple `(chargeNow: Bool, signinNeeded: Bool)` on success, `nil` on malformed input.
+ - Parameter body: The template response (e.g., `"True|False"`, `"True|False\n"`).
+ - Returns: A tuple `(chargeNow: Bool, signinNeeded: Bool)` on success, `nil` on malformed shape.
 
- Malformed input (wrong token count, non-bool tokens, empty string) returns `nil`.
- This mirrors the parsing pattern used by other fetch parsers (BatteryFetch, LightsFetch).
+ Malformed shape (wrong token count, empty string) returns `nil`. Valid shape with non-"true"
+ tokens returns a result with `false` for those positions (matches Android).
  */
 public func parseCommuteSensors(_ body: String) -> (chargeNow: Bool, signinNeeded: Bool)? {
-    let tokens = body.split(separator: "|").map(String.init)
+    let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+    let tokens = trimmed.split(separator: "|").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     guard tokens.count == 2 else { return nil }
 
-    guard let chargeNow = Bool(tokens[0]),
-          let signinNeeded = Bool(tokens[1]) else {
-        return nil
-    }
+    let chargeNow = tokens[0].lowercased() == "true"
+    let signinNeeded = tokens[1].lowercased() == "true"
 
     return (chargeNow: chargeNow, signinNeeded: signinNeeded)
 }
