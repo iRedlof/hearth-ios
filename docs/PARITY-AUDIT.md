@@ -153,6 +153,70 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 
 ---
 
+## Widgets (Phase 4)
+
+**Status:** ✅ Shipped (Add-a-widget gallery, per-widget settings pages, Card style page, Glance widget)
+
+**11 widgets at parity:**
+1. **Glance** (new 11th widget) — At-a-glance summary showing car/alarm/thermostat/doors/battery status in one view
+2. Car
+3. Alarm
+4. Thermostat
+5. Doors
+6. Quick actions
+7. Lights
+8. Favourites
+9. Activity
+10. Battery
+11. ChargePoint
+
+**Surfaces built:**
+- **AddWidgetGallery** — Categorized widget picker with Added/Needs-HA/Needs-CP status chips
+  - 3 categories: Activity, Comfort & safety, Energy
+  - Status chips show availability for each widget based on HA/CP connection state
+  - Tapping a widget opens its per-widget settings page
+- **WidgetPage** — Per-widget settings page for each of the 11 widgets
+  - Preview mat showing widget at Narrow/Standard/Wide sizes (slot size picker)
+  - **Uses** — Prerequisite connections (HA/CP) with setup CTAs
+  - **Safety** — Entity/device pickers (alarm, lock, climate, resume temp, doors, sensors, lights, scripts, favourites)
+  - **Shows** — Display-name editor (App-Group state, keyed by `HomeWidgetKind`)
+  - **Every day** — Goodnight-key route rows (defer to Phase 5, currently route to `.settings`)
+  - **Look** — Card style link
+  - **Remove** — Remove-from-Home CTA
+- **CardStylePage** — Global card appearance settings (portable axes only)
+  - **Background:** By state / Colour / Black
+  - **Text size:** Standard text / Small print adjusters
+  - **Platform divergence (documented):** iOS omits Corners/Glass/Wallpaper from Android mocks 17/18 because WidgetKit controls the live-widget container shape+background; the page does not present controls that are no-ops on a real widget.
+
+**Glance honesty ruling:**
+Glance summarises only what placed widgets last read (no new network fetch). Unreadable or stale saved state yields "can't check" or error states, never a false "OK". This prevents showing stale data as current.
+
+**Integration:**
+- Gallery accessible via Home dashboard "Add a widget" card
+- Widget pages route from gallery picks and Home widget-card taps
+- Card style page routes from WidgetPage Look row and Home Look row
+- Display-name edits persist to App Group shared defaults
+- Entity pickers update `HaConfig` and persist via `HaConfigStore`
+
+**DEBUG hooks:**
+- `-addGallery` → present AddWidgetGallery
+- `-widgetPage <kind>` → present WidgetPage for the specified `HomeWidgetKind` (e.g., `-widgetPage glance`)
+- `-cardStyle` → present CardStylePage
+- `-glancePreview` → present Glance widget preview (via WidgetPage)
+
+**Deferred to Phase 6:**
+- 6 Glance provider feeds not yet wired (Car/Alarm/Thermostat/Doors/Battery/ChargePoint — only placeholders in GlanceSnapshot)
+- CardStyle threaded into only 3 widgets so far (Car/Alarm/Thermostat Beacons)
+- Goodnight-key Every-day rows route to `.settings` placeholder until Phase 5 builds real destinations
+
+**Parity vs Android mocks:**
+- Gallery categories and status chips match Android design (mocks 04/11)
+- WidgetPage preview mat with slot-size picker matches Android mock 16
+- CardStylePage portable axes (Background/Text) match Android mock 17 portable subset
+- **Platform divergence:** iOS intentionally omits Corners/Glass/Wallpaper (Android mock 18) — documented above
+
+---
+
 ## Fix log (newest first)
 - A3 ✅ improved: `invalidatableContent` added to the freshness stamp in all 7 refreshable widgets (Car/Alarm/Thermostat/Battery/Lights/Favourites/Doors) → "updating" redaction on tap. Spinner itself is an iOS wall. Build + screenshot `invalidatable.png` confirm normal render intact.
 - A2 ⚠️ resolved as platform wall (researched, 8 Apple/dev sources): the under-widget label is system-drawn and NOT removable by any WidgetKit API; user-side hide only. Documented.

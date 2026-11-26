@@ -210,6 +210,9 @@ struct ContentView: View {
             if let sheet = presentedSheet, case .thermostat = sheet { return }
             thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
         }
+        #if DEBUG
+        .onAppear { handleDebugLaunchArgs() }
+        #endif
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .reconnect(_, let original):
@@ -561,6 +564,24 @@ struct ContentView: View {
             config = nil
         } catch { signOutError = friendlyError(error) }
     }
+
+    #if DEBUG
+    /// Phase 4 widget DEBUG launch hooks (applied after initial tab/fixture setup)
+    private func handleDebugLaunchArgs() {
+        guard !inertTabs, presentedSheet == nil else { return }
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-addGallery") {
+            presentedSheet = .addWidgetGallery(UUID())
+        } else if let index = args.firstIndex(of: "-widgetPage"), index + 1 < args.count,
+                  let kind = HomeWidgetKind(rawValue: args[index + 1]) {
+            presentedSheet = .widgetPage(kind, UUID())
+        } else if args.contains("-cardStyle") {
+            presentedSheet = .cardStylePage(UUID())
+        } else if args.contains("-glancePreview") {
+            presentedSheet = .widgetPage(.glance, UUID())
+        }
+    }
+    #endif
 }
 
 private struct ThermostatRecoveryReturn {
