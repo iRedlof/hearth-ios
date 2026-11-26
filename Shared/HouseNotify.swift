@@ -81,4 +81,31 @@ enum HouseNotify {
             .map { $0.identifier }
         cancel(ids: matching)
     }
+
+    /// Post an immediate notification for safety alerts
+    ///
+    /// Used for critical failures (lock won't lock, alarm won't arm) that need immediate attention.
+    ///
+    /// - Parameters:
+    ///   - id: Unique identifier for the notification
+    ///   - title: Notification title
+    ///   - body: Notification body
+    static func postImmediate(id: String, title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+
+        let request = UNNotificationRequest(
+            identifier: id,
+            content: content,
+            trigger: nil  // nil trigger = immediate delivery
+        )
+
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Failed to post immediate notification \(id): \(error)")
+            }
+        }
+    }
 }

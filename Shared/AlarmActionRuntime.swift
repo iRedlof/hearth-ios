@@ -61,8 +61,20 @@ enum AlarmActionRuntime {
                 _ = try store.finishAlarmOperation(expectedScope: scope, operationID: operation.id,
                     error: "Update interrupted · Refresh to check")
             case .rejected:
+                // Safety monitoring: retry in background if enabled
+                if HouseFeaturesStore.safetyEnabled {
+                    Task {
+                        await safetyRetry(config: config, entityID: entityID, action: action, scope: scope, isCurrent: isCurrent)
+                    }
+                }
                 throw HaError("Action no longer available · Refresh to check")
             case .unconfirmed:
+                // Safety monitoring: retry in background if enabled
+                if HouseFeaturesStore.safetyEnabled {
+                    Task {
+                        await safetyRetry(config: config, entityID: entityID, action: action, scope: scope, isCurrent: isCurrent)
+                    }
+                }
                 throw HaError("Couldn't confirm · Refresh to check")
             }
             await notify()
@@ -72,5 +84,126 @@ enum AlarmActionRuntime {
             await notify()
             throw HaError(message)
         }
+    }
+
+    /// Safety monitoring: retry alarm/lock action with monitorWithRetry and post notification on final failure.
+    ///
+    /// This is called in a background Task when safety alerts are enabled and the first attempt
+    /// returns .unconfirmed or .rejected. It's purely additive — the original error is still thrown
+    /// to the UI, but we do one more retry in the background and notify if it still fails.
+    ///
+    /// - Parameters:
+    ///   - config: Home Assistant config
+    ///   - entityID: Entity to control
+    ///   - action: Action to perform (e.g., "lock", "armHome")
+    ///   - scope: Config scope for validation
+    ///   - isCurrent: Closure to check if the operation is still valid
+    private static func safetyRetry(config: HaConfig, entityID: String, action: String,
+                                   scope: String, isCurrent: @Sendable @escaping () -> Bool) async {
+        let client = HaClient(config)
+        let executor = AlarmActionExecutor(
+            config: config,
+            client: client,
+            entityID: entityID,
+            action: action,
+            isCurrent: isCurrent
+        )
+
+        await monitorWithRetry(executor) {
+            // Final failure: post safety notification
+            let deviceName = friendlyDeviceName(entityID: entityID)
+            let targetState = friendlyTargetState(action: action)
+            let title = "\(deviceName) won't \(targetState)"
+            let body = "Tap to check"
+            HouseNotify.postImmediate(
+                id: "safety-\(entityID)-\(action)",
+                title: title,
+                body: body
+            )
+        }
+    }
+
+    private static func friendlyDeviceName(entityID: String) -> String {
+        if entityID.hasPrefix("lock.") {
+            let name = entityID.dropFirst("lock.".count)
+            return name.replacingOccurrences(of: "_", with: " ").capitalized
+        }
+        if entityID.hasPrefix("alarm_control_panel.") {
+            return "Home alarm"
+        }
+        return "Device"
+    }
+
+    private static func friendlyTargetState(action: String) -> String {
+        switch action {
+        case "lock": return "lock"
+        case "unlock": return "unlock"
+        case "armHome": return "arm (Home)"
+        case "armAway": return "arm (Away)"
+        case "armNight": return "arm (Night)"
+        case "disarm": return "disarm"
+        default: return "update"
+        }
+    }
+}
+
+/// ActionExecutor implementation for alarm/lock actions.
+/// Used by safety monitoring to retry failed actions.
+private struct AlarmActionExecutor: ActionExecutor {
+    let config: HaConfig
+    let client: HaClient
+    let entityID: String
+    let action: String
+    let isCurrent: @Sendable () -> Bool
+
+    func execute() async throws {
+        // Execute and verify are combined in executeAlarmAction, so we just call it
+        // with a short retry count (1 attempt) and discard the result here.
+        // The actual verification happens in verify().
+        _ = try? await executeAlarmAction(
+            entityID: entityID,
+            action: action,
+            isCurrent: isCurrent,
+            read: { try await readState() },
+            send: { command in
+                guard isCurrent() else { throw HaError("Configuration changed") }
+                try await client.callService(domain: command.domain, service: command.service,
+                                           entityId: command.entityID, isAuthorized: isCurrent)
+            },
+            wait: { try await Task.sleep(for: .seconds(2)) },
+            confirmationAttempts: 1
+        )
+    }
+
+    func verify() async throws -> Bool {
+        // Read the current state and check if it matches the target
+        let reading = try await readState()
+        guard let state = alarmObservation(reading, entityID: entityID) else { return false }
+
+        // Determine the target state for this action
+        if entityID.hasPrefix("alarm_control_panel."), let alarmAction = AlarmAction(rawValue: action) {
+            return state.state == alarmAction.target
+        }
+        if entityID.hasPrefix("lock."), let lockAction = LockAction(rawValue: action) {
+            return state.state == lockAction.target
+        }
+        return false
+    }
+
+    private func readState() async throws -> HaStateReading {
+        let read = await fetchHaStateReadings(config, ids: [entityID]) { id in
+            let json = try await client.stateJson(id)
+            guard AlarmState.fromJson(json)?.entityID == id else {
+                throw HaError("Couldn't read the selected device")
+            }
+            return json
+        }
+        if let message = read.errors[entityID] {
+            throw HaError(message)
+        }
+        guard let value = read.readings[entityID] else {
+            throw HaError("Couldn't read the selected device")
+        }
+        return value
     }
 }
