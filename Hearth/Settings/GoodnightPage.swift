@@ -7,6 +7,7 @@ import HearthKit
 struct GoodnightPage: View {
     @State private var config: GoodnightConfig
     @State private var hasAlarm: Bool
+    @State private var showHomeAssistant = false
 
     @Environment(\.colorScheme) private var scheme
 
@@ -58,6 +59,26 @@ struct GoodnightPage: View {
         .background(HearthColor.page(scheme))
         .navigationTitle("Goodnight key")
         .navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showHomeAssistant) {
+            NavigationStack {
+                HomeAssistantPage(config: HaConfigStore.load()) { next in
+                    // Reload hasAlarm state when HA config changes
+                    hasAlarm = next?.isComplete == true
+                    if next?.isComplete == true {
+                        showHomeAssistant = false
+                    }
+                }
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Done") {
+                            showHomeAssistant = false
+                            // Reload hasAlarm on dismiss
+                            hasAlarm = HaConfigStore.load()?.isComplete == true
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Toggle Subtitle
@@ -89,8 +110,7 @@ struct GoodnightPage: View {
             Spacer()
 
             Button {
-                // Navigate to Alarm widget setup
-                // For now, just a placeholder
+                showHomeAssistant = true
             } label: {
                 Text("Add Alarm")
                     .font(HearthFont.rowTitle.font)
