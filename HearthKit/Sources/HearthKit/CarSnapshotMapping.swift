@@ -20,7 +20,7 @@ public func carSnapshot(_ car: Car?, now: Date, stale: Bool, checkedAt: Date?,
         let msg = checkedAt == nil ? "Finding your car…" : "No car found"
         return CarSnapshot(name: "Car", checkedAt: checkedStr, battery: nil, range: "Range —",
             lock: "—", lockWarn: false, doors: "—", doorsWarn: false, cabin: "—", outside: "—",
-            tires: "—", tiresWarn: false, place: msg, sentry: .unknown, chargeLine: msg, tone: .offline)
+            tires: "—", tiresWarn: false, place: msg, sentry: .unknown, chargeLine: msg, tone: .offline, stale: stale)
     }
 
     let view = carView(car, now: now, zone: zone, locale: locale, stale: stale)
@@ -60,5 +60,5 @@ public func carSnapshot(_ car: Car?, now: Date, stale: Bool, checkedAt: Date?,
         doors: doors, doorsWarn: !car.open.isEmpty,
         cabin: temp(car.preciseInside, car.inside), outside: temp(car.preciseOutside, car.outside),
         tires: beaconTireSummary(car), tiresWarn: car.tireWarning,
-        place: place, sentry: sentry, chargeLine: chargeLine, tone: tone)
+        place: place, sentry: sentry, chargeLine: chargeLine, tone: tone, limit: car.limit, stale: stale)
 }

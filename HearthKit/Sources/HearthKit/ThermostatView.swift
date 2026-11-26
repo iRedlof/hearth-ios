@@ -13,7 +13,7 @@ public struct ClimateView: Sendable, Equatable {
 /// else what it's set to (Holding 64–69°). Ported verbatim from Android `climateViewFor`.
 public func climateViewFor(_ s: ClimateState?) -> ClimateView {
     guard let s else { return ClimateView("Checking…", .unknown) }          // nothing read yet
-    if s.mode == "unavailable" || s.mode == "unknown" { return ClimateView("Unavailable", .unknown) }
+    if !s.isAvailable { return ClimateView("Unavailable", .unknown) }
     // Off is what the user set; if still winding down, say so (but stay calm Off — nothing to act on).
     if s.isOff {
         switch s.action {
@@ -26,10 +26,10 @@ public func climateViewFor(_ s: ClimateState?) -> ClimateView {
         return ClimateView(s.mode.replacingOccurrences(of: "_", with: " ").capitalizedFirst, .idle)
     }
     let missing: String? = {
-        if s.isRange && s.low == nil && s.high == nil { return "Targets unavailable" }
-        if s.isRange && s.low == nil { return "Heat target unavailable" }
-        if s.isRange && s.high == nil { return "Cool target unavailable" }
-        if !s.isRange && s.target == nil { return "Target unavailable" }
+        if s.isRange && climateNumber(s.low) == nil && climateNumber(s.high) == nil { return "Targets unavailable" }
+        if s.isRange && climateNumber(s.low) == nil { return "Heat target unavailable" }
+        if s.isRange && climateNumber(s.high) == nil { return "Cool target unavailable" }
+        if !s.isRange && climateNumber(s.target) == nil { return "Target unavailable" }
         return nil
     }()
     if let missing {
@@ -60,9 +60,12 @@ public func beaconClimatePair(_ mode: String?, stale: Bool) -> BeaconTone {
 
 /// A setpoint nudged by one step, within the thermostat's limits (and, in Auto, apart from the other).
 public func nudge(_ value: Double, by: Int, _ s: ClimateState, otherLow: Double? = nil, otherHigh: Double? = nil) -> Double {
-    var next = (value + Double(by) * s.step)
-    next = Swift.min(Swift.max(next, s.min), s.max)
-    if let otherHigh { next = Swift.min(next, otherHigh - s.step) }   // Auto keeps heat below cool
-    if let otherLow { next = Swift.max(next, otherLow + s.step) }
-    return next
+    guard climateNumber(value) != nil, climateNumber(s.min) != nil, climateNumber(s.max) != nil,
+          s.step.isFinite, s.step > 0 else { return value }
+    let lower = Swift.max(s.min, otherLow.map { $0 + s.step } ?? s.min)
+    let upper = Swift.min(s.max, otherHigh.map { $0 - s.step } ?? s.max)
+    guard lower.isFinite, upper.isFinite, lower <= upper else { return value }
+    let next = value + Double(by) * s.step
+    guard next.isFinite else { return value }
+    return Swift.min(Swift.max(next, lower), upper)
 }

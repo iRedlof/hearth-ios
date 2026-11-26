@@ -3,7 +3,7 @@ import Foundation
 /// The Beacon status palette, ported verbatim from the Android app (`BeaconMetrics.kt`).
 /// A tone carries a `fill` (the light rail/left-panel colour) and an `ink` (readable on that fill).
 /// Colours are ARGB hex; the SwiftUI layer converts to `Color`.
-public enum BeaconTone: String, Sendable, CaseIterable {
+public enum BeaconTone: String, Sendable, CaseIterable, Codable {
     case mint, blue, red, yellow, offline, triggered, violet, slate, orange
 
     public var fillARGB: UInt32 {

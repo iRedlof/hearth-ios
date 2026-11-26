@@ -97,7 +97,13 @@ final class CarStateTests: XCTestCase {
 
     func test08_openChargePortFlaggedOnlyIfKnownUnplugged() {
         XCTAssertEqual(car(["cover.charge_port_door": "open", "binary_sensor.charge_cable": "unavailable"]).open, [])
-        XCTAssertEqual(car(["cover.charge_port_door": "open", "binary_sensor.charge_cable": "off"]).open, ["Charge port"])
+        let disconnected = car(["cover.charge_port_door": "open", "binary_sensor.charge_cable": "off"])
+        XCTAssertEqual(disconnected.open, ["Charge port"])
+        XCTAssertTrue(disconnected.openKnown)
+        XCTAssertEqual(carView(disconnected, now: now, zone: zone, locale: loc).facts[1].text, "Charge port open")
+        let snapshot = carSnapshot(disconnected, now: now, stale: false, checkedAt: now, zone: zone, locale: loc)
+        XCTAssertEqual(snapshot.doors, "Charge port open")
+        XCTAssertTrue(snapshot.doorsWarn)
     }
 
     func test09_shortChargeLineParallel() {
@@ -171,5 +177,54 @@ final class CarStateTests: XCTestCase {
 
     func test16_oldReadingsSaySo() {
         XCTAssertEqual(view(stale: true).asOf, "No new readings from the car · these are from Tue 10:33 PM")
+    }
+
+    func test17_openPortWithUnknownCableDoesNotClaimAllShut() throws {
+        let cableStates: [String?] = ["unknown", "unavailable", nil, "connecting"]
+        for cable in cableStates {
+            var states = baselineS()
+            states["cover.charge_port_door"] = "open"
+            states["binary_sensor.charge_cable"] = cable
+            let payload: [String: Any] = ["found": true, "name": "Stargate", "unit": "mi", "s": states]
+            let data = try JSONSerialization.data(withJSONObject: payload)
+            let parsed = try XCTUnwrap(carFromTemplate(String(decoding: data, as: UTF8.self)))
+            let context = cable ?? "missing cable"
+            XCTAssertFalse(parsed.pluggedKnown, context)
+            XCTAssertEqual(parsed.open, [], context)
+            XCTAssertFalse(parsed.openKnown, context)
+            let displayed = carView(parsed, now: now, zone: zone, locale: loc)
+            XCTAssertEqual(displayed.facts[1].text, "Openings unknown", context)
+            XCTAssertTrue(displayed.charge.hasPrefix("Plug status unknown"), context)
+            let snapshot = carSnapshot(parsed, now: now, stale: false, checkedAt: now, zone: zone, locale: loc)
+            XCTAssertEqual(snapshot.doors, "—", context)
+            XCTAssertFalse(snapshot.doorsWarn, context)
+        }
+    }
+
+    func test18_closedPortStaysKnownWithUnknownCable() {
+        let parsed = car(["binary_sensor.charge_cable": "unknown"])
+        XCTAssertFalse(parsed.pluggedKnown)
+        XCTAssertEqual(parsed.open, [])
+        XCTAssertTrue(parsed.openKnown)
+        let displayed = carView(parsed, now: now, zone: zone, locale: loc)
+        XCTAssertEqual(displayed.facts[1].text, "All shut")
+        XCTAssertTrue(displayed.charge.hasPrefix("Plug status unknown"))
+        let snapshot = carSnapshot(parsed, now: now, stale: false, checkedAt: now, zone: zone, locale: loc)
+        XCTAssertEqual(snapshot.doors, "All shut")
+        XCTAssertFalse(snapshot.doorsWarn)
+    }
+
+    func test19_reportedTrunkRemainsWarningWithAmbiguousPort() {
+        let parsed = car(["cover.trunk": "open", "cover.charge_port_door": "open",
+                          "binary_sensor.charge_cable": "unknown"])
+        XCTAssertEqual(parsed.open, ["Trunk"])
+        XCTAssertFalse(parsed.openKnown)
+        let displayed = carView(parsed, now: now, zone: zone, locale: loc)
+        XCTAssertEqual(displayed.facts[1].text, "Trunk open")
+        XCTAssertTrue(displayed.facts[1].bad)
+        XCTAssertEqual(displayed.tone, .warn)
+        let snapshot = carSnapshot(parsed, now: now, stale: false, checkedAt: now, zone: zone, locale: loc)
+        XCTAssertEqual(snapshot.doors, "Trunk open")
+        XCTAssertTrue(snapshot.doorsWarn)
     }
 }
