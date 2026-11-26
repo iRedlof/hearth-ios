@@ -8,6 +8,7 @@ public enum CommuteStore {
     private static let enabledKey = "commute.enabled"
     private static let lastArmDayKey = "commute.lastArmDay"
     private static let lastNotifyDayKey = "commute.lastNotifyDay"
+    private static let lastHeardKey = "commute.lastHeard"
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: appGroup) ?? .standard
@@ -49,5 +50,12 @@ public enum CommuteStore {
                 defaults.removeObject(forKey: lastNotifyDayKey)
             }
         }
+    }
+
+    /// The timestamp of the last successful sensor fetch, for the detection status row.
+    /// Absent key → nil (never heard from sensors).
+    public static var lastHeard: Date? {
+        get { defaults.object(forKey: lastHeardKey) as? Date }
+        set { defaults.set(newValue, forKey: lastHeardKey) }
     }
 }
