@@ -122,28 +122,47 @@ public enum GoodnightRuntime {
     }
 
     /// Fetches HA state for planning: all lights and panel Night support.
-    /// Returns empty lights and false Night support on failure.
+    ///
+    /// **Decoupled fetches:** Lights and panel capability are fetched independently. A panel-read
+    /// failure does NOT discard successfully fetched lights, and does NOT downgrade Night→Home
+    /// (the preferred mode remains authoritative; if HA later rejects Night, the arm step will record
+    /// a real failure rather than silently arming the weaker Home mode).
+    ///
+    /// - Returns: (allLights, panelSupportsNight) where:
+    ///   - allLights: empty on fetch failure, otherwise all `light.*` entity IDs
+    ///   - panelSupportsNight: true if we couldn't read the panel (assume Night capable) OR
+    ///     if the panel actually supports Night; false only if we successfully read a panel that
+    ///     lacks Night support.
     private static func fetchStateForPlanning(haConfig: HaConfig) async -> ([String], Bool) {
+        let client = HaClient(haConfig)
+
+        // Fetch 1: All lights (independent)
+        let allLights: [String]
         do {
-            let client = HaClient(haConfig)
             let statesJson = try await client.allStatesJson()
             let entities = parseEntities(statesJson)
-            let allLights = entities.filter { $0.id.hasPrefix("light.") }.map(\.id)
+            allLights = entities.filter { $0.id.hasPrefix("light.") }.map(\.id)
+        } catch {
+            allLights = []
+        }
 
-            // Check if panel supports Night mode (bit 2: supported_features & 4 != 0)
-            let panelSupportsNight: Bool
-            if haConfig.entityId.hasPrefix("alarm_control_panel.") {
+        // Fetch 2: Panel Night capability (independent)
+        let panelSupportsNight: Bool
+        if haConfig.entityId.hasPrefix("alarm_control_panel.") {
+            do {
                 let alarmStateJson = try await client.stateJson(haConfig.entityId)
                 let alarmState = AlarmState.fromJson(alarmStateJson)
                 panelSupportsNight = alarmState?.supportedFeatures.map { $0 & 4 != 0 } ?? false
-            } else {
-                panelSupportsNight = false
+            } catch {
+                // Panel read failed: treat as Night-capable (don't downgrade Night→Home).
+                // If HA rejects Night at arm time, that's an honest failure, not a silent downgrade.
+                panelSupportsNight = true
             }
-            return (allLights, panelSupportsNight)
-        } catch {
-            // If we can't fetch state, default to no lights and no Night support
-            return ([], false)
+        } else {
+            panelSupportsNight = false
         }
+
+        return (allLights, panelSupportsNight)
     }
 
     /// Performs a lock action via the existing AlarmActionRuntime path.
