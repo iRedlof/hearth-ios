@@ -62,17 +62,26 @@ struct GlanceProvider: TimelineProvider {
 struct GlanceWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.glance", provider: GlanceProvider()) { entry in
-            ParityWidgetContent(prefix: "glance") {
-                GlanceWidgetEntryView(entry: entry)
-            }
-            .containerBackground(for: .widget) {
-                Color(argb: entry.summary.tone.bgARGB(.light))
-            }
+            GlanceWidgetContainer(entry: entry)
         }
         .configurationDisplayName("Glance")
         .description("Shows only what needs you")
         .supportedFamilies([.systemSmall])
         .contentMarginsDisabled()
+    }
+}
+
+private struct GlanceWidgetContainer: View {
+    let entry: GlanceEntry
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        ParityWidgetContent(prefix: "glance") {
+            GlanceWidgetEntryView(entry: entry)
+        }
+        .containerBackground(for: .widget) {
+            Color(argb: entry.summary.tone.bgARGB(colorScheme))
+        }
     }
 }
 

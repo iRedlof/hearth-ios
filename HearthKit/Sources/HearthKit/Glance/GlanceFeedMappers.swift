@@ -6,7 +6,7 @@ import HearthKit
 
 // MARK: - Car
 
-func glanceFeed(from car: CarSnapshot, checkedAt: Date) -> GlanceFeed {
+public func glanceFeed(from car: CarSnapshot, checkedAt: Date) -> GlanceFeed {
     // Error state
     if car.error != nil {
         return GlanceFeed(
@@ -49,7 +49,7 @@ func glanceFeed(from car: CarSnapshot, checkedAt: Date) -> GlanceFeed {
 
 // MARK: - Alarm
 
-func glanceFeed(from alarm: AlarmSnapshot, checkedAt: Date) -> GlanceFeed {
+public func glanceFeed(from alarm: AlarmSnapshot, checkedAt: Date) -> GlanceFeed {
     // Error state
     if alarm.error != nil {
         return GlanceFeed(
@@ -89,7 +89,7 @@ func glanceFeed(from alarm: AlarmSnapshot, checkedAt: Date) -> GlanceFeed {
 
 // MARK: - Doors
 
-func glanceFeed(from doors: DoorsSnapshot, checkedAt: Date) -> GlanceFeed {
+public func glanceFeed(from doors: DoorsSnapshot, checkedAt: Date) -> GlanceFeed {
     // Error state
     if doors.error != nil {
         return GlanceFeed(
@@ -127,7 +127,7 @@ func glanceFeed(from doors: DoorsSnapshot, checkedAt: Date) -> GlanceFeed {
 
 // MARK: - ChargePoint
 
-func glanceFeed(from cp: CpSnapshot, checkedAt: Date) -> GlanceFeed {
+public func glanceFeed(from cp: CpSnapshot, checkedAt: Date) -> GlanceFeed {
     var items: [GlanceItem] = []
     var calm = true
 
