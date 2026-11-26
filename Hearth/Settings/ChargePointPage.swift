@@ -346,8 +346,8 @@ struct ChargePointPage: View {
     @ViewBuilder
     private var alertsGroup: some View {
         HearthGroup("Alerts") {
-            Button {
-                // TODO Task 4: Navigate to ChargePointAlertsPage
+            NavigationLink {
+                ChargePointAlertsPage(runtime: runtime)
             } label: {
                 HearthRow(
                     icon: "bell",
