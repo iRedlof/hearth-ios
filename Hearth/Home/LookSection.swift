@@ -12,9 +12,8 @@ struct LookSection: View {
 
     var body: some View {
         HearthGroup("Look") {
-            // TODO Phase 5: dedicated card style route
             Button {
-                onTap(.settings)
+                onTap(.cardStyle)
             } label: {
                 HearthRow(
                     icon: "paintpalette.fill",

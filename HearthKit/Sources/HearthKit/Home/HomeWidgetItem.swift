@@ -6,6 +6,7 @@ public enum HomeRoute: Sendable, Equatable {
     case homeAssistant
     case chargePoint
     case addWidget
+    case cardStyle
     case settings
 }
 
