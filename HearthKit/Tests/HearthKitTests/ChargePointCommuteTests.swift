@@ -71,4 +71,94 @@ final class ChargePointCommuteTests: XCTestCase {
     func testSignedOutButNotYetWithinTheNudgeWindowDoesNothing() {
         XCTAssertEqual(.none, decide(signinNeeded: false, signedOutOrExpired: true))
     }
+
+    // MARK: - Commute Sensor Parser Tests
+
+    func testParseValidTrueFalse() {
+        let result = parseCommuteSensors("true|false")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, true)
+        XCTAssertEqual(result?.signinNeeded, false)
+    }
+
+    func testParseValidFalseTrue() {
+        let result = parseCommuteSensors("false|true")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, false)
+        XCTAssertEqual(result?.signinNeeded, true)
+    }
+
+    func testParseValidTrueTrue() {
+        let result = parseCommuteSensors("true|true")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, true)
+        XCTAssertEqual(result?.signinNeeded, true)
+    }
+
+    func testParseValidFalseFalse() {
+        let result = parseCommuteSensors("false|false")
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, false)
+        XCTAssertEqual(result?.signinNeeded, false)
+    }
+
+    func testParseMalformedSingleToken() {
+        XCTAssertNil(parseCommuteSensors("true"))
+    }
+
+    func testParseMalformedThreeTokens() {
+        XCTAssertNil(parseCommuteSensors("true|false|extra"))
+    }
+
+    func testParseMalformedEmptyString() {
+        XCTAssertNil(parseCommuteSensors(""))
+    }
+
+    func testParseMalformedNonBoolTokens() {
+        XCTAssertNil(parseCommuteSensors("on|off"))
+    }
+
+    // MARK: - Commute Sensor Fetch Tests
+
+    func testFetchReturnsNilWhenConfigMissing() async {
+        let result = await fetchCommuteSensors(nil, now: Date(), read: {
+            XCTFail("A disconnected fetch must not request sensors")
+            return "true|false"
+        })
+        XCTAssertNil(result)
+    }
+
+    func testFetchReturnsNilWhenConfigNotReady() async {
+        // Config with empty token and no entityId is not carReady
+        let config = HaConfig(baseUrl: "https://example.com", token: "", entityId: "")
+        let result = await fetchCommuteSensors(config, now: Date(), read: {
+            XCTFail("A not-ready fetch must not request sensors")
+            return "true|false"
+        })
+        XCTAssertNil(result)
+    }
+
+    func testFetchReturnsValidResultWithTimestamp() async {
+        let config = HaConfig(baseUrl: "https://example.com", token: "fixture", entityId: "sensor.car")
+        let now = Date(timeIntervalSince1970: 1_793_399_400)
+        let result = await fetchCommuteSensors(config, now: now, read: { "true|false" })
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.chargeNow, true)
+        XCTAssertEqual(result?.signinNeeded, false)
+        XCTAssertEqual(result?.lastHeard, now)
+    }
+
+    func testFetchReturnsNilOnMalformedResponse() async {
+        let config = HaConfig(baseUrl: "https://example.com", token: "fixture", entityId: "sensor.car")
+        let result = await fetchCommuteSensors(config, now: Date(), read: { "malformed" })
+        XCTAssertNil(result)
+    }
+
+    func testFetchReturnsNilOnNetworkError() async {
+        let config = HaConfig(baseUrl: "https://example.com", token: "fixture", entityId: "sensor.car")
+        let result = await fetchCommuteSensors(config, now: Date(), read: {
+            throw HaError("Network timeout")
+        })
+        XCTAssertNil(result)
+    }
 }

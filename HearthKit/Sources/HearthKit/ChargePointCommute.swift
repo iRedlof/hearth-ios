@@ -83,3 +83,27 @@ public func commuteDay(from date: Date, in timeZone: TimeZone) -> CommuteDay {
 
     return year * 10000 + month * 100 + day
 }
+
+/**
+ Parse the HA commute sensor template response (`true|false`) into a tuple of booleans.
+
+ The Home Assistant template renders `binary_sensor.commute_charge_now` and
+ `binary_sensor.commute_signin_needed` as a pipe-joined string of `true`/`false` literals.
+
+ - Parameter body: The template response (e.g., `"true|false"`).
+ - Returns: A tuple `(chargeNow: Bool, signinNeeded: Bool)` on success, `nil` on malformed input.
+
+ Malformed input (wrong token count, non-bool tokens, empty string) returns `nil`.
+ This mirrors the parsing pattern used by other fetch parsers (BatteryFetch, LightsFetch).
+ */
+public func parseCommuteSensors(_ body: String) -> (chargeNow: Bool, signinNeeded: Bool)? {
+    let tokens = body.split(separator: "|").map(String.init)
+    guard tokens.count == 2 else { return nil }
+
+    guard let chargeNow = Bool(tokens[0]),
+          let signinNeeded = Bool(tokens[1]) else {
+        return nil
+    }
+
+    return (chargeNow: chargeNow, signinNeeded: signinNeeded)
+}
