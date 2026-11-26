@@ -115,20 +115,38 @@ jobs:
           printf '%s' "$ASC_API_KEY_P8" | base64 --decode -o "$KEYDIR/AuthKey_${ASC_KEY_ID}.p8"
           printf 'ASC_KEY_DIR=%s\n' "$KEYDIR" >> "$GITHUB_ENV"
 
-      - name: Archive (Release, generic iOS device — unsigned)
+      - name: Archive (Release, generic iOS device — signed)
+        env:
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
           set -o pipefail
-          # Archive UNSIGNED; the export step re-signs for distribution. This
-          # avoids archive-time signing conflicts (ad-hoc base identity vs
-          # automatic-vs-manual) entirely and is the proven path.
+          # Archive WITH automatic signing so the target entitlements —
+          # crucially the App Group group.com.rohit.hearth — are embedded in
+          # the archive. Archiving unsigned (CODE_SIGNING_ALLOWED=NO) skips
+          # entitlement embedding; the export re-sign then cannot recover the
+          # App Group, so shipped builds had no shared container and failed at
+          # runtime with "shared storage is unavailable". Signing at archive
+          # writes archived-expanded-entitlements.xcent, which export preserves.
           xcodebuild -project Hearth.xcodeproj -scheme Hearth -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Hearth.xcarchive" \
             -derivedDataPath "$RUNNER_TEMP/dd" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$ASC_KEY_DIR/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "$ASC_KEY_ID" \
+            -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             ARCHS=arm64 CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
-            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_STYLE=Automatic DEVELOPMENT_TEAM="${IOS_TEAM_ID}" \
             archive
           test -d "$RUNNER_TEMP/Hearth.xcarchive" || { echo "::error::archive not produced"; exit 1; }
+          # Prove the archived app actually carries the App Group entitlement
+          # (fail fast here rather than shipping a broken binary).
+          ARCH_APP="$RUNNER_TEMP/Hearth.xcarchive/Products/Applications/Hearth.app"
+          codesign -d --entitlements :- "$ARCH_APP" 2>/dev/null | grep -q "group.com.rohit.hearth" \
+            || { echo "::error::archived app is MISSING the group.com.rohit.hearth App Group entitlement"; exit 1; }
+          echo "✓ archived app carries the App Group entitlement"
 
       - name: Export signed IPA (App Store)
         env:
@@ -154,6 +172,18 @@ jobs:
           [ -n "$IPA" ] || { echo "::error::no .ipa produced by export"; ls -R "$RUNNER_TEMP/export" || true; exit 1; }
           printf 'IPA_PATH=%s\n' "$IPA" >> "$GITHUB_ENV"
           echo "Exported: $IPA"
+
+      - name: Verify App Group entitlement in exported IPA
+        run: |
+          set -o pipefail
+          WORK="$RUNNER_TEMP/verify"; rm -rf "$WORK"; mkdir -p "$WORK"
+          unzip -q "$IPA_PATH" -d "$WORK"
+          APP=$(ls -d "$WORK"/Payload/*.app | head -1)
+          echo "Entitlements of $(basename "$APP"):"
+          codesign -d --entitlements :- "$APP" 2>/dev/null | tee "$WORK/ent.txt" | grep -A2 -i "application-groups" || true
+          grep -q "group.com.rohit.hearth" "$WORK/ent.txt" \
+            || { echo "::error::Exported IPA is MISSING the group.com.rohit.hearth App Group entitlement — would break shared storage on device."; exit 1; }
+          echo "✓ App Group entitlement present in the shipped IPA"
 
       - name: Upload to TestFlight
         env:
