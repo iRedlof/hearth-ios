@@ -323,6 +323,52 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 
 ---
 
+## Goodnight key (Phase 5c)
+
+**Status:** ✅ Shipped
+
+**Net-NEW iOS feature** (Android planned, not yet built):
+
+**One-tap Goodnight sequence:**
+- Runs a fixed sequence: Close garage → Lights off (except keep-on) → Lock → Arm Night
+- Triggered via lock-screen **App Intent** (`RunGoodnightIntent`, `openAppWhenRun=false`), NOT CoreNFC
+- Active only within the night window (default 9 PM–5 AM, overnight-wrap handled via `goodnightActive` utils)
+- **No-abort semantics:** A garage or lights failure still proceeds to lock + arm (see G3 ruling)
+- **Per-entity best-effort:** One flaky light/cover doesn't skip the rest (see G1 ruling)
+- Arm-mode is **Night with Home fallback** when the panel lacks Night capability (see G2 ruling)
+- Garage covers sourced from the **Doors widget config** (`haConfig.doorIds` filtered to `cover.*`)
+- **No auto-run:** Only explicit intent invocation + window gate (no scheduled triggers)
+
+**Reachability:**
+- Home dashboard "Every day" section → Goodnight key row
+- Per-widget page → "Every day" group → Goodnight key row (all widgets)
+- DEBUG hook: `-goodnight` launch arg
+
+**Components built:**
+- `GoodnightPage` — Enable/disable toggle, overnight window editor, sequence explanation, lights/garage config editors
+- `RunGoodnightIntent` — Lock-screen App Intent for one-tap execution (runs in widget-extension process)
+- `GoodnightRuntime` — Sequential execution engine with best-effort entity handling
+- `goodnightActive` utilities — Overnight time-range wrap detection (10 PM–6 AM crossing midnight)
+
+**Integration:**
+- Reuses `AlarmActionRuntime` for lock + arm (benefits from existing confirmation/safety behavior)
+- Garage close uses `HaClient.closeCover` (same path as Doors widget)
+- Lights off uses `HaClient.turnOffLights` with keep-on exclusion list
+
+**States implemented:**
+- Enabled: Shows overnight window, sequence explanation, config editors
+- Disabled: Shows only the enable toggle
+- Inside/outside window: Intent performs gate check at runtime
+- Per-entity failures: Logged but don't block subsequent steps
+
+**DEBUG hooks:**
+- `-goodnight` presents GoodnightPage
+
+**Parity vs Android:**
+- N/A — Android Goodnight is planned but not yet built (iOS-first feature)
+
+---
+
 ## Fix log (newest first)
 - A3 ✅ improved: `invalidatableContent` added to the freshness stamp in all 7 refreshable widgets (Car/Alarm/Thermostat/Battery/Lights/Favourites/Doors) → "updating" redaction on tap. Spinner itself is an iOS wall. Build + screenshot `invalidatable.png` confirm normal render intact.
 - A2 ⚠️ resolved as platform wall (researched, 8 Apple/dev sources): the under-widget label is system-drawn and NOT removable by any WidgetKit API; user-side hide only. Documented.

@@ -77,4 +77,16 @@ struct HouseFeaturesTests {
         let state = notificationBannerState(enabled: true, hasNotificationAccess: false)
         #expect(state == .needsPermission)
     }
+
+    @Test("Goodnight page state - no alarm")
+    func goodnightPageStateNoAlarm() async throws {
+        let state = goodnightPageState(hasAlarm: false)
+        #expect(state == .noAlarm)
+    }
+
+    @Test("Goodnight page state - alarm configured")
+    func goodnightPageStateReady() async throws {
+        let state = goodnightPageState(hasAlarm: true)
+        #expect(state == .ready)
+    }
 }

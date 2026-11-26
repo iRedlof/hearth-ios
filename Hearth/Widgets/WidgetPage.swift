@@ -321,7 +321,7 @@ struct WidgetPage: View {
     private var everyDayGroup: some View {
         HearthGroup("Every day") {
             Button {
-                onRoute(.settings)
+                onRoute(.goodnight)
             } label: {
                 HearthRow(
                     icon: "moon.fill",
