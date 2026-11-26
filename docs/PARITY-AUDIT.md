@@ -348,7 +348,7 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 - `GoodnightPage` — Enable/disable toggle, overnight window editor, sequence explanation, lights/garage config editors
 - `RunGoodnightIntent` — Lock-screen App Intent for one-tap execution (runs in widget-extension process)
 - `GoodnightRuntime` — Sequential execution engine with best-effort entity handling
-- `nightWindow` utilities — Overnight time-range wrap detection (10 PM–6 AM crossing midnight)
+- `goodnightActive` utilities — Overnight time-range wrap detection (10 PM–6 AM crossing midnight)
 
 **Integration:**
 - Reuses `AlarmActionRuntime` for lock + arm (benefits from existing confirmation/safety behavior)
