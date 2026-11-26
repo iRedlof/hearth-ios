@@ -8,6 +8,10 @@ struct GoodnightPage: View {
     @State private var config: GoodnightConfig
     @State private var hasAlarm: Bool
     @State private var showHomeAssistant = false
+    @State private var showHoursPicker = false
+    @State private var showArmModePicker = false
+    @State private var showKeepOnPicker = false
+    @State private var allLights: [String] = []
 
     @Environment(\.colorScheme) private var scheme
 
@@ -78,6 +82,60 @@ struct GoodnightPage: View {
                     }
                 }
             }
+        }
+        .sheet(isPresented: $showHoursPicker) {
+            HoursPickerSheet(
+                startHour: config.startHour,
+                endHour: config.endHour,
+                onSave: { start, end in
+                    config.startHour = start
+                    config.endHour = end
+                    GoodnightStore.save(config)
+                    showHoursPicker = false
+                }
+            )
+        }
+        .sheet(isPresented: $showArmModePicker) {
+            ArmModePickerSheet(
+                armMode: config.armMode,
+                onSave: { mode in
+                    config.armMode = mode
+                    GoodnightStore.save(config)
+                    showArmModePicker = false
+                }
+            )
+        }
+        .sheet(isPresented: $showKeepOnPicker) {
+            KeepOnLightsSheet(
+                selectedLights: config.keepOnLights,
+                allLights: allLights,
+                onSave: { lights in
+                    config.keepOnLights = lights
+                    GoodnightStore.save(config)
+                    showKeepOnPicker = false
+                }
+            )
+        }
+        .task {
+            // Load available lights for keep-on picker
+            await loadAvailableLights()
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func loadAvailableLights() async {
+        guard let haConfig = HaConfigStore.load(), haConfig.hasAuth else {
+            allLights = []
+            return
+        }
+        do {
+            let client = HaClient(haConfig)
+            let statesJson = try await client.allStatesJson()
+            let entities = parseEntities(statesJson)
+            allLights = entities.filter { $0.id.hasPrefix("light.") }.map(\.id)
+        } catch {
+            allLights = []
         }
     }
 
@@ -178,31 +236,41 @@ struct GoodnightPage: View {
 
             HearthGroup {
                 // Hours row
-                HearthRow(
-                    icon: "clock",
-                    hue: .purple,
-                    title: "Hours",
-                    subtitle: hoursSubtitle
-                ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
-                        .foregroundStyle(HearthColor.sub(scheme))
+                Button {
+                    showHoursPicker = true
+                } label: {
+                    HearthRow(
+                        icon: "clock",
+                        hue: .purple,
+                        title: "Hours",
+                        subtitle: hoursSubtitle
+                    ) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
+                            .foregroundStyle(HearthColor.sub(scheme))
+                    }
                 }
+                .buttonStyle(.plain)
 
                 Divider()
                     .padding(.leading, HearthMetrics.dividerInset)
 
                 // Arm mode row
-                HearthRow(
-                    icon: "shield.checkered",
-                    hue: .blue,
-                    title: "Arm mode",
-                    subtitle: armModeSubtitle
-                ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
-                        .foregroundStyle(HearthColor.sub(scheme))
+                Button {
+                    showArmModePicker = true
+                } label: {
+                    HearthRow(
+                        icon: "shield.checkered",
+                        hue: .blue,
+                        title: "Arm mode",
+                        subtitle: armModeSubtitle
+                    ) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
+                            .foregroundStyle(HearthColor.sub(scheme))
+                    }
                 }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -246,16 +314,21 @@ struct GoodnightPage: View {
                 .padding(.horizontal, HearthMetrics.groupInset + 12)
 
             HearthGroup {
-                HearthRow(
-                    icon: "lightbulb",
-                    hue: .orange,
-                    title: "Keep on",
-                    subtitle: keepOnSubtitle
-                ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
-                        .foregroundStyle(HearthColor.sub(scheme))
+                Button {
+                    showKeepOnPicker = true
+                } label: {
+                    HearthRow(
+                        icon: "lightbulb",
+                        hue: .orange,
+                        title: "Keep on",
+                        subtitle: keepOnSubtitle
+                    ) {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
+                            .foregroundStyle(HearthColor.sub(scheme))
+                    }
                 }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -330,6 +403,156 @@ struct GoodnightPage: View {
             armMode: .night,
             keepOnLights: ["light.porch"]
         ))
+    }
+}
+
+// MARK: - Picker Sheets
+
+@MainActor
+private struct HoursPickerSheet: View {
+    @State private var startHour: Int
+    @State private var endHour: Int
+    let onSave: (Int, Int) -> Void
+    @Environment(\.colorScheme) private var scheme
+
+    init(startHour: Int, endHour: Int, onSave: @escaping (Int, Int) -> Void) {
+        _startHour = State(initialValue: startHour)
+        _endHour = State(initialValue: endHour)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Picker("Start hour", selection: $startHour) {
+                    ForEach(0..<24, id: \.self) { hour in
+                        Text(formatHour(hour)).tag(hour)
+                    }
+                }
+
+                Picker("End hour", selection: $endHour) {
+                    ForEach(0..<24, id: \.self) { hour in
+                        Text(formatHour(hour)).tag(hour)
+                    }
+                }
+            }
+            .navigationTitle("Hours")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(startHour, endHour)
+                    }
+                }
+            }
+        }
+    }
+
+    private func formatHour(_ hour: Int) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now) ?? now
+        return date.formatted(Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)))
+    }
+}
+
+@MainActor
+private struct ArmModePickerSheet: View {
+    @State private var armMode: GoodnightArmMode
+    let onSave: (GoodnightArmMode) -> Void
+    @Environment(\.colorScheme) private var scheme
+
+    init(armMode: GoodnightArmMode, onSave: @escaping (GoodnightArmMode) -> Void) {
+        _armMode = State(initialValue: armMode)
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Picker("Arm mode", selection: $armMode) {
+                    Text("Night").tag(GoodnightArmMode.night)
+                    Text("Home").tag(GoodnightArmMode.home)
+                }
+                .pickerStyle(.inline)
+
+                Section {
+                    Text("Night mode provides perimeter protection while allowing interior motion. Home mode is used if your panel doesn't support Night.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Arm mode")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(armMode)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@MainActor
+private struct KeepOnLightsSheet: View {
+    @State private var selectedLights: [String]
+    let allLights: [String]
+    let onSave: ([String]) -> Void
+    @Environment(\.colorScheme) private var scheme
+
+    init(selectedLights: [String], allLights: [String], onSave: @escaping ([String]) -> Void) {
+        _selectedLights = State(initialValue: selectedLights)
+        self.allLights = allLights
+        self.onSave = onSave
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if allLights.isEmpty {
+                    Text("No lights found. Make sure you're connected to Home Assistant.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding()
+                } else {
+                    ForEach(allLights, id: \.self) { lightId in
+                        Button {
+                            if selectedLights.contains(lightId) {
+                                selectedLights.removeAll { $0 == lightId }
+                            } else {
+                                selectedLights.append(lightId)
+                            }
+                        } label: {
+                            HStack {
+                                Text(lightName(lightId))
+                                    .foregroundStyle(.primary)
+                                Spacer()
+                                if selectedLights.contains(lightId) {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(.blue)
+                                }
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .navigationTitle("Keep on at night")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        onSave(selectedLights)
+                    }
+                }
+            }
+        }
+    }
+
+    private func lightName(_ entityId: String) -> String {
+        entityId.split(separator: ".").last.map { String($0).replacingOccurrences(of: "_", with: " ").capitalized } ?? entityId
     }
 }
 
