@@ -158,9 +158,9 @@ jobs:
       # This job does not check out or execute the selected product source.
       - name: Classify the supplied certificate and validate installed profiles
         env:
-          MACOS_CERTIFICATE: ${{ secrets.MACOS_CERTIFICATE }}
-          MACOS_CERTIFICATE_PWD: ${{ secrets.MACOS_CERTIFICATE_PWD }}
-          TEAM_ID: ${{ secrets.TEAM_ID }}
+          IOS_DIST_CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           umask 077
           python3 - <<'PY'
@@ -182,21 +182,21 @@ jobs:
                   raise ValueError("Signing material could not be decoded/imported.")
               return result.stdout.decode(errors="replace")
           try:
-              required = ("MACOS_CERTIFICATE", "MACOS_CERTIFICATE_PWD", "TEAM_ID")
+              required = ("IOS_DIST_CERT_P12", "IOS_DIST_CERT_PASSWORD", "IOS_TEAM_ID")
               missing = [name for name in required if not os.environ.get(name)]
               if missing:
                   report["blockers"].append("ORG_SECRETS_UNAVAILABLE: " + ", ".join(missing))
               else:
-                  team = os.environ["TEAM_ID"].strip()
+                  team = os.environ["IOS_TEAM_ID"].strip()
                   if not re.fullmatch(r"[A-Z0-9]{10}", team):
                       raise ValueError("Invalid team format.")
                   p12 = scratch / "certificate.p12"
                   p12.write_bytes(base64.b64decode(
-                      "".join(os.environ["MACOS_CERTIFICATE"].split()), validate=True))
+                      "".join(os.environ["IOS_DIST_CERT_P12"].split()), validate=True))
                   password = secrets.token_hex(24)
                   quiet(["security", "create-keychain", "-p", password, str(keychain)])
                   quiet(["security", "unlock-keychain", "-p", password, str(keychain)])
-                  quiet(["security", "import", str(p12), "-P", os.environ["MACOS_CERTIFICATE_PWD"],
+                  quiet(["security", "import", str(p12), "-P", os.environ["IOS_DIST_CERT_PASSWORD"],
                          "-t", "cert", "-f", "pkcs12", "-k", str(keychain), "-T", "/usr/bin/codesign"])
                   identities = quiet(["security", "find-identity", "-v", "-p", "codesigning", str(keychain)])
                   matching_certificates = set()
