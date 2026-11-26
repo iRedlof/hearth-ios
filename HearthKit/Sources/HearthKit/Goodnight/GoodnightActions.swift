@@ -1,5 +1,4 @@
 import Foundation
-import HearthKit
 
 /// Closes a cover (e.g., a garage door) via Home Assistant's `cover.close_cover` service.
 ///

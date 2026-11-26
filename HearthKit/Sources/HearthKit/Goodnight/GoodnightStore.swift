@@ -1,5 +1,4 @@
 import Foundation
-import HearthKit
 
 /// App-Group store for Goodnight automation configuration.
 public enum GoodnightStore {

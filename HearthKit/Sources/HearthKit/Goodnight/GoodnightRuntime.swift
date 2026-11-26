@@ -1,5 +1,4 @@
 import Foundation
-import HearthKit
 
 /// Result of a Goodnight execution with per-step success flags.
 public struct GoodnightResult: Sendable, Equatable {
