@@ -16,4 +16,10 @@ public enum HearthMetrics {
     public static let chipH: CGFloat = 30
     public static let miniCardW: CGFloat = 174
     public static let miniCardRadius: CGFloat = 22
+
+    // Icon sizes (SF Symbols)
+    public static let iconSmall: CGFloat = 14
+    public static let iconMedium: CGFloat = 20
+    public static let iconLarge: CGFloat = 24
+    public static let iconHero: CGFloat = 48
 }

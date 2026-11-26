@@ -41,9 +41,12 @@ struct LeaveByPage: View {
                 }
                 .padding(.top, 20)
 
-                // Calendar denied banner
-                if calendarBannerState(enabled: enabled, hasCalendarAccess: calendarStatus == .authorized) == .needsPermission {
+                // Calendar permission banners
+                let bannerState = calendarBannerState(enabled: enabled, calendarStatus: calendarStatus.rawValue)
+                if bannerState == .needsPermission {
                     calendarDeniedBanner
+                } else if bannerState == .restricted {
+                    calendarRestrictedBanner
                 }
 
                 if enabled {
@@ -74,7 +77,7 @@ struct LeaveByPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "calendar.badge.exclamationmark")
-                    .font(.system(size: 24))
+                    .font(.system(size: HearthMetrics.iconLarge))
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -107,6 +110,34 @@ struct LeaveByPage: View {
         .padding(.horizontal, HearthMetrics.groupInset)
     }
 
+    // MARK: - Calendar Restricted Banner
+
+    @ViewBuilder
+    private var calendarRestrictedBanner: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "exclamationmark.lock")
+                    .font(.system(size: HearthMetrics.iconLarge))
+                    .foregroundStyle(HearthColor.amber(scheme))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Calendar access is restricted")
+                        .font(HearthFont.cardHeading.font)
+                        .foregroundStyle(HearthColor.ink(scheme))
+
+                    Text("Screen Time or parental controls prevent calendar access. This setting cannot be changed.")
+                        .font(HearthFont.subtitle.font)
+                        .foregroundStyle(HearthColor.sub(scheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(20)
+        .background(HearthColor.amberBg(scheme))
+        .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
+        .padding(.horizontal, HearthMetrics.groupInset)
+    }
+
     // MARK: - Description Section
 
     @ViewBuilder
@@ -114,7 +145,7 @@ struct LeaveByPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "figure.walk")
-                    .font(.system(size: 20))
+                    .font(.system(size: HearthMetrics.iconMedium))
                     .foregroundStyle(HearthColor.sub(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -154,7 +185,7 @@ struct LeaveByPage: View {
                         HouseFeaturesStore.leaveByMinutes = minutes
                     } label: {
                         Text(minutes == 60 ? "60 min" : "\(minutes)")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(HearthFont.button.font)
                             .foregroundStyle(minutesBefore == minutes ? HearthColor.onAccent(scheme) : HearthColor.ink(scheme))
                             .frame(minWidth: 44, minHeight: 44)
                             .background(minutesBefore == minutes ? HearthColor.ink(scheme) : HearthColor.tint(scheme))
@@ -172,7 +203,7 @@ struct LeaveByPage: View {
     private var privacySection: some View {
         HStack(spacing: 12) {
             Image(systemName: "lock.shield")
-                .font(.system(size: 20))
+                .font(.system(size: HearthMetrics.iconMedium))
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Reads your calendar on this phone only. Nothing leaves the device.")
@@ -186,6 +217,11 @@ struct LeaveByPage: View {
     // MARK: - Helpers
 
     private func handleCalendarPermission() {
+        // .restricted cannot be changed by the user
+        if calendarStatus == .restricted {
+            return
+        }
+
         if calendarStatus == .notDetermined {
             Task {
                 let granted = await CalendarAccess().requestAccess()

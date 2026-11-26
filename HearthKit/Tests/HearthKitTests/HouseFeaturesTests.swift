@@ -7,7 +7,7 @@ struct HouseFeaturesTests {
     @Test("Next trip subtitle - with trip")
     func nextTripSubtitleWithTrip() async throws {
         let now = Date(timeIntervalSince1970: 1700000000) // Nov 14, 2023
-        let startDate = Date(timeIntervalSince1970: 1700000000 + 2 * 24 * 3600) // 2 days later
+        let startDate = Date(timeIntervalSince1970: 1700000000 + 2 * 24 * 3600) // 2 days later (Thu)
         let trip = Trip(
             title: "Lisbon trip",
             startDate: startDate,
@@ -15,8 +15,7 @@ struct HouseFeaturesTests {
         )
 
         let subtitle = nextTripSubtitle(trips: [trip], now: now)
-        #expect(subtitle.contains("Lisbon trip"))
-        #expect(subtitle.contains("Next:"))
+        #expect(subtitle == "Next: Lisbon trip · Thu")
     }
 
     @Test("Next trip subtitle - no trips")
@@ -28,20 +27,37 @@ struct HouseFeaturesTests {
 
     @Test("Calendar banner state - feature off")
     func calendarBannerFeatureOff() async throws {
-        let state = calendarBannerState(enabled: false, hasCalendarAccess: false)
+        // EKAuthorizationStatus.denied = 2
+        let state = calendarBannerState(enabled: false, calendarStatus: 2)
         #expect(state == .hidden)
     }
 
     @Test("Calendar banner state - feature on, access granted")
     func calendarBannerAccessGranted() async throws {
-        let state = calendarBannerState(enabled: true, hasCalendarAccess: true)
+        // EKAuthorizationStatus.authorized = 3
+        let state = calendarBannerState(enabled: true, calendarStatus: 3)
         #expect(state == .hidden)
     }
 
     @Test("Calendar banner state - feature on, no access")
     func calendarBannerNoAccess() async throws {
-        let state = calendarBannerState(enabled: true, hasCalendarAccess: false)
+        // EKAuthorizationStatus.denied = 2
+        let state = calendarBannerState(enabled: true, calendarStatus: 2)
         #expect(state == .needsPermission)
+    }
+
+    @Test("Calendar banner state - feature on, not determined")
+    func calendarBannerNotDetermined() async throws {
+        // EKAuthorizationStatus.notDetermined = 0
+        let state = calendarBannerState(enabled: true, calendarStatus: 0)
+        #expect(state == .needsPermission)
+    }
+
+    @Test("Calendar banner state - feature on, restricted")
+    func calendarBannerRestricted() async throws {
+        // EKAuthorizationStatus.restricted = 1
+        let state = calendarBannerState(enabled: true, calendarStatus: 1)
+        #expect(state == .restricted)
     }
 
     @Test("Notification banner state - feature off")

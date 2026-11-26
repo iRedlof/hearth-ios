@@ -73,7 +73,7 @@ struct SafetyAlertsPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "bell.slash.fill")
-                    .font(.system(size: 24))
+                    .font(.system(size: HearthMetrics.iconLarge))
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -112,7 +112,7 @@ struct SafetyAlertsPage: View {
     private var failureDescriptionSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "shield.checkered")
-                .font(.system(size: 20))
+                .font(.system(size: HearthMetrics.iconMedium))
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Tells you when the garage won't close, a lock won't lock or the alarm won't arm.")
@@ -127,7 +127,7 @@ struct SafetyAlertsPage: View {
     private var retryDescriptionSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: 20))
+                .font(.system(size: HearthMetrics.iconMedium))
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Hearth tries again once before it tells you.")

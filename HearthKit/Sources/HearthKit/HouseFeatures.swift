@@ -26,6 +26,7 @@ public func nextTripSubtitle(trips: [Trip], now: Date) -> String {
 public enum CalendarBannerState: Sendable, Equatable {
     case hidden
     case needsPermission
+    case restricted
 }
 
 /// State for notification permission banner
@@ -38,11 +39,14 @@ public enum NotificationBannerState: Sendable, Equatable {
 ///
 /// - Parameters:
 ///   - enabled: Whether the feature is enabled
-///   - hasCalendarAccess: Whether calendar access is authorized
+///   - calendarStatus: EventKit authorization status raw value
 /// - Returns: Banner state
-public func calendarBannerState(enabled: Bool, hasCalendarAccess: Bool) -> CalendarBannerState {
+public func calendarBannerState(enabled: Bool, calendarStatus: Int) -> CalendarBannerState {
     guard enabled else { return .hidden }
-    return hasCalendarAccess ? .hidden : .needsPermission
+    // EKAuthorizationStatus: authorized=3, restricted=1, denied=2, notDetermined=0
+    if calendarStatus == 3 { return .hidden }         // .authorized
+    if calendarStatus == 1 { return .restricted }     // .restricted
+    return .needsPermission                            // .denied or .notDetermined
 }
 
 /// Determine if the notification permission banner should be shown

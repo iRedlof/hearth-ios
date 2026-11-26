@@ -2,8 +2,8 @@ import SwiftUI
 import HearthKit
 
 /// Reusable confirmation sheet for house actions (leave-by, travel).
-/// Shows the suggested actions (Arm / Lock / Set Eco) as explicit confirm buttons.
-/// Nothing runs until the user taps confirm.
+/// Shows the suggested actions as plain list items describing what WILL happen.
+/// Nothing runs until the user taps the single "Confirm" button.
 @MainActor
 struct HouseConfirmSheet: View {
     let title: String
@@ -20,7 +20,7 @@ struct HouseConfirmSheet: View {
                     // Header
                     VStack(spacing: 12) {
                         Image(systemName: "figure.walk")
-                            .font(.system(size: 48))
+                            .font(.system(size: HearthMetrics.iconHero))
                             .foregroundStyle(HearthColor.ink(scheme))
 
                         Text(title)
@@ -33,26 +33,31 @@ struct HouseConfirmSheet: View {
                     }
                     .padding(.top, 20)
 
-                    // Actions list
+                    // Actions list (non-interactive, describes what WILL happen)
                     HearthGroup("Actions") {
                         ForEach(actions) { action in
-                            Button {
-                                onConfirm()
-                            } label: {
-                                HearthRow(
-                                    icon: action.icon,
-                                    hue: action.hue,
-                                    title: action.title,
-                                    subtitle: action.subtitle
-                                ) {
-                                    Image(systemName: "chevron.right")
-                                        .font(.system(size: 14, weight: .semibold))
-                                        .foregroundStyle(HearthColor.sub(scheme))
-                                }
-                            }
-                            .buttonStyle(.plain)
+                            HearthRow(
+                                icon: action.icon,
+                                hue: action.hue,
+                                title: action.title,
+                                subtitle: action.subtitle
+                            )
                         }
                     }
+
+                    // Confirm button
+                    Button {
+                        onConfirm()
+                    } label: {
+                        Text("Confirm")
+                            .font(HearthFont.button.font)
+                            .foregroundStyle(HearthColor.onAccent(scheme))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(HearthColor.ink(scheme))
+                            .clipShape(Capsule())
+                    }
+                    .padding(.horizontal, HearthMetrics.groupInset)
 
                     // Cancel button
                     Button {
