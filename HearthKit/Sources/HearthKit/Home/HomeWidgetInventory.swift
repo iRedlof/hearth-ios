@@ -64,6 +64,23 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable, Codable {
         case .chargePoint: return .green
         }
     }
+
+    /// Widget preview kind for the gallery.
+    public var previewKind: WidgetPreviewKind {
+        switch self {
+        case .glance: return .glance
+        case .car: return .car
+        case .alarm: return .alarm
+        case .thermostat: return .thermostat
+        case .doors: return .doors
+        case .quick: return .quick
+        case .lights: return .lights
+        case .favourites: return .favourites
+        case .activity: return .activity
+        case .battery: return .battery
+        case .chargePoint: return .chargepoint
+        }
+    }
 }
 
 /// Returns the list of configured widgets based on the user's Home Assistant configuration
