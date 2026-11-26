@@ -35,6 +35,12 @@ public enum NotificationBannerState: Sendable, Equatable {
     case needsPermission
 }
 
+/// State for Goodnight settings page
+public enum GoodnightPageState: Sendable, Equatable {
+    case noAlarm
+    case ready
+}
+
 /// Determine if the calendar permission banner should be shown
 ///
 /// - Parameters:
@@ -58,4 +64,12 @@ public func calendarBannerState(enabled: Bool, calendarStatus: Int) -> CalendarB
 public func notificationBannerState(enabled: Bool, hasNotificationAccess: Bool) -> NotificationBannerState {
     guard enabled else { return .hidden }
     return hasNotificationAccess ? .hidden : .needsPermission
+}
+
+/// Determine the state of the Goodnight settings page
+///
+/// - Parameter hasAlarm: Whether an alarm (Home Assistant alarm panel) is configured
+/// - Returns: Page state
+public func goodnightPageState(hasAlarm: Bool) -> GoodnightPageState {
+    hasAlarm ? .ready : .noAlarm
 }
