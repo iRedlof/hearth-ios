@@ -1,30 +1,21 @@
 name: iOS release — TestFlight
 
-# Mirrors Glimpse's macOS release model for iOS: the signed release happens
-# ENTIRELY in GitHub Actions on the self-hosted Mac runner (local is verify-only).
-# Archive -> sign with the Apple Distribution cert (from secrets) -> export an
-# App Store IPA -> upload straight to TestFlight via the App Store Connect API key.
+# Signed iOS release, entirely in GitHub Actions on the self-hosted xcode-27
+# runner (local stays verify-only) — modelled on Auris/Glimpse. Structured as
+# small, single-purpose steps across two jobs so any failure names itself:
+# archive, export, and upload are SEPARATE steps.
 #
-# Required repo (or org) secrets — all iOS-only, never the shared macOS cert:
-#   IOS_DIST_CERT_P12        base64 of the Apple Distribution .p12 (team 5D7M37QQLU)
-#   IOS_DIST_CERT_PASSWORD   the .p12 export password
-#   IOS_TEAM_ID              10-char Apple team id (5D7M37QQLU)
-#   ASC_KEY_ID               App Store Connect API key id
-#   ASC_ISSUER_ID            App Store Connect API issuer id
-#   ASC_API_KEY_P8           base64 of the ASC API key .p8
+# Required secrets (org- or repo-level), iOS-only — never the shared macOS cert:
+#   IOS_DIST_CERT_P12 / IOS_DIST_CERT_PASSWORD   Apple Distribution .p12 (base64) + password
+#   IOS_TEAM_ID                                   Apple team id (5D7M37QQLU)
+#   ASC_KEY_ID / ASC_ISSUER_ID / ASC_API_KEY_P8   App Store Connect API key (+ .p8 base64)
 
 on:
   workflow_dispatch:
-    inputs:
-      notes:
-        description: "Optional note for your own reference (not sent to Apple)"
-        required: false
-        type: string
 
 permissions:
   contents: read
 
-# Serialize releases; never cancel a mid-flight signing/upload job.
 concurrency:
   group: ios-release
   cancel-in-progress: false
@@ -34,65 +25,85 @@ defaults:
     shell: bash
 
 jobs:
-  release:
-    name: Archive, sign, and upload to TestFlight
+  test:
+    name: Tests & project generation
     runs-on: xcode-27
-    timeout-minutes: 45
     env:
-      # Pin the verified toolchain (same image the unsigned-archive job uses).
       DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
-
     steps:
       - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
         with:
           persist-credentials: false
 
-      - name: Verify toolchain and generate the Xcode project
+      - name: Verify Xcode toolchain
         run: |
-          test -d "$DEVELOPER_DIR" || { echo "::error::Xcode 27 runner image missing at $DEVELOPER_DIR"; exit 1; }
+          test -d "$DEVELOPER_DIR" || { echo "::error::Xcode 27 missing at $DEVELOPER_DIR"; exit 1; }
           xcodebuild -version
-          command -v xcodegen >/dev/null || brew install xcodegen
-          xcodegen generate
-          # The generated project must not diverge from tracked configuration.
-          git diff --exit-code
 
-      - name: Unit tests (HearthKit, macOS)
-        run: |
-          cd HearthKit && swift test
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
 
-      - name: Install the Apple Distribution signing certificate
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Generated project matches tracked config
+        run: git diff --exit-code
+
+      - name: HearthKit unit tests (macOS)
+        run: cd HearthKit && swift test
+
+  release:
+    name: Sign, archive & upload to TestFlight
+    needs: [test]
+    runs-on: xcode-27
+    permissions:
+      contents: read
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install XcodeGen
+        run: command -v xcodegen >/dev/null || brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Install Apple Distribution signing certificate
         env:
           IOS_DIST_CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
           IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           umask 077
-          [ -n "$IOS_DIST_CERT_P12" ] || { echo "::error::IOS_DIST_CERT_P12 missing — add the Apple Distribution .p12 (base64)."; exit 1; }
+          [ -n "$IOS_DIST_CERT_P12" ] || { echo "::error::IOS_DIST_CERT_P12 missing."; exit 1; }
           [ -n "$IOS_TEAM_ID" ] || { echo "::error::IOS_TEAM_ID missing."; exit 1; }
           CERT="$RUNNER_TEMP/dist.p12"
           KEYCHAIN="$RUNNER_TEMP/hearth-ios-signing.keychain-db"
           KPWD="$(openssl rand -hex 16)"
-          # Save the original keychain search list so cleanup can restore it.
-          security list-keychains -d user > "$RUNNER_TEMP/orig-keychains.txt"
+          security list-keychains -d user | tr -d '"' | tr '\n' ' ' > "$RUNNER_TEMP/orig-keychains.txt"
+          # Apple CA chain for a complete trust path.
+          curl -sfL "https://www.apple.com/appleca/AppleIncRootCertificate.cer" -o "$RUNNER_TEMP/AppleRoot.cer"
+          curl -sfL "https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer" -o "$RUNNER_TEMP/AppleWWDRCAG3.cer"
           printf '%s' "$IOS_DIST_CERT_P12" | base64 --decode -o "$CERT"
           security create-keychain -p "$KPWD" "$KEYCHAIN"
           security set-keychain-settings -lut 3600 "$KEYCHAIN"
           security unlock-keychain -p "$KPWD" "$KEYCHAIN"
+          security import "$RUNNER_TEMP/AppleRoot.cer" -k "$KEYCHAIN" -T /usr/bin/codesign || true
+          security import "$RUNNER_TEMP/AppleWWDRCAG3.cer" -k "$KEYCHAIN" -T /usr/bin/codesign || true
           security import "$CERT" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
-          # Let codesign use the imported key non-interactively.
           security set-key-partition-list -S apple-tool:,apple: -k "$KPWD" "$KEYCHAIN" >/dev/null
-          # Make the temp keychain visible to Xcode's automatic signing alongside the user's.
-          security list-keychains -d user -s "$KEYCHAIN" $(tr -d '"' < "$RUNNER_TEMP/orig-keychains.txt")
-          # Fail fast if the cert isn't an Apple Distribution identity for the intended team.
-          if ! security find-identity -v -p codesigning "$KEYCHAIN" | grep -q "Apple Distribution: .*(${IOS_TEAM_ID})"; then
-            echo "::error::No 'Apple Distribution: … (${IOS_TEAM_ID})' identity in the supplied .p12."
-            security find-identity -v -p codesigning "$KEYCHAIN" || true
-            exit 1
-          fi
+          security list-keychains -d user -s "$KEYCHAIN" $(cat "$RUNNER_TEMP/orig-keychains.txt")
+          IDENTS=$(security find-identity -v -p codesigning "$KEYCHAIN" || true)
+          echo "$IDENTS" | sed -E 's/[0-9A-F]{40}/<sha>/'
+          echo "$IDENTS" | grep -q "Apple Distribution: .*(${IOS_TEAM_ID})" || {
+            echo "::error::No 'Apple Distribution: … (${IOS_TEAM_ID})' identity in the supplied .p12."; exit 1; }
           printf 'SIGNING_KEYCHAIN=%s\n' "$KEYCHAIN" >> "$GITHUB_ENV"
-          rm -f "$CERT"
+          rm -f "$CERT" "$RUNNER_TEMP/AppleRoot.cer" "$RUNNER_TEMP/AppleWWDRCAG3.cer"
 
-      - name: Place the App Store Connect API key
+      - name: Place App Store Connect API key
         env:
           ASC_API_KEY_P8: ${{ secrets.ASC_API_KEY_P8 }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
@@ -110,13 +121,12 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          # Unique, increasing build number per release so TestFlight always accepts it.
-          BUILD="${GITHUB_RUN_NUMBER}"
+          set -o pipefail
           xcodebuild -project Hearth.xcodeproj -scheme Hearth -configuration Release \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Hearth.xcarchive" \
             -derivedDataPath "$RUNNER_TEMP/dd" \
-            ARCHS=arm64 CURRENT_PROJECT_VERSION="$BUILD" \
+            ARCHS=arm64 CURRENT_PROJECT_VERSION="${GITHUB_RUN_NUMBER}" \
             CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution" \
             CODE_SIGNING_REQUIRED=YES CODE_SIGNING_ALLOWED=YES \
             DEVELOPMENT_TEAM="$IOS_TEAM_ID" \
@@ -126,25 +136,20 @@ jobs:
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID" \
             archive
+          test -d "$RUNNER_TEMP/Hearth.xcarchive" || { echo "::error::archive not produced"; exit 1; }
 
-      - name: Export the App Store IPA and upload to TestFlight
+      - name: Export signed IPA (App Store)
         env:
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
         run: |
-          IOS_TEAM_ID="$IOS_TEAM_ID" python3 - <<'PY'
-          import os, plistlib
-          opts = {
-              "method": "app-store-connect",
-              "destination": "upload",             # upload straight to TestFlight
-              "signingStyle": "automatic",
-              "teamID": os.environ["IOS_TEAM_ID"],
-              "manageAppVersionAndBuildNumber": False,
-          }
-          with open(os.path.join(os.environ["RUNNER_TEMP"], "ExportOptions.plist"), "wb") as f:
-              plistlib.dump(opts, f)
-          PY
+          set -o pipefail
+          /usr/libexec/PlistBuddy -c "Add :method string app-store-connect" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :destination string export" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :signingStyle string automatic" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :teamID string ${IOS_TEAM_ID}" "$RUNNER_TEMP/ExportOptions.plist"
+          /usr/libexec/PlistBuddy -c "Add :manageAppVersionAndBuildNumber bool false" "$RUNNER_TEMP/ExportOptions.plist"
           xcodebuild -exportArchive \
             -archivePath "$RUNNER_TEMP/Hearth.xcarchive" \
             -exportPath "$RUNNER_TEMP/export" \
@@ -153,15 +158,31 @@ jobs:
             -authenticationKeyPath "$ASC_KEY_DIR/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "$ASC_KEY_ID" \
             -authenticationKeyIssuerID "$ASC_ISSUER_ID"
+          IPA=$(ls "$RUNNER_TEMP"/export/*.ipa 2>/dev/null | head -1)
+          [ -n "$IPA" ] || { echo "::error::no .ipa produced by export"; ls -R "$RUNNER_TEMP/export" || true; exit 1; }
+          printf 'IPA_PATH=%s\n' "$IPA" >> "$GITHUB_ENV"
+          echo "Exported: $IPA"
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+        run: |
+          set -o pipefail
+          # altool searches a fixed set of dirs for AuthKey_<id>.p8.
+          mkdir -p "$HOME/.appstoreconnect/private_keys"
+          cp "$ASC_KEY_DIR/AuthKey_${ASC_KEY_ID}.p8" "$HOME/.appstoreconnect/private_keys/"
+          xcrun altool --upload-app -f "$IPA_PATH" -t ios \
+            --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
           echo "Uploaded build ${GITHUB_RUN_NUMBER} to TestFlight."
 
       - name: Clean up signing material
         if: always()
         run: |
-          [ -n "$SIGNING_KEYCHAIN" ] && security delete-keychain "$SIGNING_KEYCHAIN" 2>/dev/null || true
+          [ -n "${SIGNING_KEYCHAIN:-}" ] && security delete-keychain "$SIGNING_KEYCHAIN" 2>/dev/null || true
           if [ -f "$RUNNER_TEMP/orig-keychains.txt" ]; then
-            security list-keychains -d user -s $(tr -d '"' < "$RUNNER_TEMP/orig-keychains.txt") || true
+            security list-keychains -d user -s $(cat "$RUNNER_TEMP/orig-keychains.txt") || true
           fi
-          rm -rf "$RUNNER_TEMP/private_keys" "$RUNNER_TEMP/dist.p12" \
-                 "$RUNNER_TEMP/export" "$RUNNER_TEMP/Hearth.xcarchive" "$RUNNER_TEMP/dd" \
-                 "$RUNNER_TEMP/ExportOptions.plist" 2>/dev/null || true
+          rm -rf "$RUNNER_TEMP/private_keys" "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/export" \
+                 "$RUNNER_TEMP/Hearth.xcarchive" "$RUNNER_TEMP/dd" "$RUNNER_TEMP/ExportOptions.plist" \
+                 "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID:-unknown}.p8" 2>/dev/null || true
