@@ -1,7 +1,7 @@
 import Foundation
 
 /// Widget kinds available for the iOS Home dashboard, ordered by their appearance priority.
-public enum HomeWidgetKind: String, CaseIterable, Sendable {
+public enum HomeWidgetKind: String, CaseIterable, Sendable, Codable {
     case car
     case alarm
     case thermostat

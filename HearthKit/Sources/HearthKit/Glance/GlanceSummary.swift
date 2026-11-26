@@ -6,7 +6,7 @@ import Foundation
 // all widget feeds and picking the most severe state. Pure, testable logic.
 
 /// How much an item needs attention. The most severe always leads.
-public enum GlanceSeverity: Int, Sendable, Comparable {
+public enum GlanceSeverity: Int, Sendable, Comparable, Codable {
     case calm = 0
     case warn = 1
     case act = 2
@@ -19,7 +19,7 @@ public enum GlanceSeverity: Int, Sendable, Comparable {
 }
 
 /// Something that needs attention ("Garage open 41 min").
-public struct GlanceItem: Sendable, Equatable {
+public struct GlanceItem: Sendable, Equatable, Codable {
     public let text: String
     public let severity: GlanceSeverity
 
@@ -31,7 +31,7 @@ public struct GlanceItem: Sendable, Equatable {
 
 /// One placed widget's last reading: when it last checked, whether it failed,
 /// what needs attention, and whether it's calm.
-public struct GlanceFeed: Sendable, Equatable {
+public struct GlanceFeed: Sendable, Equatable, Codable {
     public let kind: HomeWidgetKind
     public let checkedAt: Date?
     public let error: Bool
@@ -48,12 +48,30 @@ public struct GlanceFeed: Sendable, Equatable {
 }
 
 /// The overall state: OK, needs attention, alarm, can't check, or not set up.
-public enum GlanceVerdict: Sendable, Equatable {
+public enum GlanceVerdict: Sendable, Equatable, Codable {
     case ok
     case needYou
     case alarm
     case cantCheck
     case empty
+}
+
+/// A safe key action that can be shown on the Glance widget.
+public struct GlanceKey: Sendable, Equatable {
+    public let label: String
+    public let action: GlanceKeyAction
+
+    public init(label: String, action: GlanceKeyAction) {
+        self.label = label
+        self.action = action
+    }
+}
+
+/// Actions a Glance key can trigger.
+public enum GlanceKeyAction: Sendable, Equatable {
+    case refresh
+    case disarm
+    case acknowledge
 }
 
 /// The complete at-a-glance summary: verdict, state word, tone, items needing attention,
@@ -69,14 +87,17 @@ public struct GlanceSummary: Sendable, Equatable {
     public let support: String
     /// OK's coverage: each feed's calm indicator ("Alarm · Doors · Lights").
     public let calmLine: String?
+    /// An optional safe key action ("Check again", "Disarm").
+    public let key: GlanceKey?
 
-    public init(verdict: GlanceVerdict, word: String, tone: StatusTone, lines: [String], support: String, calmLine: String?) {
+    public init(verdict: GlanceVerdict, word: String, tone: StatusTone, lines: [String], support: String, calmLine: String?, key: GlanceKey? = nil) {
         self.verdict = verdict
         self.word = word
         self.tone = tone
         self.lines = lines
         self.support = support
         self.calmLine = calmLine
+        self.key = key
     }
 }
 
@@ -255,4 +276,20 @@ private func formatTime(_ date: Date) -> String {
     formatter.timeStyle = .short
     formatter.dateStyle = .none
     return formatter.string(from: date)
+}
+
+// MARK: - JSON Encoding/Decoding
+
+/// Encode feeds to JSON data.
+public func glanceFeedsToJson(_ feeds: [GlanceFeed]) throws -> Data {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    return try encoder.encode(feeds)
+}
+
+/// Decode feeds from JSON data.
+public func glanceFeedsFromJson(_ data: Data) throws -> [GlanceFeed] {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode([GlanceFeed].self, from: data)
 }
