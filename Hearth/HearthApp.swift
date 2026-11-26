@@ -34,6 +34,7 @@ struct HearthApp: App {
                 else if let concept = Self.accessibleFixture() { AccessibleBeaconFixtureScreen(concept: concept) }
                 else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
                 else if Self.designGallery() { DesignSystemGallery() }
+                else if let preview = Self.homePreview() { HomePreviewFixture(previewCase: preview) }
                 else if let id = Self.parityState() { ParityStateScreen(id: id) }
                 else { ContentView() }
             }
@@ -68,6 +69,13 @@ struct HearthApp: App {
 
     private static func designGallery() -> Bool {
         return ProcessInfo.processInfo.arguments.contains("-designGallery")
+    }
+
+    private static func homePreview() -> HomePreviewCase? {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-homePreviewFirstRun") { return .firstRun }
+        if args.contains("-homePreview") { return .populated }
+        return nil
     }
     #endif
 
@@ -383,9 +391,37 @@ struct ContentView: View {
         if inertTabs {
             Text("Controlled Car route fixture · Live tab")
         } else if let config, config.carReady {
-            LiveDashboardView(config: config, onSignOut: signOut)
+            HomeView(config: config, onSignOut: signOut, onRoute: handleHomeRoute)
         } else {
             SignInView(onSignedIn: { config = HaConfigStore.load() })
+        }
+    }
+
+    private func handleHomeRoute(_ route: HomeRoute) {
+        switch route {
+        case .homeAssistant:
+            // If not signed in, present reconnect sheet; otherwise go to Settings
+            let haStatus = haConnectionStatus(config ?? HaConfig(baseUrl: "", token: "", entityId: ""))
+            if haStatus == .needsSignIn {
+                settingsCarReturn = nil
+                retireThermostat()
+                presentedSheet = .reconnect(UUID(), returningTo: nil)
+            } else {
+                selection = 1
+            }
+        case .chargePoint:
+            // Present ChargePoint sheet (sign-in or location search based on current state)
+            settingsCarReturn = nil
+            retireThermostat()
+            let cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
+            let cpRoute: CpSetupRoute = cpSignedIn ? .location : .signin
+            presentedSheet = .chargepoint(cpRoute, UUID())
+        case .addWidget, .settings:
+            // Go to Settings tab
+            selection = 1
+        case .widget:
+            // Phase 4 will add widget detail pages; for now go to Settings
+            selection = 1
         }
     }
 
@@ -494,3 +530,39 @@ private struct ControlledSetupScreen: View {
         }
     }
 }
+
+#if DEBUG
+private enum HomePreviewCase {
+    case populated, firstRun
+}
+
+/// DEBUG-only fixture for rendering HomeView states without signing in.
+private struct HomePreviewFixture: View {
+    let previewCase: HomePreviewCase
+
+    var body: some View {
+        HomeView(
+            config: fixtureConfig,
+            onSignOut: {},
+            onRoute: { _ in }
+        )
+    }
+
+    private var fixtureConfig: HaConfig {
+        switch previewCase {
+        case .populated:
+            return HaConfig(
+                baseUrl: "https://home.example.com",
+                token: "mock-token",
+                entityId: "alarm_control_panel.home",
+                refreshToken: "mock-refresh-token",
+                lockId: "lock.front_door",
+                climateId: "climate.thermostat",
+                sensorsJson: "[\"sensor.temp\"]"
+            )
+        case .firstRun:
+            return HaConfig(baseUrl: "", token: "", entityId: "")
+        }
+    }
+}
+#endif
