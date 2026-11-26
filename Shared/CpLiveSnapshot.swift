@@ -33,7 +33,12 @@ enum CpLiveSnapshot {
               let origin = current.renderedOrigin else { return }
 
         // Extract CP state for commuteDecide
-        let charging = current.reading?.provider.charging != nil
+        // Canonical charging definition (matches CpSnapshotMapping.swift:19)
+        let status: String = {
+            guard case let .inLine(_, value, _, _, _) = current.reading?.provider.waitlist else { return "" }
+            return value
+        }()
+        let charging = current.reading?.provider.charging != nil || status == "CHARGING"
         let alreadyArmed = current.run.armed
         let signedOutOrExpired = !current.session.isSignedIn || current.session.expired || current.session.joinExpired
 
@@ -57,8 +62,12 @@ enum CpLiveSnapshot {
         switch action {
         case .armAuto:
             // Trigger auto-join/arm via setAuto (reuses existing Join with Auto path)
-            _ = try? await runtime.setAuto(origin: origin, desired: .join)
-            CommuteStore.lastArmDay = today
+            do {
+                _ = try await runtime.setAuto(origin: origin, desired: .join)
+                CommuteStore.lastArmDay = today  // only stamp when arm actually succeeded
+            } catch {
+                // leave lastArmDay unset so the next refresh in the window retries
+            }
         case .notifySignIn:
             // Nudge user to sign in to ChargePoint
             CpNotify.post(title: "ChargePoint Sign-In", body: "Sign in to ChargePoint to enable auto-join for your commute.", id: "commute-signin")
