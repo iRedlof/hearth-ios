@@ -35,6 +35,7 @@ struct HearthApp: App {
                 else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
                 else if Self.designGallery() { DesignSystemGallery() }
                 else if let preview = Self.homePreview() { HomePreviewFixture(previewCase: preview) }
+                else if let page = Self.phase3Page() { Phase3PageFixture(pageCase: page) }
                 else if let id = Self.parityState() { ParityStateScreen(id: id) }
                 else { ContentView() }
             }
@@ -75,6 +76,16 @@ struct HearthApp: App {
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-homePreviewFirstRun") { return .firstRun }
         if args.contains("-homePreview") { return .populated }
+        return nil
+    }
+
+    private static func phase3Page() -> Phase3PageCase? {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-haPage") { return .haConnected }
+        if args.contains("-haPageNeedsSignIn") { return .haNeedsSignIn }
+        if args.contains("-cpPage") { return .cpConnected }
+        if args.contains("-cpPageNotSetUp") { return .cpNotSetUp }
+        if args.contains("-cpAlerts") { return .cpAlerts }
         return nil
     }
     #endif
@@ -156,7 +167,7 @@ struct ContentView: View {
             cpSetup.route = nil
             settingsCarReturn = nil
             retireThermostat()
-            presentedSheet = .chargepoint(route, UUID())
+            presentedSheet = .chargePointPage(route, UUID())
         }
         .onChange(of: carReadings.request, initial: true) {
             guard let request = carReadings.request else { return }
@@ -193,12 +204,7 @@ struct ContentView: View {
             settingsCarReturn = nil
             retireThermostat()
             if !inertTabs { config = HaConfigStore.load() }
-            if haSetup.reconnect {
-                presentedSheet = .reconnect(UUID(), returningTo: nil)
-            } else {
-                presentedSheet = nil
-                selection = (inertTabs || config?.hasAuth == true) ? 1 : 0
-            }
+            presentedSheet = .homeAssistantPage(UUID())
         }
         .onChange(of: presentedSheet?.id) {
             if let sheet = presentedSheet, case .thermostat = sheet { return }
@@ -206,30 +212,6 @@ struct ContentView: View {
         }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
-            case .chargepoint(let route, _):
-                NavigationStack {
-                    if inertTabs {
-                        ControlledSetupScreen(title: "Controlled ChargePoint setup",
-                            onCancel: {
-                                guard presentedSheet?.id == sheet.id else { return }
-                                presentedSheet = nil
-                            }, onComplete: {
-                                guard presentedSheet?.id == sheet.id else { return }
-                                presentedSheet = nil
-                            })
-                    } else if route == .signin {
-                        CpSignInView(onSignedIn: {
-                            guard presentedSheet?.id == sheet.id else { return }
-                            presentedSheet = nil
-                        })
-                    } else {
-                        CpLocationSearchView(onPicked: {
-                            guard presentedSheet?.id == sheet.id else { return }
-                            presentedSheet = nil
-                        })
-                    }
-                }
-                .id(sheet.id)
             case .reconnect(_, let original):
                 NavigationStack {
                     if inertTabs {
@@ -314,6 +296,35 @@ struct ContentView: View {
                         presentedSheet = reconnect
                     })
                 .id(request.id)
+            case .homeAssistantPage(_):
+                NavigationStack {
+                    HomeAssistantPage(config: config, runtime: LiveSettingsRuntime.shared) {
+                        config = $0
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                guard presentedSheet?.id == sheet.id else { return }
+                                if !inertTabs { config = HaConfigStore.load() }
+                                presentedSheet = nil
+                            }
+                        }
+                    }
+                }
+                .id(sheet.id)
+            case .chargePointPage(let initialRoute, _):
+                NavigationStack {
+                    ChargePointPage(initialRoute: initialRoute, runtime: LiveSettingsRuntime.shared)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
             }
         }
     }
@@ -400,22 +411,15 @@ struct ContentView: View {
     private func handleHomeRoute(_ route: HomeRoute) {
         switch route {
         case .homeAssistant:
-            // If not signed in, present reconnect sheet; otherwise go to Settings
-            let haStatus = haConnectionStatus(config ?? HaConfig(baseUrl: "", token: "", entityId: ""))
-            if haStatus == .needsSignIn {
-                settingsCarReturn = nil
-                retireThermostat()
-                presentedSheet = .reconnect(UUID(), returningTo: nil)
-            } else {
-                selection = 1
-            }
-        case .chargePoint:
-            // Present ChargePoint sheet (sign-in or location search based on current state)
+            // Present Home Assistant page
             settingsCarReturn = nil
             retireThermostat()
-            let cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
-            let cpRoute: CpSetupRoute = cpSignedIn ? .location : .signin
-            presentedSheet = .chargepoint(cpRoute, UUID())
+            presentedSheet = .homeAssistantPage(UUID())
+        case .chargePoint:
+            // Present ChargePoint page
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .chargePointPage(nil, UUID())
         case .addWidget, .settings:
             // Go to Settings tab
             selection = 1
@@ -485,20 +489,22 @@ private struct ThermostatRecoveryReturn {
     let transitionID = UUID()
 }
 private enum HearthSheet: Identifiable {
-    case chargepoint(CpSetupRoute, UUID)
     case reconnect(UUID, returningTo: CarReadingsRequest?)
     case car(CarReadingsRequest)
     case alarm(AlarmReadingsDestination, UUID)
     case thermostat(ThermostatRouteRequest)
     case thermostatReconnect(ThermostatRecoveryReturn)
+    case homeAssistantPage(UUID)
+    case chargePointPage(CpSetupRoute?, UUID)
     var id: String {
         switch self {
-        case .chargepoint(_, let id): "chargepoint:\(id)"
         case .reconnect(let id, _): "reconnect:\(id)"
         case .car(let request): "car:\(request.id)"
         case .alarm(_, let id): "alarm:\(id)"
         case .thermostat(let request): "thermostat:\(request.eventID)"
         case .thermostatReconnect(let returning): "thermostatReconnect:\(returning.transitionID)"
+        case .homeAssistantPage(let id): "homeAssistantPage:\(id)"
+        case .chargePointPage(_, let id): "chargePointPage:\(id)"
         }
     }
 }
@@ -536,6 +542,10 @@ private enum HomePreviewCase {
     case populated, firstRun
 }
 
+private enum Phase3PageCase {
+    case haConnected, haNeedsSignIn, cpConnected, cpNotSetUp, cpAlerts
+}
+
 /// DEBUG-only fixture for rendering HomeView states without signing in.
 private struct HomePreviewFixture: View {
     let previewCase: HomePreviewCase
@@ -564,5 +574,122 @@ private struct HomePreviewFixture: View {
             return HaConfig(baseUrl: "", token: "", entityId: "")
         }
     }
+}
+
+/// DEBUG-only fixture for rendering Phase 3 settings pages with mock data.
+private struct Phase3PageFixture: View {
+    let pageCase: Phase3PageCase
+
+    var body: some View {
+        NavigationStack {
+            switch pageCase {
+            case .haConnected:
+                HomeAssistantPage(config: mockHaConfig, runtime: MockPhase3Runtime()) { _ in }
+            case .haNeedsSignIn:
+                HomeAssistantPage(config: nil, runtime: MockPhase3Runtime()) { _ in }
+            case .cpConnected:
+                ChargePointPage(initialRoute: nil, runtime: MockPhase3Runtime())
+            case .cpNotSetUp:
+                ChargePointPage(initialRoute: nil, runtime: MockPhase3RuntimeNotSetUp())
+            case .cpAlerts:
+                ChargePointAlertsPage(runtime: MockPhase3Runtime())
+            }
+        }
+    }
+
+    private var mockHaConfig: HaConfig {
+        HaConfig(
+            baseUrl: "https://home.example.com",
+            token: "mock-token",
+            entityId: "alarm_control_panel.home",
+            refreshToken: "mock-refresh-token",
+            lockId: "lock.front_door",
+            climateId: "climate.thermostat",
+            sensorsJson: "[\"sensor.temp\"]"
+        )
+    }
+}
+
+@MainActor
+private final class MockPhase3Runtime: SettingsRuntime {
+    func loadHa() -> HaStoreSnapshot? {
+        HaStoreSnapshot(
+            config: HaConfig(
+                baseUrl: "https://home.example.com",
+                token: "mock-token",
+                entityId: "alarm_control_panel.home",
+                refreshToken: "mock-refresh-token",
+                lockId: "lock.front_door",
+                climateId: "climate.thermostat",
+                sensorsJson: "[\"sensor.temp\"]"
+            ),
+            scope: "mock-scope"
+        )
+    }
+
+    func saveHaEdit(expectedScope: String?, edit: SettingsHaEdit) throws -> HaConfig? {
+        nil
+    }
+
+    func discoverHa(config: HaConfig, scope: String?, purpose: SettingsDiscoveryPurpose) async throws -> SettingsDiscovery {
+        throw HaError("Mock discovery")
+    }
+
+    func loadCp() -> SettingsCpState {
+        SettingsCpState(
+            session: CpSession(token: "mock-token", userId: 1, email: "user@example.com"),
+            location: CpLocation(
+                name: "Office Building",
+                address: "123 Main St",
+                deviceIds: [1, 2],
+                bounds: cpBounds(lat: 37.7749, lon: -122.4194),
+                label: "Office"
+            ),
+            auto: true,
+            alerts: CpAlertPrefs(offer: true, accepted: true, snoozed: false, second: true)
+        )
+    }
+
+    func performCpEdit(_ edit: SettingsCpEdit, expected: CpSettingsOrigin?) async throws -> SettingsCpState {
+        loadCp()
+    }
+
+    func openSetupRoute(_ route: SettingsSetupRoute) -> SettingsSetupDestination {
+        .fixture
+    }
+
+    func refreshWidgets(kinds: Set<String>) {}
+}
+
+@MainActor
+private final class MockPhase3RuntimeNotSetUp: SettingsRuntime {
+    func loadHa() -> HaStoreSnapshot? { nil }
+
+    func saveHaEdit(expectedScope: String?, edit: SettingsHaEdit) throws -> HaConfig? {
+        nil
+    }
+
+    func discoverHa(config: HaConfig, scope: String?, purpose: SettingsDiscoveryPurpose) async throws -> SettingsDiscovery {
+        throw HaError("Mock discovery")
+    }
+
+    func loadCp() -> SettingsCpState {
+        SettingsCpState(
+            session: CpSession(token: "", userId: 0, email: ""),
+            location: nil,
+            auto: false,
+            alerts: CpAlertPrefs()
+        )
+    }
+
+    func performCpEdit(_ edit: SettingsCpEdit, expected: CpSettingsOrigin?) async throws -> SettingsCpState {
+        loadCp()
+    }
+
+    func openSetupRoute(_ route: SettingsSetupRoute) -> SettingsSetupDestination {
+        .fixture
+    }
+
+    func refreshWidgets(kinds: Set<String>) {}
 }
 #endif

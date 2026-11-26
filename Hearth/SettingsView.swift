@@ -5,8 +5,6 @@ import HearthKit
 @MainActor
 struct SettingsView: View {
     @State private var config: HaConfig?
-    @State private var connectingHa = false
-    @State private var signOutError: String?
     let runtime: any SettingsRuntime
     let onChange: (HaConfig?) -> Void
 
@@ -20,25 +18,41 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
-                if let config, haSettingsReady(config) {
-                    HaSettingsSections(config: config, runtime: runtime) { next in
-                        self.config = next
-                        onChange(next)
+                Section {
+                    NavigationLink {
+                        HomeAssistantPage(config: config, runtime: runtime) { next in
+                            self.config = next
+                            onChange(next)
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "house")
+                                .font(.system(size: 20, weight: .regular))
+                                .symbolRenderingMode(.monochrome)
+                                .frame(width: 24, height: 24)
+                            Text("Home Assistant").font(.body)
+                        }
+                        .frame(minHeight: 48)
                     }
-                    Section {
-                        Button("Sign out of Home Assistant", role: .destructive, action: signOutHa)
+                    .accessibilityIdentifier("settings.ha")
+
+                    NavigationLink {
+                        ChargePointPage(runtime: runtime)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "bolt.car")
+                                .font(.system(size: 20, weight: .regular))
+                                .symbolRenderingMode(.monochrome)
+                                .frame(width: 24, height: 24)
+                            Text("ChargePoint").font(.body)
+                        }
+                        .frame(minHeight: 48)
                     }
-                } else {
-                    Section {
-                        Button("Connect Home Assistant") { connectingHa = true }
-                            .accessibilityIdentifier("settings.ha.connect")
-                    } header: {
-                        Text("Home Assistant")
-                    } footer: {
-                        Text("Connect to configure your home widgets. ChargePoint uses its own account.")
-                    }
+                    .accessibilityIdentifier("settings.cp")
+                } header: {
+                    Text("Accounts")
                 }
-                CpSettingsSection(runtime: runtime)
+
                 Section {
                     NavigationLink {
                         WidgetGalleryView()
@@ -59,31 +73,6 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .accessibilityIdentifier("settings.root")
-            .sheet(isPresented: $connectingHa) {
-                NavigationStack {
-                    SettingsSetupScreen(route: .haSignIn, runtime: runtime, initialURL: config?.baseUrl) {
-                        config = runtime.loadHa()?.config
-                        onChange(config)
-                        connectingHa = false
-                    }
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { connectingHa = false }
-                        }
-                    }
-                }
-            }
-            .alert("Couldn't sign out", isPresented: Binding(
-                get: { signOutError != nil }, set: { if !$0 { signOutError = nil } }
-            )) { Button("OK", role: .cancel) {} } message: { Text(signOutError ?? "") }
         }
-    }
-
-    private func signOutHa() {
-        do {
-            config = try runtime.saveHaEdit(expectedScope: runtime.loadHa()?.scope, edit: .signOut)
-            runtime.refreshWidgets(kinds: [])
-            onChange(config)
-        } catch { signOutError = friendlyError(error) }
     }
 }

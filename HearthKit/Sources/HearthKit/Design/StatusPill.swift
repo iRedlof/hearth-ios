@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Status tone for health/warning/neutral states.
 /// Each tone maps to a background and ink color pair.
-public enum StatusTone {
+public enum StatusTone: Sendable {
     case ok      // healthy state → green
     case warn    // fixable problem → amber
     case neutral // informational → grey
