@@ -383,9 +383,37 @@ struct ContentView: View {
         if inertTabs {
             Text("Controlled Car route fixture · Live tab")
         } else if let config, config.carReady {
-            LiveDashboardView(config: config, onSignOut: signOut)
+            HomeView(config: config, onSignOut: signOut, onRoute: handleHomeRoute)
         } else {
             SignInView(onSignedIn: { config = HaConfigStore.load() })
+        }
+    }
+
+    private func handleHomeRoute(_ route: HomeRoute) {
+        switch route {
+        case .homeAssistant:
+            // If not signed in, present reconnect sheet; otherwise go to Settings
+            let haStatus = haConnectionStatus(config ?? HaConfig(baseUrl: "", token: "", entityId: ""))
+            if haStatus == .needsSignIn {
+                settingsCarReturn = nil
+                retireThermostat()
+                presentedSheet = .reconnect(UUID(), returningTo: nil)
+            } else {
+                selection = 1
+            }
+        case .chargePoint:
+            // Present ChargePoint sheet (sign-in or location search based on current state)
+            settingsCarReturn = nil
+            retireThermostat()
+            let cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
+            let route: CpSetupRoute = cpSignedIn ? .location : .signin
+            presentedSheet = .chargepoint(route, UUID())
+        case .addWidget, .settings:
+            // Go to Settings tab
+            selection = 1
+        case .widget:
+            // Phase 4 will add widget detail pages; for now go to Settings
+            selection = 1
         }
     }
 
