@@ -8,7 +8,7 @@ import UserNotifications
 struct MorningCommutePage: View {
     @State private var enabled: Bool
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
-    @State private var lastHeardDate: Date? = nil // TODO: Wire to actual sensor timestamp from HA
+    @State private var lastHeardDate: Date? = nil
     @State private var copiedChargeNow = false
     @State private var copiedSignIn = false
 
@@ -16,6 +16,7 @@ struct MorningCommutePage: View {
 
     init() {
         _enabled = State(initialValue: CommuteStore.enabled)
+        _lastHeardDate = State(initialValue: CommuteStore.lastHeard)
     }
 
     var body: some View {
@@ -80,6 +81,7 @@ struct MorningCommutePage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             await refreshNotificationStatus()
+            lastHeardDate = CommuteStore.lastHeard
         }
     }
 
