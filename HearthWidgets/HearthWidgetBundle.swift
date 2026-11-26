@@ -393,7 +393,8 @@ private struct CarWidgetEntryView: View {
     @Environment(\.widgetFamily) private var family
 
     var body: some View {
-        CarWidgetPresentation(payload: entry.payload, family: family)
+        CarWidgetPresentation(payload: entry.payload, family: family,
+                              style: CardStyleStore.effectiveStyle(for: .car))
     }
 }
 
@@ -465,9 +466,10 @@ private struct AlarmWidgetEntryView: View {
     let entry: AlarmEntry
     @Environment(\.widgetFamily) private var family
     var body: some View {
-        ParityWidgetContent(prefix: "alarm") {
-            if let payload = entry.payload { AlarmBeaconView(payload, family: family) }
-            else { AlarmBeaconView(entry.snap, family: family) }
+        let style = CardStyleStore.effectiveStyle(for: .alarm)
+        return ParityWidgetContent(prefix: "alarm") {
+            if let payload = entry.payload { AlarmBeaconView(payload, family: family, style: style) }
+            else { AlarmBeaconView(entry.snap, family: family, style: style) }
         }
         .widgetURL(family == .systemSmall ? alarmReadingsURL(for: entry.payload?.destination ?? .inert) : nil)
         .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
@@ -523,9 +525,10 @@ private struct ThermostatWidgetEntryView: View {
     let entry: ThermostatEntry
     @Environment(\.widgetFamily) private var family
     var body: some View {
-        ParityWidgetContent(prefix: "thermostat") {
-            if let payload = entry.payload { ThermostatBeaconView(payload, family: family) }
-            else { ThermostatBeaconView(entry.snap, family: family) }
+        let style = CardStyleStore.effectiveStyle(for: .thermostat)
+        return ParityWidgetContent(prefix: "thermostat") {
+            if let payload = entry.payload { ThermostatBeaconView(payload, family: family, style: style) }
+            else { ThermostatBeaconView(entry.snap, family: family, style: style) }
         }
         .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
         .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }

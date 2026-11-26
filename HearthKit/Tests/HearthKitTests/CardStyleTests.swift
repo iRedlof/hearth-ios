@@ -112,6 +112,30 @@ struct CardStyleTests {
         #expect(lightResult != toneFill)  // doesn't use tone
     }
 
+    @Test("A non-default style changes every rendered axis a beacon consumes")
+    func nonDefaultStyleChangesRenderedContent() {
+        // The three values the production beacon views (Car/Alarm/Thermostat) actually read:
+        //   fill  = cardContentFillARGB(style.background, tone:, scheme)
+        //   scale = style.textSize.scale
+        //   small = style.smallPrint
+        // A non-default style must move all three away from .default so the on-screen card differs.
+        let styled = CardStyle(background: .black, textSize: .larger, smallPrint: false)
+        let toneFill: UInt32 = 0xFFB6D9C1  // a widget's by-state tone
+
+        let defaultFill = cardContentFillARGB(CardStyle.default.background, tone: toneFill, .dark)
+        let styledFill = cardContentFillARGB(styled.background, tone: toneFill, .dark)
+        #expect(defaultFill == toneFill)            // .default is by-state → pixel-identical to today
+        #expect(styledFill != defaultFill)          // styled background actually changes the fill
+
+        #expect(styled.textSize.scale != CardStyle.default.textSize.scale)
+        #expect(styled.smallPrint != CardStyle.default.smallPrint)
+
+        // An override resolves ahead of the global, so a per-widget style reaches the renderer.
+        let resolved = resolveStyle(global: .default, override: styled)
+        #expect(resolved == styled)
+        #expect(cardContentFillARGB(resolved.background, tone: toneFill, .dark) == styledFill)
+    }
+
     @Test("cardContentFillARGB black uses near-black")
     func contentFillBlack() {
         let toneFill: UInt32 = 0xFFB6D9C1  // ignored when black is chosen

@@ -1,5 +1,6 @@
 import Foundation
 import HearthKit
+import WidgetKit
 
 /// App-Group store for card styling preferences.
 /// Persists a global CardStyle + optional per-kind overrides.
@@ -33,6 +34,9 @@ public enum CardStyleStore {
     public static func setGlobal(_ style: CardStyle) {
         guard let data = try? JSONEncoder().encode(style) else { return }
         defaults.set(data, forKey: globalKey)
+        // Widget entry views read the effective style at render time; nudge WidgetKit to re-render
+        // so a style change takes effect on the home screen (matches other preference writes).
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Returns the override style for a specific widget kind, if any.
@@ -49,6 +53,7 @@ public enum CardStyleStore {
         var overrides = loadOverrides()
         overrides[kind.rawValue] = style
         saveOverrides(overrides)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     /// Clears the override style for a specific widget kind.
@@ -56,6 +61,7 @@ public enum CardStyleStore {
         var overrides = loadOverrides()
         overrides.removeValue(forKey: kind.rawValue)
         saveOverrides(overrides)
+        WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Private Helpers

@@ -201,6 +201,7 @@ public struct CarBeaconView: View {
 struct CarWidgetPresentation: View {
     let payload: CarReadingsEntryPayload
     let family: WidgetFamily
+    var style: CardStyle = .default
     @Environment(\.dynamicTypeSize) private var dynamicType
 
     var body: some View {
@@ -214,7 +215,8 @@ struct CarWidgetPresentation: View {
                 CarBeaconView(payload.snapshot,
                     interactionMode: payload.destination == .inert ? .inert : .live,
                     readingsDestination: payload.readingsUnavailable
-                        ? .storageUnavailable : payload.destination)
+                        ? .storageUnavailable : payload.destination,
+                    style: style)
             }
         }
         .widgetURL(destination)
