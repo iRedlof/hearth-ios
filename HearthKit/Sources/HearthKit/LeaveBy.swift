@@ -4,12 +4,22 @@ import Foundation
 public struct LeaveByEvent: Sendable, Equatable {
     public let title: String
     public let startDate: Date
+    public let endDate: Date
     public let location: String?
+    public let isAllDay: Bool
 
-    public init(title: String, startDate: Date, location: String?) {
+    public init(
+        title: String,
+        startDate: Date,
+        endDate: Date? = nil,
+        location: String?,
+        isAllDay: Bool = false
+    ) {
         self.title = title
         self.startDate = startDate
+        self.endDate = endDate ?? startDate.addingTimeInterval(3600) // Default to 1 hour duration
         self.location = location
+        self.isAllDay = isAllDay
     }
 }
 
