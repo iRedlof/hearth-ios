@@ -57,3 +57,29 @@ public func commuteDecide(
     }
     return .none
 }
+
+/**
+ Convert a Date to a CommuteDay (yyyymmdd Int) in the given timezone.
+
+ CRITICAL: Uses Calendar with the passed TimeZone, NOT UTC/ISO8601DateFormatter (off-by-one gotcha).
+ This ensures day boundaries respect the local timezone where the user experiences them.
+
+ - Parameter date: The date to convert.
+ - Parameter timeZone: The timezone to use for day calculation.
+ - Returns: The day stamp as yyyymmdd Int (e.g., 20261027 for Oct 27, 2026).
+ */
+public func commuteDay(from date: Date, in timeZone: TimeZone) -> CommuteDay {
+    var calendar = Calendar.current
+    calendar.timeZone = timeZone
+
+    let components = calendar.dateComponents([.year, .month, .day], from: date)
+
+    guard let year = components.year,
+          let month = components.month,
+          let day = components.day else {
+        // Should never happen with a valid date, but provide a fallback
+        return 0
+    }
+
+    return year * 10000 + month * 100 + day
+}
