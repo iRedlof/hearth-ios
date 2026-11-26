@@ -12,8 +12,15 @@ packages:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    DEVELOPMENT_TEAM: ""
-    CODE_SIGN_IDENTITY: "-"
+    # Automatic signing with the real team so an App Store archive embeds the
+    # target entitlements (App Group group.com.rohit.hearth). An ad-hoc "-"
+    # identity made the widget extension fall back to Ad Hoc signing (rejected
+    # by the iOS 27 SDK at archive) and, before that, shipped builds with no
+    # App Group. CI archive passes -allowProvisioningUpdates + the ASC key so
+    # Xcode generates the distribution profiles. Local sim builds still pass
+    # CODE_SIGNING_ALLOWED=NO and skip signing entirely.
+    DEVELOPMENT_TEAM: "5D7M37QQLU"
+    CODE_SIGN_STYLE: Automatic
     CODE_SIGNING_REQUIRED: "NO"
     CODE_SIGNING_ALLOWED: "YES"
     TARGETED_DEVICE_FAMILY: "1"
