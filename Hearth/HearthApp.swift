@@ -311,7 +311,7 @@ struct ContentView: View {
                 .id(request.id)
             case .homeAssistantPage(_):
                 NavigationStack {
-                    HomeAssistantPage(config: config, runtime: inertTabs ? LiveSettingsRuntime.shared : LiveSettingsRuntime.shared) {
+                    HomeAssistantPage(config: config, runtime: LiveSettingsRuntime.shared) {
                         config = $0
                     }
                     .toolbar {
@@ -327,7 +327,7 @@ struct ContentView: View {
                 .id(sheet.id)
             case .chargePointPage(let initialRoute, _):
                 NavigationStack {
-                    ChargePointPage(initialRoute: initialRoute, runtime: inertTabs ? LiveSettingsRuntime.shared : LiveSettingsRuntime.shared)
+                    ChargePointPage(initialRoute: initialRoute, runtime: LiveSettingsRuntime.shared)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Done") {
