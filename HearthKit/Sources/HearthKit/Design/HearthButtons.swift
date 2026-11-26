@@ -78,23 +78,8 @@ extension View {
 
 // MARK: - Preview
 
-#Preview {
+#Preview("Light Mode") {
     VStack(spacing: 24) {
-        Text("Light Mode")
-            .font(.headline)
-
-        Button("Add to Home Screen") {}
-            .hearthInk()
-
-        Button("Test now") {}
-            .hearthInline()
-
-        Divider()
-            .padding(.vertical)
-
-        Text("Dark Mode")
-            .font(.headline)
-
         Button("Add to Home Screen") {}
             .hearthInk()
 
@@ -104,4 +89,17 @@ extension View {
     .padding()
     .frame(maxWidth: 400)
     .preferredColorScheme(.light)
+}
+
+#Preview("Dark Mode") {
+    VStack(spacing: 24) {
+        Button("Add to Home Screen") {}
+            .hearthInk()
+
+        Button("Test now") {}
+            .hearthInline()
+    }
+    .padding()
+    .frame(maxWidth: 400)
+    .preferredColorScheme(.dark)
 }
