@@ -11,7 +11,10 @@ let package = Package(
         // Pure, UI-free logic ported from the Android app: the Home Assistant client,
         // the Car model + parsing, and the Car Beacon view-model. Builds and unit-tests
         // on macOS via `swift test` (no iOS Simulator runtime required).
-        .target(name: "HearthKit"),
+        .target(
+            name: "HearthKit",
+            resources: [.process("Resources")]
+        ),
         .testTarget(name: "HearthKitTests", dependencies: ["HearthKit"]),
     ]
 )

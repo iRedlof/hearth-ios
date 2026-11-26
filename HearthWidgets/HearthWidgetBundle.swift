@@ -4,6 +4,10 @@ import HearthKit
 
 @main
 struct HearthWidgetBundle: WidgetBundle {
+    init() {
+        HearthFontRegistration.registerIfNeeded()
+    }
+
     var body: some Widget {
         CarWidget()
         AlarmWidget()

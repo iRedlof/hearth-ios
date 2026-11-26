@@ -8,6 +8,7 @@ struct HearthApp: App {
     private let probeSelection: CarRouteProbeSelection
     #endif
     init() {
+        HearthFontRegistration.registerIfNeeded()
         #if DEBUG
         if CpSessionStore.fixtureActive {
             probeSelection = .inactive
