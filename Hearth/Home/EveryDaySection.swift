@@ -72,7 +72,7 @@ struct EveryDaySection: View {
 
     private var leaveBySubtitle: String {
         guard HouseFeaturesStore.leaveByEnabled else { return "Off" }
-        return "20 min before events with a place"
+        return "\(HouseFeaturesStore.leaveByMinutes) min before events with a place"
     }
 
     private var travelDaysSubtitle: String {

@@ -1,13 +1,15 @@
 import SwiftUI
 import HearthKit
 import EventKit
+import UserNotifications
 
 /// Travel days settings page — trip notifications.
-/// Enables the feature, shows next upcoming trip, and handles calendar permissions.
+/// Enables the feature, shows next upcoming trip, and handles calendar and notification permissions.
 @MainActor
 struct TravelDaysPage: View {
     @State private var enabled: Bool
     @State private var calendarStatus: EKAuthorizationStatus = .notDetermined
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @State private var nextTripText: String = "No trips in the next 7 days"
 
     @Environment(\.colorScheme) private var scheme
@@ -32,6 +34,14 @@ struct TravelDaysPage: View {
                             set: { newValue in
                                 enabled = newValue
                                 HouseFeaturesStore.travelEnabled = newValue
+
+                                // Request notification permission when enabling (if not determined)
+                                if newValue && notificationStatus == .notDetermined {
+                                    Task {
+                                        let granted = await HouseNotify.requestPermission()
+                                        notificationStatus = granted ? .authorized : .denied
+                                    }
+                                }
                             }
                         ))
                     }
@@ -44,6 +54,11 @@ struct TravelDaysPage: View {
                     calendarDeniedBanner
                 } else if bannerState == .restricted {
                     calendarRestrictedBanner
+                }
+
+                // Notifications denied banner (only when enabled)
+                if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
+                    notificationsDeniedBanner
                 }
 
                 // Description sections (always show)
@@ -59,6 +74,7 @@ struct TravelDaysPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             calendarStatus = CalendarAccess().authorizationStatus()
+            notificationStatus = await HouseNotify.authorizationStatus()
             await loadNextTrip()
         }
     }
@@ -68,6 +84,46 @@ struct TravelDaysPage: View {
     private var subtitleText: String {
         guard enabled else { return "Off" }
         return nextTripText
+    }
+
+    // MARK: - Notifications Denied Banner
+
+    @ViewBuilder
+    private var notificationsDeniedBanner: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "bell.slash.fill")
+                    .font(.system(size: HearthMetrics.iconLarge))
+                    .foregroundStyle(HearthColor.amber(scheme))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Notifications are off for Hearth")
+                        .font(HearthFont.cardHeading.font)
+                        .foregroundStyle(HearthColor.ink(scheme))
+
+                    Text("Travel days can't reach you")
+                        .font(HearthFont.subtitle.font)
+                        .foregroundStyle(HearthColor.sub(scheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button {
+                handleNotificationPermission()
+            } label: {
+                Text("Turn on")
+                    .font(HearthFont.rowTitle.font)
+                    .foregroundStyle(HearthColor.onAccent(scheme))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(HearthColor.amber(scheme))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(20)
+        .background(HearthColor.amberBg(scheme))
+        .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
+        .padding(.horizontal, HearthMetrics.groupInset)
     }
 
     // MARK: - Calendar Denied Banner
@@ -217,6 +273,19 @@ struct TravelDaysPage: View {
                 }
             }
         } else if calendarStatus == .denied {
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+
+    private func handleNotificationPermission() {
+        if notificationStatus == .notDetermined {
+            Task {
+                let granted = await HouseNotify.requestPermission()
+                notificationStatus = granted ? .authorized : .denied
+            }
+        } else {
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }

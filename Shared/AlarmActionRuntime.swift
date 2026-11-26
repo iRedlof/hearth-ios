@@ -110,7 +110,8 @@ enum AlarmActionRuntime {
         )
 
         await monitorWithRetry(executor) {
-            // Final failure: post safety notification
+            // Final failure: post safety notification (only if still current)
+            guard isCurrent() else { return }
             let deviceName = friendlyDeviceName(entityID: entityID)
             let targetState = friendlyTargetState(action: action)
             let title = "\(deviceName) won't \(targetState)"

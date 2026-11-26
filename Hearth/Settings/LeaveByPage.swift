@@ -1,14 +1,16 @@
 import SwiftUI
 import HearthKit
 import EventKit
+import UserNotifications
 
 /// Leave-by settings page — checks before you go.
-/// Enables the feature, sets minutes-before timing, shows privacy notes, and handles calendar permissions.
+/// Enables the feature, sets minutes-before timing, shows privacy notes, and handles calendar and notification permissions.
 @MainActor
 struct LeaveByPage: View {
     @State private var enabled: Bool
     @State private var minutesBefore: Int
     @State private var calendarStatus: EKAuthorizationStatus = .notDetermined
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     @Environment(\.colorScheme) private var scheme
 
@@ -35,6 +37,14 @@ struct LeaveByPage: View {
                             set: { newValue in
                                 enabled = newValue
                                 HouseFeaturesStore.leaveByEnabled = newValue
+
+                                // Request notification permission when enabling (if not determined)
+                                if newValue && notificationStatus == .notDetermined {
+                                    Task {
+                                        let granted = await HouseNotify.requestPermission()
+                                        notificationStatus = granted ? .authorized : .denied
+                                    }
+                                }
                             }
                         ))
                     }
@@ -47,6 +57,11 @@ struct LeaveByPage: View {
                     calendarDeniedBanner
                 } else if bannerState == .restricted {
                     calendarRestrictedBanner
+                }
+
+                // Notifications denied banner (only when enabled)
+                if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
+                    notificationsDeniedBanner
                 }
 
                 // Description (always show)
@@ -67,7 +82,48 @@ struct LeaveByPage: View {
         .navigationBarTitleDisplayMode(.inline)
         .task {
             calendarStatus = CalendarAccess().authorizationStatus()
+            notificationStatus = await HouseNotify.authorizationStatus()
         }
+    }
+
+    // MARK: - Notifications Denied Banner
+
+    @ViewBuilder
+    private var notificationsDeniedBanner: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                Image(systemName: "bell.slash.fill")
+                    .font(.system(size: HearthMetrics.iconLarge))
+                    .foregroundStyle(HearthColor.amber(scheme))
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Notifications are off for Hearth")
+                        .font(HearthFont.cardHeading.font)
+                        .foregroundStyle(HearthColor.ink(scheme))
+
+                    Text("Leave-by can't reach you")
+                        .font(HearthFont.subtitle.font)
+                        .foregroundStyle(HearthColor.sub(scheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+
+            Button {
+                handleNotificationPermission()
+            } label: {
+                Text("Turn on")
+                    .font(HearthFont.rowTitle.font)
+                    .foregroundStyle(HearthColor.onAccent(scheme))
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(HearthColor.amber(scheme))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(20)
+        .background(HearthColor.amberBg(scheme))
+        .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
+        .padding(.horizontal, HearthMetrics.groupInset)
     }
 
     // MARK: - Calendar Denied Banner
@@ -228,6 +284,19 @@ struct LeaveByPage: View {
                 calendarStatus = granted ? .authorized : .denied
             }
         } else if calendarStatus == .denied {
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        }
+    }
+
+    private func handleNotificationPermission() {
+        if notificationStatus == .notDetermined {
+            Task {
+                let granted = await HouseNotify.requestPermission()
+                notificationStatus = granted ? .authorized : .denied
+            }
+        } else {
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }

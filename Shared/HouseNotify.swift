@@ -1,12 +1,14 @@
 import Foundation
 import UserNotifications
 import HearthKit
+import os.log
 
 /// Notifications for house events (leave-by checks and travel trips).
 ///
 /// Uses calendar triggers to schedule at a specific date/time. Reuses the stable ids from
 /// `plannedNotifications` so rescheduling replaces rather than duplicates.
 enum HouseNotify {
+    private static let logger = Logger(subsystem: "com.rohit.hearth", category: "HouseNotify")
     /// Check the current notification authorization status
     static func authorizationStatus() async -> UNAuthorizationStatus {
         let settings = await UNUserNotificationCenter.current().notificationSettings()
@@ -55,7 +57,7 @@ enum HouseNotify {
 
             center.add(request) { error in
                 if let error = error {
-                    print("Failed to schedule notification \(notification.id): \(error)")
+                    logger.error("Failed to schedule notification \(notification.id, privacy: .public): \(error)")
                 }
             }
         }
@@ -104,7 +106,7 @@ enum HouseNotify {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error = error {
-                print("Failed to post immediate notification \(id): \(error)")
+                logger.error("Failed to post immediate notification \(id, privacy: .public): \(error)")
             }
         }
     }
