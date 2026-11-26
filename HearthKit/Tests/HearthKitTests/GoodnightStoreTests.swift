@@ -5,9 +5,6 @@ import Foundation
 @Suite("GoodnightStore Load Path")
 struct GoodnightStoreTests {
 
-    // Note: These tests use a temporary test suite to avoid polluting the real app group defaults.
-    // The store itself uses the app group, but tests create a fresh UserDefaults instance.
-
     @Test("Load returns default when key is absent")
     func loadAbsentKeyReturnsDefault() {
         let suite = "test.goodnight.\(UUID().uuidString)"
@@ -17,12 +14,8 @@ struct GoodnightStoreTests {
         // Key does not exist
         #expect(defaults.data(forKey: "goodnight.config") == nil)
 
-        // Store.load() should return .default
-        // We'll test the production store's behavior by injecting test data
-        // Since GoodnightStore is an enum with static methods using a fixed suite,
-        // we'll test the load/decode logic directly
-        let loadedFromAbsent: GoodnightConfig? = nil  // Absent key path
-        let result = loadedFromAbsent ?? GoodnightConfig.default
+        // Call production load() with test defaults
+        let result = GoodnightStore.load(defaults: defaults)
         #expect(result == GoodnightConfig.default)
         #expect(result.enabled == false)
         #expect(result.startHour == 21)
@@ -30,26 +23,22 @@ struct GoodnightStoreTests {
     }
 
     @Test("Load returns default when JSON is corrupt")
-    func loadCorruptJsonReturnsDefault() throws {
+    func loadCorruptJsonReturnsDefault() {
         let suite = "test.goodnight.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { UserDefaults().removePersistentDomain(forName: suite) }
 
-        // Store corrupt JSON
+        // Store genuinely corrupt JSON
         let corruptData = Data("{ not valid json }".utf8)
         defaults.set(corruptData, forKey: "goodnight.config")
 
-        // Attempt to decode
-        let decoded = try? JSONDecoder().decode(GoodnightConfig.self, from: corruptData)
-        #expect(decoded == nil)
-
-        // Store should return .default on decode failure
-        let result = decoded ?? GoodnightConfig.default
+        // Call production load() with test defaults
+        let result = GoodnightStore.load(defaults: defaults)
         #expect(result == GoodnightConfig.default)
     }
 
     @Test("Load returns default when JSON has wrong structure")
-    func loadWrongStructureReturnsDefault() throws {
+    func loadWrongStructureReturnsDefault() {
         let suite = "test.goodnight.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { UserDefaults().removePersistentDomain(forName: suite) }
@@ -58,17 +47,13 @@ struct GoodnightStoreTests {
         let wrongData = Data(#"{"foo":"bar"}"#.utf8)
         defaults.set(wrongData, forKey: "goodnight.config")
 
-        // Attempt to decode
-        let decoded = try? JSONDecoder().decode(GoodnightConfig.self, from: wrongData)
-        #expect(decoded == nil)
-
-        // Store should return .default on decode failure
-        let result = decoded ?? GoodnightConfig.default
+        // Call production load() with test defaults
+        let result = GoodnightStore.load(defaults: defaults)
         #expect(result == GoodnightConfig.default)
     }
 
-    @Test("Valid JSON round-trip through defaults")
-    func validRoundTrip() throws {
+    @Test("Valid round-trip through production save/load")
+    func validRoundTrip() {
         let suite = "test.goodnight.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defer { UserDefaults().removePersistentDomain(forName: suite) }
@@ -82,19 +67,17 @@ struct GoodnightStoreTests {
             keepOnLights: ["light.bedroom", "light.hallway"]
         )
 
-        // Encode and store
-        let encoded = try JSONEncoder().encode(original)
-        defaults.set(encoded, forKey: "goodnight.config")
+        // Call production save()
+        GoodnightStore.save(original, defaults: defaults)
 
-        // Load and decode
-        let data = defaults.data(forKey: "goodnight.config")!
-        let decoded = try JSONDecoder().decode(GoodnightConfig.self, from: data)
+        // Call production load()
+        let loaded = GoodnightStore.load(defaults: defaults)
 
-        #expect(decoded == original)
-        #expect(decoded.enabled == true)
-        #expect(decoded.startHour == 22)
-        #expect(decoded.endHour == 6)
-        #expect(decoded.armMode == .home)
-        #expect(decoded.keepOnLights == ["light.bedroom", "light.hallway"])
+        #expect(loaded == original)
+        #expect(loaded.enabled == true)
+        #expect(loaded.startHour == 22)
+        #expect(loaded.endHour == 6)
+        #expect(loaded.armMode == .home)
+        #expect(loaded.keepOnLights == ["light.bedroom", "light.hallway"])
     }
 }
