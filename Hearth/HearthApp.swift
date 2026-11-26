@@ -156,7 +156,7 @@ struct ContentView: View {
             cpSetup.route = nil
             settingsCarReturn = nil
             retireThermostat()
-            presentedSheet = .chargepoint(route, UUID())
+            presentedSheet = .chargePointPage(route, UUID())
         }
         .onChange(of: carReadings.request, initial: true) {
             guard let request = carReadings.request else { return }
@@ -193,12 +193,7 @@ struct ContentView: View {
             settingsCarReturn = nil
             retireThermostat()
             if !inertTabs { config = HaConfigStore.load() }
-            if haSetup.reconnect {
-                presentedSheet = .reconnect(UUID(), returningTo: nil)
-            } else {
-                presentedSheet = nil
-                selection = (inertTabs || config?.hasAuth == true) ? 1 : 0
-            }
+            presentedSheet = .homeAssistantPage(UUID())
         }
         .onChange(of: presentedSheet?.id) {
             if let sheet = presentedSheet, case .thermostat = sheet { return }
@@ -314,6 +309,35 @@ struct ContentView: View {
                         presentedSheet = reconnect
                     })
                 .id(request.id)
+            case .homeAssistantPage(_):
+                NavigationStack {
+                    HomeAssistantPage(config: config, runtime: inertTabs ? LiveSettingsRuntime.shared : LiveSettingsRuntime.shared) {
+                        config = $0
+                    }
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Done") {
+                                guard presentedSheet?.id == sheet.id else { return }
+                                if !inertTabs { config = HaConfigStore.load() }
+                                presentedSheet = nil
+                            }
+                        }
+                    }
+                }
+                .id(sheet.id)
+            case .chargePointPage(let initialRoute, _):
+                NavigationStack {
+                    ChargePointPage(initialRoute: initialRoute, runtime: inertTabs ? LiveSettingsRuntime.shared : LiveSettingsRuntime.shared)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
             }
         }
     }
@@ -400,22 +424,15 @@ struct ContentView: View {
     private func handleHomeRoute(_ route: HomeRoute) {
         switch route {
         case .homeAssistant:
-            // If not signed in, present reconnect sheet; otherwise go to Settings
-            let haStatus = haConnectionStatus(config ?? HaConfig(baseUrl: "", token: "", entityId: ""))
-            if haStatus == .needsSignIn {
-                settingsCarReturn = nil
-                retireThermostat()
-                presentedSheet = .reconnect(UUID(), returningTo: nil)
-            } else {
-                selection = 1
-            }
-        case .chargePoint:
-            // Present ChargePoint sheet (sign-in or location search based on current state)
+            // Present Home Assistant page
             settingsCarReturn = nil
             retireThermostat()
-            let cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
-            let cpRoute: CpSetupRoute = cpSignedIn ? .location : .signin
-            presentedSheet = .chargepoint(cpRoute, UUID())
+            presentedSheet = .homeAssistantPage(UUID())
+        case .chargePoint:
+            // Present ChargePoint page
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .chargePointPage(nil, UUID())
         case .addWidget, .settings:
             // Go to Settings tab
             selection = 1
@@ -491,6 +508,8 @@ private enum HearthSheet: Identifiable {
     case alarm(AlarmReadingsDestination, UUID)
     case thermostat(ThermostatRouteRequest)
     case thermostatReconnect(ThermostatRecoveryReturn)
+    case homeAssistantPage(UUID)
+    case chargePointPage(CpSetupRoute?, UUID)
     var id: String {
         switch self {
         case .chargepoint(_, let id): "chargepoint:\(id)"
@@ -499,6 +518,8 @@ private enum HearthSheet: Identifiable {
         case .alarm(_, let id): "alarm:\(id)"
         case .thermostat(let request): "thermostat:\(request.eventID)"
         case .thermostatReconnect(let returning): "thermostatReconnect:\(returning.transitionID)"
+        case .homeAssistantPage(let id): "homeAssistantPage:\(id)"
+        case .chargePointPage(_, let id): "chargePointPage:\(id)"
         }
     }
 }

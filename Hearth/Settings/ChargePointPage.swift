@@ -15,10 +15,12 @@ struct ChargePointPage: View {
     @State private var showSignOutConfirm = false
 
     let runtime: any SettingsRuntime
+    let initialRoute: CpSetupRoute?
 
     @Environment(\.colorScheme) private var scheme
 
-    init(runtime: any SettingsRuntime = LiveSettingsRuntime.shared) {
+    init(initialRoute: CpSetupRoute? = nil, runtime: any SettingsRuntime = LiveSettingsRuntime.shared) {
+        self.initialRoute = initialRoute
         self.runtime = runtime
         let initial = runtime.loadCp()
         _cp = State(initialValue: initial)
@@ -58,6 +60,16 @@ struct ChargePointPage: View {
         .onAppear {
             editID = UUID()
             cp = runtime.loadCp()
+
+            // Auto-show sheet based on initialRoute
+            if let route = initialRoute {
+                switch route {
+                case .signin:
+                    showSignIn = true
+                case .location:
+                    showLocation = true
+                }
+            }
         }
         .sheet(isPresented: $showSignIn) {
             NavigationStack {
