@@ -91,3 +91,26 @@ public struct CardStyle: Sendable, Codable, Equatable {
 public func resolveStyle(global: CardStyle, override: CardStyle?) -> CardStyle {
     override ?? global
 }
+
+/// Returns the text scale factor for the given text size.
+/// Convenience wrapper for `CardTextSize.scale`.
+public func cardTextScale(_ size: CardTextSize) -> CGFloat {
+    size.scale
+}
+
+/// Returns the ARGB content fill color for the given background choice.
+/// - Parameters:
+///   - background: The card background choice (.byState, .colour, or .black).
+///   - toneFill: The fallback tone fill color (used when background is .byState).
+///   - scheme: The current color scheme (light or dark).
+/// - Returns: The resolved ARGB color for the content background.
+public func cardContentFillARGB(_ background: CardBackground, tone toneFill: UInt32, _ scheme: ColorScheme) -> UInt32 {
+    switch background {
+    case .byState:
+        return toneFill  // Use the widget's state/tone color
+    case .colour(let c):
+        return c.fillARGB(scheme)
+    case .black:
+        return scheme == .dark ? 0xFF0D0D0D : 0xFF1A1A1A  // Near-black in both schemes
+    }
+}

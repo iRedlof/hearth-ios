@@ -28,15 +28,18 @@ struct BeaconFreshness: View {
     var ink: Color
     var interactionsEnabled: Bool = true
     var thermostatSelection: ThermostatSelectionOrigin? = nil
+    var showSmallPrint: Bool = true  // CardStyle small-print control
 
     var body: some View {
         HStack(spacing: 6) {
-            VStack(alignment: .trailing, spacing: -1) {
-                Text("Checked").font(.system(size: 10))
-                Text(checkedAt).font(.system(size: 10))
+            if showSmallPrint {
+                VStack(alignment: .trailing, spacing: -1) {
+                    Text("Checked").font(.system(size: 10))
+                    Text(checkedAt).font(.system(size: 10))
+                }
+                .foregroundStyle(ink.opacity(0.78))
+                .invalidatableContent()
             }
-            .foregroundStyle(ink.opacity(0.78))
-            .invalidatableContent()
             if interactionsEnabled && (kind != "com.rohit.hearth.thermostat" || thermostatSelection != nil) {
                 Button(intent: WidgetRefreshIntent(kind, thermostatOrigin: thermostatOriginBinding(thermostatSelection))) { refreshLabel }
                     .buttonStyle(.plain)

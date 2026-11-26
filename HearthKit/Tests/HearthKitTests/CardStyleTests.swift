@@ -85,4 +85,41 @@ struct CardStyleTests {
         #expect(CardBackground.colour(.ocean) != .colour(.night))
         #expect(CardBackground.byState != .black)
     }
+
+    @Test("cardTextScale returns correct values")
+    func textScaleHelper() {
+        #expect(cardTextScale(.smaller) == 0.9)
+        #expect(cardTextScale(.normal) == 1.0)
+        #expect(cardTextScale(.larger) == 1.12)
+    }
+
+    @Test("cardContentFillARGB byState uses tone fill")
+    func contentFillByState() {
+        let toneFill: UInt32 = 0xFFB6D9C1  // mint tone
+        let lightResult = cardContentFillARGB(.byState, tone: toneFill, .light)
+        let darkResult = cardContentFillARGB(.byState, tone: toneFill, .dark)
+        #expect(lightResult == toneFill)
+        #expect(darkResult == toneFill)
+    }
+
+    @Test("cardContentFillARGB colour uses CardColour fill")
+    func contentFillColour() {
+        let toneFill: UInt32 = 0xFFB6D9C1  // ignored when colour is chosen
+        let lightResult = cardContentFillARGB(.colour(.ocean), tone: toneFill, .light)
+        let darkResult = cardContentFillARGB(.colour(.ocean), tone: toneFill, .dark)
+        #expect(lightResult == CardColour.ocean.fillARGB(.light))
+        #expect(darkResult == CardColour.ocean.fillARGB(.dark))
+        #expect(lightResult != toneFill)  // doesn't use tone
+    }
+
+    @Test("cardContentFillARGB black uses near-black")
+    func contentFillBlack() {
+        let toneFill: UInt32 = 0xFFB6D9C1  // ignored when black is chosen
+        let lightResult = cardContentFillARGB(.black, tone: toneFill, .light)
+        let darkResult = cardContentFillARGB(.black, tone: toneFill, .dark)
+        // Near-black values: lighter in light mode, darker in dark mode
+        #expect(lightResult == 0xFF1A1A1A)
+        #expect(darkResult == 0xFF0D0D0D)
+        #expect(lightResult != toneFill)  // doesn't use tone
+    }
 }
