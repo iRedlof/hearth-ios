@@ -214,6 +214,7 @@ public struct AlarmBeaconView: View {
         switch action {
         case .armHome: "house.fill"
         case .armAway: "car.fill"
+        case .armNight: "moon.fill"
         case .disarm:  "shield.slash.fill"
         }
     }

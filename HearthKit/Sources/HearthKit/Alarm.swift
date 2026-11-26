@@ -36,7 +36,7 @@ public struct AlarmState: Sendable, Equatable {
     }
 }
 
-/// Home/Away have feature bits; Disarm has none. A code format is not a capability flag:
+/// Home/Away/Night have feature bits; Disarm has none. A code format is not a capability flag:
 /// Home Assistant may supply a configured default code that is absent from the state reply.
 public func alarmAvailableActions(_ state: AlarmState?) -> [AlarmAction] {
     guard let state else { return [] }
@@ -44,6 +44,7 @@ public func alarmAvailableActions(_ state: AlarmState?) -> [AlarmAction] {
         switch action {
         case .armHome: return state.supportedFeatures.map { $0 & 1 != 0 } ?? false
         case .armAway: return state.supportedFeatures.map { $0 & 2 != 0 } ?? false
+        case .armNight: return state.supportedFeatures.map { $0 & 4 != 0 } ?? false
         case .disarm: return true
         }
     }
@@ -51,10 +52,31 @@ public func alarmAvailableActions(_ state: AlarmState?) -> [AlarmAction] {
 
 /// What each button does in Home Assistant, and which state means it's "on".
 public enum AlarmAction: String, Codable, Sendable, CaseIterable {
-    case armHome, armAway, disarm
-    public var service: String { switch self { case .armHome: "alarm_arm_home"; case .armAway: "alarm_arm_away"; case .disarm: "alarm_disarm" } }
-    public var label: String { switch self { case .armHome: "Arm home"; case .armAway: "Arm away"; case .disarm: "Disarm" } }
-    public var target: String { switch self { case .armHome: "armed_home"; case .armAway: "armed_away"; case .disarm: "disarmed" } }
+    case armHome, armAway, armNight, disarm
+    public var service: String {
+        switch self {
+        case .armHome: "alarm_arm_home"
+        case .armAway: "alarm_arm_away"
+        case .armNight: "alarm_arm_night"
+        case .disarm: "alarm_disarm"
+        }
+    }
+    public var label: String {
+        switch self {
+        case .armHome: "Arm home"
+        case .armAway: "Arm away"
+        case .armNight: "Arm night"
+        case .disarm: "Disarm"
+        }
+    }
+    public var target: String {
+        switch self {
+        case .armHome: "armed_home"
+        case .armAway: "armed_away"
+        case .armNight: "armed_night"
+        case .disarm: "disarmed"
+        }
+    }
     /// Android gates Disarm behind biometric/dialog confirmation; arming fires directly.
     public var needsConfirm: Bool { self == .disarm }
 }
