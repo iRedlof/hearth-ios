@@ -75,6 +75,46 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 
 ---
 
+## Home dashboard (Phase 2)
+
+**Status:** ✅ Shipped (replaces Live tab)
+
+**Components built:**
+- `HomeView` — main dashboard assembler, fetches live snapshots (car/alarm/CP/thermostat) and maps to widget health
+- `HomeHeader` — "Hearth" title header
+- `YourWidgetsStrip` — horizontal scrolling widget cards with health indicators (ok/warn/error/stale), problems-first sorting
+- `GetStartedCard` — 2-step first-run onboarding (Connect HA → Add widget)
+- `SignInBanner` — contextual sign-in prompt when connection lost
+- `ConnectionsSection` — HA and ChargePoint connection status rows
+- `EveryDaySection` — 5 feature rows (Goodnight/Routines/Leave-by/Travel/Safety) with descriptive subtitles
+- `LookSection` — Card style customization row
+- `HomeFooter` — version + "Up to date" / update CTA
+
+**States implemented:**
+- Populated: widgets strip with live data, all sections visible
+- First-run: Get-started card replaces widgets, connections show "Not set up"
+- Needs sign-in: Sign-in banner shown when HA/CP needs re-auth
+- Dark mode: full dark theme support
+- Large text: accessibility text scaling (tested with `.accessibilityExtraLarge`)
+- Offline/stale: health badges show "Stale data" / "Error" states
+
+**Navigation:**
+- TabView retained (3 tabs: Live/Settings/Preview) — full nav collapse deferred to Phase 3/4
+- Every-day feature rows route to Settings tab (Phase 5 builds real destinations)
+- Widget taps route to Settings (Phase 4 builds widget detail pages)
+- Deep links still work via TabView funnel (smoke-checked: `hearth://car-readings/unavailable`)
+
+**DEBUG hooks:** `-homePreview` (populated), `-homePreviewFirstRun` render HomeView states without signing in.
+
+**Screenshots:** `/tmp/ds-home-{light,dark,firstrun}.png` captured from iPhone 18 Pro simulator.
+
+**Gaps vs Android Home mocks:**
+- Widgets strip shows health states but not fully populated widget data in fixture (live HomeView fetches real snapshots)
+- Footer lacks "Check for updates" button animation (static button, update state from live data)
+- Phase 3/4 nav collapse will replace TabView with NavigationStack + push destinations
+
+---
+
 ## Fix log (newest first)
 - A3 ✅ improved: `invalidatableContent` added to the freshness stamp in all 7 refreshable widgets (Car/Alarm/Thermostat/Battery/Lights/Favourites/Doors) → "updating" redaction on tap. Spinner itself is an iOS wall. Build + screenshot `invalidatable.png` confirm normal render intact.
 - A2 ⚠️ resolved as platform wall (researched, 8 Apple/dev sources): the under-widget label is system-drawn and NOT removable by any WidgetKit API; user-side hide only. Documented.

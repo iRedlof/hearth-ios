@@ -34,6 +34,7 @@ struct HearthApp: App {
                 else if let concept = Self.accessibleFixture() { AccessibleBeaconFixtureScreen(concept: concept) }
                 else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
                 else if Self.designGallery() { DesignSystemGallery() }
+                else if let preview = Self.homePreview() { HomePreviewFixture(previewCase: preview) }
                 else if let id = Self.parityState() { ParityStateScreen(id: id) }
                 else { ContentView() }
             }
@@ -68,6 +69,13 @@ struct HearthApp: App {
 
     private static func designGallery() -> Bool {
         return ProcessInfo.processInfo.arguments.contains("-designGallery")
+    }
+
+    private static func homePreview() -> HomePreviewCase? {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-homePreviewFirstRun") { return .firstRun }
+        if args.contains("-homePreview") { return .populated }
+        return nil
     }
     #endif
 
@@ -522,3 +530,39 @@ private struct ControlledSetupScreen: View {
         }
     }
 }
+
+#if DEBUG
+private enum HomePreviewCase {
+    case populated, firstRun
+}
+
+/// DEBUG-only fixture for rendering HomeView states without signing in.
+private struct HomePreviewFixture: View {
+    let previewCase: HomePreviewCase
+
+    var body: some View {
+        HomeView(
+            config: fixtureConfig,
+            onSignOut: {},
+            onRoute: { _ in }
+        )
+    }
+
+    private var fixtureConfig: HaConfig {
+        switch previewCase {
+        case .populated:
+            return HaConfig(
+                baseUrl: "https://home.example.com",
+                token: "mock-token",
+                entityId: "alarm_control_panel.home",
+                refreshToken: "mock-refresh-token",
+                lockId: "lock.front_door",
+                climateId: "climate.thermostat",
+                sensorsJson: "[\"sensor.temp\"]"
+            )
+        case .firstRun:
+            return HaConfig(baseUrl: "", token: "", entityId: "")
+        }
+    }
+}
+#endif
