@@ -33,6 +33,7 @@ struct HearthApp: App {
                 if let state = Self.carReadingsFixture() { CarReadingsFixtureHost(state: state) }
                 else if let concept = Self.accessibleFixture() { AccessibleBeaconFixtureScreen(concept: concept) }
                 else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
+                else if Self.designGallery() { DesignSystemGallery() }
                 else if let id = Self.parityState() { ParityStateScreen(id: id) }
                 else { ContentView() }
             }
@@ -63,6 +64,10 @@ struct HearthApp: App {
         guard i + 1 < args.count else { return .fresh }
         // An invalid debug selector still stays on the inert branch.
         return SettingsFixtureCase(rawValue: args[i + 1]) ?? .fresh
+    }
+
+    private static func designGallery() -> Bool {
+        return ProcessInfo.processInfo.arguments.contains("-designGallery")
     }
     #endif
 

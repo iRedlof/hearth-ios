@@ -58,6 +58,23 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 
 ---
 
+## iOS design system (Phase 1)
+
+**Foundation tokens and components built:**
+
+- **Tokens:** HearthColor (warm palette, light+dark ARGB), HearthFont (Roboto Flex variable type ramp), HearthMetrics (spacing/sizing constants)
+- **Components:**
+  - `StatusPill` — ok/warn/neutral status chips with leading dot
+  - `IconTile` — 7-hue SF Symbol tiles (blue/orange/purple/green/red/amber/neutral)
+  - `HearthSwitch` — custom toggle aligned with design system
+  - `InkButtonStyle` / `InlineRowButtonStyle` — accent and inline action buttons
+  - `HearthGroup` — labeled card container with auto-dividers between rows
+  - `HearthRow` — icon+title+subtitle+trailing setting rows
+
+**Phase 1 complete:** All foundation components verified in `DesignSystemGallery.swift` (DEBUG-only, light+dark screenshots captured at `/tmp/ds-gallery-{light,dark}.png`).
+
+---
+
 ## Fix log (newest first)
 - A3 ✅ improved: `invalidatableContent` added to the freshness stamp in all 7 refreshable widgets (Car/Alarm/Thermostat/Battery/Lights/Favourites/Doors) → "updating" redaction on tap. Spinner itself is an iOS wall. Build + screenshot `invalidatable.png` confirm normal render intact.
 - A2 ⚠️ resolved as platform wall (researched, 8 Apple/dev sources): the under-widget label is system-drawn and NOT removable by any WidgetKit API; user-side hide only. Documented.
