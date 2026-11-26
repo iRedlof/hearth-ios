@@ -27,8 +27,20 @@ public enum GoodnightRuntime {
     ///   - config: User's Goodnight configuration.
     ///   - haConfig: Home Assistant configuration.
     ///   - now: Current date/time (for logging/context).
+    ///   - injectedCloseCover: Optional injected closure for closing covers (for testing).
+    ///   - injectedTurnOffLights: Optional injected closure for turning off lights (for testing).
+    ///   - injectedLock: Optional injected closure for locking (for testing).
+    ///   - injectedArm: Optional injected closure for arming (for testing).
     /// - Returns: Per-step success flags.
-    public static func run(config: GoodnightConfig, haConfig: HaConfig, now: Date) async -> GoodnightResult {
+    public static func run(
+        config: GoodnightConfig,
+        haConfig: HaConfig,
+        now: Date,
+        injectedCloseCover: (@Sendable (String) async throws -> Void)? = nil,
+        injectedTurnOffLights: (@Sendable ([String]) async throws -> Void)? = nil,
+        injectedLock: (@Sendable () async -> Bool)? = nil,
+        injectedArm: (@Sendable (String) async -> Bool)? = nil
+    ) async -> GoodnightResult {
         // Fetch all lights and alarm state to build the plan
         let (allLights, panelSupportsNight) = await fetchStateForPlanning(haConfig: haConfig)
 
@@ -51,7 +63,11 @@ public enum GoodnightRuntime {
             var anyFailed = false
             for id in coverIds {
                 do {
-                    try await closeCover(id: id, config: haConfig)
+                    if let injected = injectedCloseCover {
+                        try await injected(id)
+                    } else {
+                        try await closeCover(id: id, config: haConfig)
+                    }
                 } catch {
                     anyFailed = true
                 }
@@ -66,7 +82,11 @@ public enum GoodnightRuntime {
         do {
             let lightIds = plan.lightsOff
             if !lightIds.isEmpty {
-                try await turnOffLights(ids: lightIds, config: haConfig)
+                if let injected = injectedTurnOffLights {
+                    try await injected(lightIds)
+                } else {
+                    try await turnOffLights(ids: lightIds, config: haConfig)
+                }
             }
             lightsOff = true
         } catch {
@@ -76,7 +96,11 @@ public enum GoodnightRuntime {
         // Step 3: Lock
         let locked: Bool
         if let lockId = plan.lockId {
-            locked = await performLockAction(entityID: lockId, haConfig: haConfig)
+            if let injected = injectedLock {
+                locked = await injected()
+            } else {
+                locked = await performLockAction(entityID: lockId, haConfig: haConfig)
+            }
         } else {
             locked = true  // No lock configured = not applicable = success
         }
@@ -85,7 +109,11 @@ public enum GoodnightRuntime {
         let armed: Bool
         if let armMode = plan.armMode {
             let action = armModeToAction(armMode)
-            armed = await performArmAction(entityID: haConfig.entityId, action: action, haConfig: haConfig)
+            if let injected = injectedArm {
+                armed = await injected(action)
+            } else {
+                armed = await performArmAction(entityID: haConfig.entityId, action: action, haConfig: haConfig)
+            }
         } else {
             armed = true  // No alarm configured = not applicable = success
         }
