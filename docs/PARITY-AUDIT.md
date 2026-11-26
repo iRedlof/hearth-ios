@@ -115,6 +115,44 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 
 ---
 
+## Settings (Phase 3)
+
+**Status:** ✅ Shipped (HomeAssistantPage, ChargePointPage, ChargePointAlertsPage)
+
+**Components built:**
+- `HomeAssistantPage` — HA settings page with ConnectionHero, connection details, device entity pickers
+- `ChargePointPage` — CP settings page with ConnectionHero, account/location/auto/alerts sections
+- `ChargePointAlertsPage` — Dedicated alerts page with grouped toggles (Every charge / While Auto runs / Always sent)
+- `ConnectionHero` — Reusable status-first hero (connected/needs-sign-in/not-set-up with green/amber/neutral pills)
+
+**States implemented:**
+- HA connected: Shows ConnectionHero with green checkmark, web address, sign-in row, device entity pickers
+- HA needs sign-in: Shows ConnectionHero with neutral house icon, "Connect" CTA, connection rows only
+- CP connected: Shows ConnectionHero with green checkmark, account/waitlist/alerts/widget groups
+- CP not set up: Shows ConnectionHero with neutral car icon, "Set up in 2 steps" card with sign-in/location buttons
+- Alerts page (auto on): All toggles enabled, shows "In the order a charge happens" caption
+- Alerts page (auto off): "While Auto runs" group disabled with explanatory footer
+
+**Integration:**
+- Reuses existing logic from SettingsRuntime, HaConfigStore, CpSessionStore
+- Presents via HearthSheet cases (.homeAssistantPage, .chargePointPage) in ContentView
+- TabView navigation retained (Phase 3/4 nav collapse deferred)
+- Entity pickers (alarm/lock/climate/resume/sensors) functional on HA page
+- CP alerts route correctly from ChargePointPage → ChargePointAlertsPage
+
+**DEBUG hooks:** `-haPage`, `-haPageNeedsSignIn`, `-cpPage`, `-cpPageNotSetUp`, `-cpAlerts` render each page state with fixtures.
+
+**Screenshots:** `/tmp/ds-{ha,ha-signin,cp,cp-setup,cp-alerts}.png` captured from iPhone 18 Pro simulator.
+
+**Parity vs Android mocks:**
+- ConnectionHero matches Android status-first design (green/amber/neutral pills, icon+title+detail layout)
+- HA page device list matches Android entity rows with icons
+- CP page groups (Account/Waitlist/Alerts/Widget) match Android structure
+- Alerts page grouped sections ("Every charge", "While Auto runs", "Always sent") match Android grouping
+- Minor: iOS uses native NavigationStack toolbar vs Android top bar, iOS switches vs Android checkboxes
+
+---
+
 ## Fix log (newest first)
 - A3 ✅ improved: `invalidatableContent` added to the freshness stamp in all 7 refreshable widgets (Car/Alarm/Thermostat/Battery/Lights/Favourites/Doors) → "updating" redaction on tap. Spinner itself is an iOS wall. Build + screenshot `invalidatable.png` confirm normal render intact.
 - A2 ⚠️ resolved as platform wall (researched, 8 Apple/dev sources): the under-widget label is system-drawn and NOT removable by any WidgetKit API; user-side hide only. Documented.

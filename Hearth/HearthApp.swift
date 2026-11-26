@@ -35,6 +35,7 @@ struct HearthApp: App {
                 else if let fixture = Self.settingsFixture() { SettingsFixtureScreen(fixture: fixture) }
                 else if Self.designGallery() { DesignSystemGallery() }
                 else if let preview = Self.homePreview() { HomePreviewFixture(previewCase: preview) }
+                else if let page = Self.phase3Page() { Phase3PageFixture(pageCase: page) }
                 else if let id = Self.parityState() { ParityStateScreen(id: id) }
                 else { ContentView() }
             }
@@ -75,6 +76,16 @@ struct HearthApp: App {
         let args = ProcessInfo.processInfo.arguments
         if args.contains("-homePreviewFirstRun") { return .firstRun }
         if args.contains("-homePreview") { return .populated }
+        return nil
+    }
+
+    private static func phase3Page() -> Phase3PageCase? {
+        let args = ProcessInfo.processInfo.arguments
+        if args.contains("-haPage") { return .haConnected }
+        if args.contains("-haPageNeedsSignIn") { return .haNeedsSignIn }
+        if args.contains("-cpPage") { return .cpConnected }
+        if args.contains("-cpPageNotSetUp") { return .cpNotSetUp }
+        if args.contains("-cpAlerts") { return .cpAlerts }
         return nil
     }
     #endif
@@ -557,6 +568,10 @@ private enum HomePreviewCase {
     case populated, firstRun
 }
 
+private enum Phase3PageCase {
+    case haConnected, haNeedsSignIn, cpConnected, cpNotSetUp, cpAlerts
+}
+
 /// DEBUG-only fixture for rendering HomeView states without signing in.
 private struct HomePreviewFixture: View {
     let previewCase: HomePreviewCase
@@ -585,5 +600,122 @@ private struct HomePreviewFixture: View {
             return HaConfig(baseUrl: "", token: "", entityId: "")
         }
     }
+}
+
+/// DEBUG-only fixture for rendering Phase 3 settings pages with mock data.
+private struct Phase3PageFixture: View {
+    let pageCase: Phase3PageCase
+
+    var body: some View {
+        NavigationStack {
+            switch pageCase {
+            case .haConnected:
+                HomeAssistantPage(config: mockHaConfig, runtime: MockPhase3Runtime()) { _ in }
+            case .haNeedsSignIn:
+                HomeAssistantPage(config: nil, runtime: MockPhase3Runtime()) { _ in }
+            case .cpConnected:
+                ChargePointPage(initialRoute: nil, runtime: MockPhase3Runtime())
+            case .cpNotSetUp:
+                ChargePointPage(initialRoute: nil, runtime: MockPhase3RuntimeNotSetUp())
+            case .cpAlerts:
+                ChargePointAlertsPage(runtime: MockPhase3Runtime())
+            }
+        }
+    }
+
+    private var mockHaConfig: HaConfig {
+        HaConfig(
+            baseUrl: "https://home.example.com",
+            token: "mock-token",
+            entityId: "alarm_control_panel.home",
+            refreshToken: "mock-refresh-token",
+            lockId: "lock.front_door",
+            climateId: "climate.thermostat",
+            sensorsJson: "[\"sensor.temp\"]"
+        )
+    }
+}
+
+@MainActor
+private final class MockPhase3Runtime: SettingsRuntime {
+    func loadHa() -> HaStoreSnapshot? {
+        HaStoreSnapshot(
+            config: HaConfig(
+                baseUrl: "https://home.example.com",
+                token: "mock-token",
+                entityId: "alarm_control_panel.home",
+                refreshToken: "mock-refresh-token",
+                lockId: "lock.front_door",
+                climateId: "climate.thermostat",
+                sensorsJson: "[\"sensor.temp\"]"
+            ),
+            scope: "mock-scope"
+        )
+    }
+
+    func saveHaEdit(expectedScope: String?, edit: SettingsHaEdit) throws -> HaConfig? {
+        nil
+    }
+
+    func discoverHa(config: HaConfig, scope: String?, purpose: SettingsDiscoveryPurpose) async throws -> SettingsDiscovery {
+        throw HaError("Mock discovery")
+    }
+
+    func loadCp() -> SettingsCpState {
+        SettingsCpState(
+            session: CpSession(token: "mock-token", userId: 1, email: "user@example.com"),
+            location: CpLocation(
+                name: "Office Building",
+                address: "123 Main St",
+                deviceIds: [1, 2],
+                bounds: cpBounds(lat: 37.7749, lon: -122.4194),
+                label: "Office"
+            ),
+            auto: true,
+            alerts: CpAlertPrefs(offer: true, accepted: true, snoozed: false, second: true)
+        )
+    }
+
+    func performCpEdit(_ edit: SettingsCpEdit, expected: CpSettingsOrigin?) async throws -> SettingsCpState {
+        loadCp()
+    }
+
+    func openSetupRoute(_ route: SettingsSetupRoute) -> SettingsSetupDestination {
+        .fixture
+    }
+
+    func refreshWidgets(kinds: Set<String>) {}
+}
+
+@MainActor
+private final class MockPhase3RuntimeNotSetUp: SettingsRuntime {
+    func loadHa() -> HaStoreSnapshot? { nil }
+
+    func saveHaEdit(expectedScope: String?, edit: SettingsHaEdit) throws -> HaConfig? {
+        nil
+    }
+
+    func discoverHa(config: HaConfig, scope: String?, purpose: SettingsDiscoveryPurpose) async throws -> SettingsDiscovery {
+        throw HaError("Mock discovery")
+    }
+
+    func loadCp() -> SettingsCpState {
+        SettingsCpState(
+            session: CpSession(token: "", userId: 0, email: ""),
+            location: nil,
+            auto: false,
+            alerts: CpAlertPrefs()
+        )
+    }
+
+    func performCpEdit(_ edit: SettingsCpEdit, expected: CpSettingsOrigin?) async throws -> SettingsCpState {
+        loadCp()
+    }
+
+    func openSetupRoute(_ route: SettingsSetupRoute) -> SettingsSetupDestination {
+        .fixture
+    }
+
+    func refreshWidgets(kinds: Set<String>) {}
 }
 #endif
