@@ -27,6 +27,7 @@ public enum GoodnightRuntime {
     ///   - config: User's Goodnight configuration.
     ///   - haConfig: Home Assistant configuration.
     ///   - now: Current date/time (for logging/context).
+    ///   - injectedFetchState: Optional injected closure for fetching HA state (for testing). Returns (allLights, panelSupportsNight).
     ///   - injectedCloseCover: Optional injected closure for closing covers (for testing).
     ///   - injectedTurnOffLights: Optional injected closure for turning off lights (for testing).
     ///   - injectedLock: Optional injected closure for locking (for testing).
@@ -36,13 +37,18 @@ public enum GoodnightRuntime {
         config: GoodnightConfig,
         haConfig: HaConfig,
         now: Date,
+        injectedFetchState: (@Sendable (HaConfig) async -> ([String], Bool))? = nil,
         injectedCloseCover: (@Sendable (String) async throws -> Void)? = nil,
         injectedTurnOffLights: (@Sendable ([String]) async throws -> Void)? = nil,
         injectedLock: (@Sendable () async -> Bool)? = nil,
         injectedArm: (@Sendable (String) async -> Bool)? = nil
     ) async -> GoodnightResult {
         // Fetch all lights and alarm state to build the plan
-        let (allLights, panelSupportsNight) = await fetchStateForPlanning(haConfig: haConfig)
+        let (allLights, panelSupportsNight) = if let injected = injectedFetchState {
+            await injected(haConfig)
+        } else {
+            await fetchStateForPlanning(haConfig: haConfig)
+        }
 
         // Build the plan
         let plan = planGoodnight(
