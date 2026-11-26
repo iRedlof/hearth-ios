@@ -28,15 +28,32 @@ public struct HearthSwitch: View {
             }
         }
         .accessibilityAddTraits(.isToggle)
+        .accessibilityValue(isOn ? "On" : "Off")
+        .accessibilityAction {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isOn.toggle()
+            }
+        }
     }
 
     // MARK: - Colors
+
+    /// Off-state color constants (source of truth for both body and tests).
+    public struct OffStateColors {
+        // Track OFF
+        public static let trackOffLight: UInt32 = 0xFFD9D4CD
+        public static let trackOffDark: UInt32 = 0xFF3A3835
+
+        // Thumb OFF
+        public static let thumbOffLight: UInt32 = 0xFFFFFFFF
+        public static let thumbOffDark: UInt32 = 0xFF8E8981
+    }
 
     private var trackColor: Color {
         if isOn {
             return HearthColor.ink(colorScheme)
         } else {
-            return Color(argb: colorScheme == .dark ? 0xFF3A3835 : 0xFFD9D4CD)
+            return Color(argb: colorScheme == .dark ? OffStateColors.trackOffDark : OffStateColors.trackOffLight)
         }
     }
 
@@ -44,7 +61,7 @@ public struct HearthSwitch: View {
         if isOn {
             return HearthColor.onAccent(colorScheme)
         } else {
-            return Color(argb: colorScheme == .dark ? 0xFF8E8981 : 0xFFFFFFFF)
+            return Color(argb: colorScheme == .dark ? OffStateColors.thumbOffDark : OffStateColors.thumbOffLight)
         }
     }
 
@@ -61,17 +78,17 @@ public struct HearthSwitch: View {
         public static let trackOnLight: UInt32 = HearthColor.inkLight
         public static let trackOnDark: UInt32 = HearthColor.inkDark
 
-        // Track OFF
-        public static let trackOffLight: UInt32 = 0xFFD9D4CD
-        public static let trackOffDark: UInt32 = 0xFF3A3835
+        // Track OFF (reference the source of truth)
+        public static let trackOffLight: UInt32 = OffStateColors.trackOffLight
+        public static let trackOffDark: UInt32 = OffStateColors.trackOffDark
 
         // Thumb ON (on-accent color — the page/on-ink color)
         public static let thumbOnLight: UInt32 = HearthColor.onAccentLight
         public static let thumbOnDark: UInt32 = HearthColor.onAccentDark
 
-        // Thumb OFF
-        public static let thumbOffLight: UInt32 = 0xFFFFFFFF
-        public static let thumbOffDark: UInt32 = 0xFF8E8981
+        // Thumb OFF (reference the source of truth)
+        public static let thumbOffLight: UInt32 = OffStateColors.thumbOffLight
+        public static let thumbOffDark: UInt32 = OffStateColors.thumbOffDark
     }
 }
 

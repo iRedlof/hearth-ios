@@ -2,6 +2,9 @@ import SwiftUI
 
 /// Warm color palette tokens for Hearth — pure cross-platform values.
 /// Each token exposes light and dark ARGB constants, plus a ColorScheme-based helper.
+///
+/// Convention: HearthColor is the raw light/dark constant store plus `token(_ scheme:)` Color accessors.
+/// Mapper types (StatusTone, TileHue) expose `*ARGB(_ scheme:)` raw hooks and Color accessors for testability.
 public enum HearthColor {
 
     // MARK: - ARGB Constants

@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - InkButtonStyle
 
 public struct InkButtonStyle: ButtonStyle {
-    nonisolated public static let height: CGFloat = HearthMetrics.buttonH
+    public static let height: CGFloat = HearthMetrics.buttonH
 
     public init() {}
 
@@ -35,7 +35,7 @@ public struct InkButtonStyle: ButtonStyle {
 // MARK: - InlineRowButtonStyle
 
 public struct InlineRowButtonStyle: ButtonStyle {
-    nonisolated public static let height: CGFloat = HearthMetrics.buttonHSmall
+    public static let height: CGFloat = HearthMetrics.buttonHSmall
 
     public init() {}
 

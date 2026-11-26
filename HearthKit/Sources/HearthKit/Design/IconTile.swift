@@ -6,7 +6,7 @@ import SwiftUI
 public enum TileHue: String, CaseIterable {
     case blue, orange, purple, green, red, amber, neutral
 
-    /// Light-mode fill ARGB.
+    /// Fill ARGB for the given color scheme.
     public func fillARGB(_ scheme: ColorScheme) -> UInt32 {
         switch (self, scheme) {
         case (.blue, .light):    return 0xFFDDEBFA
@@ -27,7 +27,7 @@ public enum TileHue: String, CaseIterable {
         }
     }
 
-    /// Light/dark ink ARGB.
+    /// Ink ARGB for the given color scheme.
     public func inkARGB(_ scheme: ColorScheme) -> UInt32 {
         switch (self, scheme) {
         case (.blue, .light):    return 0xFF1F4E79
