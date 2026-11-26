@@ -10,6 +10,7 @@ struct WidgetPage: View {
     let config: HaConfig?
     let runtime: any SettingsRuntime
     let onChange: (HaConfig?) -> Void
+    let onRoute: (HomeRoute) -> Void
 
     @State private var editScope: String?
     @State private var entityNames: [String: String] = [:]
@@ -30,10 +31,12 @@ struct WidgetPage: View {
     @Environment(\.colorScheme) private var scheme
 
     init(kind: HomeWidgetKind, config: HaConfig?, runtime: any SettingsRuntime = LiveSettingsRuntime.shared,
+         onRoute: @escaping (HomeRoute) -> Void = { _ in },
          onChange: @escaping (HaConfig?) -> Void) {
         self.kind = kind
         self.config = config
         self.runtime = runtime
+        self.onRoute = onRoute
         self.onChange = onChange
         let current = runtime.loadHa()
         _editScope = State(initialValue: haSameConnection(current?.config, config) ? current?.scope : nil)
@@ -318,7 +321,7 @@ struct WidgetPage: View {
     private var everyDayGroup: some View {
         HearthGroup("Every day") {
             Button {
-                // TODO Phase 5: Navigate to goodnight key settings
+                onRoute(.settings)
             } label: {
                 HearthRow(
                     icon: "moon.fill",
@@ -333,7 +336,7 @@ struct WidgetPage: View {
     private var lookGroup: some View {
         HearthGroup("Look") {
             Button {
-                // TODO Task 7: Navigate to card-style page
+                onRoute(.cardStyle(kind))
             } label: {
                 HearthRow(
                     icon: "paintbrush.fill",
@@ -351,7 +354,7 @@ struct WidgetPage: View {
             HStack {
                 Image(systemName: "exclamationmark.circle.fill")
                     .foregroundStyle(HearthColor.amber(scheme))
-                Text("Set up in \(requiredSteps) step\(requiredSteps > 1 ? "s" : "")")
+                Text(setupHeader)
                     .font(HearthFont.cardHeading.font)
                     .foregroundStyle(HearthColor.ink(scheme))
             }
@@ -539,7 +542,7 @@ struct WidgetPage: View {
 
     @ViewBuilder
     private func widget(for kind: WidgetPreviewKind) -> some View {
-        // NOTE: Duplicates WidgetGalleryView.widget(for:) — extract to shared helper in polish phase (M1)
+        // NOTE: overlaps AddWidgetGallery's specimen rendering — shared-helper extraction deferred (Phase 6 M1)
         switch kind {
         case .glance:
             let summary = GlanceSummary(verdict: .ok, word: "OK", tone: .ok, lines: [],
@@ -656,23 +659,32 @@ struct WidgetPage: View {
     }
 
     private func formatCheckedAt(_ date: Date) -> String {
-        let f = DateFormatter()
-        f.dateFormat = "h:mm a"
-        return f.string(from: date)
+        // Thread-safe Date.FormatStyle (project rule A7.5 / gotchas) — no per-call DateFormatter.
+        date.formatted(.dateTime.hour().minute())
     }
 
     private var requiredSteps: Int {
         switch kind {
         case .alarm: 2  // Alarm panel + Front door
         case .thermostat: 1  // Thermostat
-        case .car: 0  // Auto-discovered
+        case .car: 0  // Auto-discovered from Home Assistant — no manual step
         case .lights: 1  // Always show
         case .quick: 1  // Scripts
         case .favourites: 1  // Tiles
         case .doors: 1  // Doors
         case .activity, .battery: 1  // Sensors
         case .chargePoint: 1  // Sign in
-        case .glance: 0
+        case .glance: 1  // Connect Home Assistant
+        }
+    }
+
+    /// Honest, correctly pluralized setup header. Zero-step kinds (auto-discovered Car) don't claim
+    /// a step count — they just prompt to finish adding the widget.
+    private var setupHeader: String {
+        switch requiredSteps {
+        case 0: "Almost there"
+        case 1: "Set up in 1 step"
+        default: "Set up in \(requiredSteps) steps"
         }
     }
 

@@ -330,7 +330,7 @@ struct ContentView: View {
                 .id(sheet.id)
             case .widgetPage(let kind, _):
                 NavigationStack {
-                    WidgetPage(kind: kind, config: config) { next in
+                    WidgetPage(kind: kind, config: config, onRoute: handleHomeRoute) { next in
                         config = next
                     }
                     .toolbar {
@@ -366,9 +366,9 @@ struct ContentView: View {
                     }
                 }
                 .id(sheet.id)
-            case .cardStylePage(_):
+            case .cardStylePage(let kind, _):
                 NavigationStack {
-                    CardStylePage()
+                    CardStylePage(kind: kind)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Done") {
@@ -484,11 +484,11 @@ struct ContentView: View {
             settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .addWidgetGallery(UUID())
-        case .cardStyle:
-            // Present global card style page
+        case .cardStyle(let kind):
+            // Present the card-style page (global when kind is nil, per-widget override otherwise)
             settingsCarReturn = nil
             retireThermostat()
-            presentedSheet = .cardStylePage(UUID())
+            presentedSheet = .cardStylePage(kind, UUID())
         case .settings:
             // Go to Settings tab
             selection = 1
@@ -576,7 +576,7 @@ struct ContentView: View {
                   let kind = HomeWidgetKind(rawValue: args[index + 1]) {
             presentedSheet = .widgetPage(kind, UUID())
         } else if args.contains("-cardStyle") {
-            presentedSheet = .cardStylePage(UUID())
+            presentedSheet = .cardStylePage(nil, UUID())
         } else if args.contains("-glancePreview") {
             presentedSheet = .widgetPage(.glance, UUID())
         }
@@ -598,7 +598,7 @@ private enum HearthSheet: Identifiable {
     case chargePointPage(CpSetupRoute?, UUID)
     case widgetPage(HomeWidgetKind, UUID)
     case addWidgetGallery(UUID)
-    case cardStylePage(UUID)
+    case cardStylePage(HomeWidgetKind?, UUID)
     var id: String {
         switch self {
         case .reconnect(let id, _): "reconnect:\(id)"
@@ -610,7 +610,7 @@ private enum HearthSheet: Identifiable {
         case .chargePointPage(_, let id): "chargePointPage:\(id)"
         case .widgetPage(let kind, let id): "widgetPage:\(kind.rawValue):\(id)"
         case .addWidgetGallery(let id): "addWidgetGallery:\(id)"
-        case .cardStylePage(let id): "cardStylePage:\(id)"
+        case .cardStylePage(let kind, let id): "cardStylePage:\(kind?.rawValue ?? "global"):\(id)"
         }
     }
 }

@@ -13,7 +13,7 @@ struct LookSection: View {
     var body: some View {
         HearthGroup("Look") {
             Button {
-                onTap(.cardStyle)
+                onTap(.cardStyle(nil))
             } label: {
                 HearthRow(
                     icon: "paintpalette.fill",
