@@ -167,6 +167,10 @@ public enum GoodnightRuntime {
 
     /// Performs a lock action via the existing AlarmActionRuntime path.
     /// Returns true on success, false on failure.
+    ///
+    /// **Reduced confirmation budget:** Lock-screen intents have tight execution windows.
+    /// Uses 3 confirmation attempts (6s) instead of the interactive default (10 attempts = 20s)
+    /// to fit lock + arm within the OS's intent budget.
     private static func performLockAction(entityID: String, haConfig: HaConfig) async -> Bool {
         let client = HaClient(haConfig)
         let isCurrent: @Sendable () -> Bool = { true }  // Goodnight runs unconditionally
@@ -185,7 +189,8 @@ public enum GoodnightRuntime {
                 send: { command in
                     try await client.callService(domain: command.domain, service: command.service, entityId: command.entityID)
                 },
-                wait: { try await Task.sleep(for: .seconds(2)) }
+                wait: { try await Task.sleep(for: .seconds(2)) },
+                confirmationAttempts: 3  // Reduced for lock-screen intent (vs default 10)
             )
             return result == .confirmed
         } catch {
@@ -195,6 +200,10 @@ public enum GoodnightRuntime {
 
     /// Performs an arm action via the existing AlarmActionRuntime path.
     /// Returns true on success, false on failure.
+    ///
+    /// **Reduced confirmation budget:** Lock-screen intents have tight execution windows.
+    /// Uses 3 confirmation attempts (6s) instead of the interactive default (10 attempts = 20s)
+    /// to fit lock + arm within the OS's intent budget.
     private static func performArmAction(entityID: String, action: String, haConfig: HaConfig) async -> Bool {
         let client = HaClient(haConfig)
         let isCurrent: @Sendable () -> Bool = { true }  // Goodnight runs unconditionally
@@ -213,7 +222,8 @@ public enum GoodnightRuntime {
                 send: { command in
                     try await client.callService(domain: command.domain, service: command.service, entityId: command.entityID)
                 },
-                wait: { try await Task.sleep(for: .seconds(2)) }
+                wait: { try await Task.sleep(for: .seconds(2)) },
+                confirmationAttempts: 3  // Reduced for lock-screen intent (vs default 10)
             )
             return result == .confirmed
         } catch {
