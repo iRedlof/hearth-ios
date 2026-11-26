@@ -55,6 +55,8 @@ targets:
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: "NO"
         INFOPLIST_KEY_UISupportedInterfaceOrientations: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_NSFaceIDUsageDescription: "Confirm it's you before disarming the alarm or unlocking the door."
+        INFOPLIST_KEY_NSCalendarsUsageDescription: "Hearth reads your event times and places on this phone to suggest when to leave and when a trip is coming. Nothing leaves the device."
+        INFOPLIST_KEY_NSCalendarsFullAccessUsageDescription: "Hearth reads your event times and places on this phone to suggest when to leave and when a trip is coming. Nothing leaves the device."
 
   HearthWidgets:
     type: app-extension

@@ -254,6 +254,75 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 
 ---
 
+## Leave-by / Travel / Safety (Phase 5b)
+
+**Status:** ✅ Shipped
+
+**Three net-NEW iOS features** (no Android port — built from approved mocks only):
+
+**1. Leave-by times**
+- Sends notifications 20 minutes before calendar events with a location
+- Reminder includes house checks: alarm, locks, thermostat
+- Calendar permission required (explicit opt-in with denied/`.restricted` banner)
+- Notifications permission required (shows Settings deep-link when denied)
+- Runs on a once-scheduled-fires-without-app model (no Phase-6 BGTaskScheduler yet)
+
+**2. Travel days**
+- Detects trips from calendar events marked with the word "Trip"
+- Sends vacation-mode offer notification the night before (8 PM)
+- Notification is a suggestion only — no auto-action until user confirms in-app
+- Calendar + notifications permission required (same banners as Leave-by)
+- Runs on the same once-scheduled model as Leave-by
+
+**3. Safety alerts**
+- Monitors critical home-security actions (arm alarm, lock doors)
+- When an arm/lock action returns `.unconfirmed` or `.rejected`, retries once automatically
+- If still not confirmed after retry, posts immediate notification ("Front door won't lock" / "Home alarm won't arm")
+- Safety monitoring is purely additive: existing UI error flow unchanged, retry happens in background
+- Garage/cover monitoring deferred (no `HaConfig` field yet)
+- thrown-verify never false-alarms (Task-4 semantics: `verify()` throwing means "unknown state", not "failure")
+
+**No-auto-action guarantee (all three features):**
+- Notifications suggest actions only — nothing arms/locks/sets-Eco until the user confirms in `HouseConfirmSheet`
+- Owner-flagged confirm-UX ruling: notification → in-app confirm sheet (not auto-execute)
+
+**Components built:**
+- `LeaveByPage` — Enable/disable leave-by alerts, shows examples, calendar/notification permission banners
+- `TravelDaysPage` — Enable/disable travel alerts, shows examples, calendar/notification permission banners
+- `SafetyAlertsPage` — Enable/disable safety monitoring, explains retry behavior, notification permission banner
+- `HouseConfirmSheet` — In-app confirmation sheet for house actions (sample data for DEBUG hook)
+- `HouseFeaturesStore` — Persistent enable/disable state for all three features via UserDefaults
+- `HouseScheduler` — Unified scheduler for leave-by and travel notifications (reads calendar, plans notifications, reschedules on foreground)
+- `SafetyMonitor` — `ActionExecutor` protocol + `monitorWithRetry` function for retry-once-then-notify semantics
+- Safety hook in `AlarmActionRuntime.perform` — launches background retry Task when safety enabled and action returns `.unconfirmed`/`.rejected`
+
+**Integration:**
+- Reachable from Home dashboard "Every day" section → three rows with enabled-state subtitles
+- Safety monitoring hooks into `AlarmActionRuntime.perform` (the central alarm/lock action execution point)
+- Widget intents and app UI both use the same path, so safety monitoring covers both
+- Scheduler runs on app foreground (`.onAppear` + scene-phase active) — Phase 6 will add BGTaskScheduler for true background rescan
+
+**States implemented:**
+- Calendar permission: `.notDetermined` / `.authorized` / `.denied` / `.restricted` with banners and Settings deep-link
+- Notifications permission: same states as calendar
+- Enabled: Shows examples and retry behavior descriptions
+- Disabled: Shows only the enable toggle
+
+**DEBUG hooks:**
+- `-leaveBy` presents LeaveByPage
+- `-travelDays` presents TravelDaysPage
+- `-safetyAlerts` presents SafetyAlertsPage
+- `-houseConfirm` presents HouseConfirmSheet with sample actions
+
+**Phase 6 deferral:**
+- True background rescan (BGTaskScheduler) — currently reschedules only on foreground
+- Garage/cover monitoring — no `HaConfig` field yet, deferred
+
+**Parity vs Android:**
+- N/A — these are net-new iOS builds from mocks only (no Android equivalent)
+
+---
+
 ## Fix log (newest first)
 - A3 ✅ improved: `invalidatableContent` added to the freshness stamp in all 7 refreshable widgets (Car/Alarm/Thermostat/Battery/Lights/Favourites/Doors) → "updating" redaction on tap. Spinner itself is an iOS wall. Build + screenshot `invalidatable.png` confirm normal render intact.
 - A2 ⚠️ resolved as platform wall (researched, 8 Apple/dev sources): the under-widget label is system-drawn and NOT removable by any WidgetKit API; user-side hide only. Documented.

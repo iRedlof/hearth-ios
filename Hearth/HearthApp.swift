@@ -103,6 +103,7 @@ struct HearthApp: App {
 /// shows the real car — or the Home Assistant sign-in when not yet connected. **Preview** is the
 /// original verification gallery that renders every Beacon at the medium-widget size.
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var config: HaConfig?
     @State private var selection = ContentView.initialTab()
     @ObservedObject private var climateGate = ClimateGate.shared
@@ -210,9 +211,19 @@ struct ContentView: View {
             if let sheet = presentedSheet, case .thermostat = sheet { return }
             thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if !inertTabs && newPhase == .active {
+                HouseScheduler.refreshScheduleIfNeeded()
+            }
+        }
         #if DEBUG
         .onAppear { handleDebugLaunchArgs() }
         #endif
+        .onAppear {
+            if !inertTabs {
+                HouseScheduler.refreshScheduleIfNeeded()
+            }
+        }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .reconnect(_, let original):
@@ -392,6 +403,47 @@ struct ContentView: View {
                         }
                 }
                 .id(sheet.id)
+            case .leaveBy(_):
+                NavigationStack {
+                    LeaveByPage()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
+            case .travelDays(_):
+                NavigationStack {
+                    TravelDaysPage()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
+            case .safetyAlerts(_):
+                NavigationStack {
+                    SafetyAlertsPage()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
+            case .houseConfirm(_):
+                houseConfirmSheetView(for: sheet)
             }
         }
     }
@@ -505,7 +557,41 @@ struct ContentView: View {
         case .settings:
             // Go to Settings tab
             selection = 1
+        case .leaveBy:
+            // Present Leave-by page
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .leaveBy(UUID())
+        case .travelDays:
+            // Present Travel days page
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .travelDays(UUID())
+        case .safetyAlerts:
+            // Present Safety alerts page
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .safetyAlerts(UUID())
         }
+    }
+
+    @ViewBuilder private func houseConfirmSheetView(for sheet: HearthSheet) -> some View {
+        HouseConfirmSheet(
+            title: "Leaving for Event?",
+            actions: [
+                HouseAction(icon: "lock", hue: .green, title: "Lock Front door", subtitle: "Secure the entry"),
+                HouseAction(icon: "shield.checkered", hue: .blue, title: "Arm Home alarm", subtitle: "Set to Away mode")
+            ],
+            onConfirm: {
+                guard presentedSheet?.id == sheet.id else { return }
+                presentedSheet = nil
+            },
+            onCancel: {
+                guard presentedSheet?.id == sheet.id else { return }
+                presentedSheet = nil
+            }
+        )
+        .id(sheet.id)
     }
 
     @ViewBuilder private var settingsTab: some View {
@@ -594,6 +680,14 @@ struct ContentView: View {
             presentedSheet = .widgetPage(.glance, UUID())
         } else if args.contains("-morningCommute") {
             presentedSheet = .morningCommute(UUID())
+        } else if args.contains("-leaveBy") {
+            presentedSheet = .leaveBy(UUID())
+        } else if args.contains("-travelDays") {
+            presentedSheet = .travelDays(UUID())
+        } else if args.contains("-safetyAlerts") {
+            presentedSheet = .safetyAlerts(UUID())
+        } else if args.contains("-houseConfirm") {
+            presentedSheet = .houseConfirm(UUID())
         }
     }
     #endif
@@ -615,6 +709,10 @@ private enum HearthSheet: Identifiable {
     case addWidgetGallery(UUID)
     case cardStylePage(HomeWidgetKind?, UUID)
     case morningCommute(UUID)
+    case leaveBy(UUID)
+    case travelDays(UUID)
+    case safetyAlerts(UUID)
+    case houseConfirm(UUID)
     var id: String {
         switch self {
         case .reconnect(let id, _): "reconnect:\(id)"
@@ -628,6 +726,10 @@ private enum HearthSheet: Identifiable {
         case .addWidgetGallery(let id): "addWidgetGallery:\(id)"
         case .cardStylePage(let kind, let id): "cardStylePage:\(kind?.rawValue ?? "global"):\(id)"
         case .morningCommute(let id): "morningCommute:\(id)"
+        case .leaveBy(let id): "leaveBy:\(id)"
+        case .travelDays(let id): "travelDays:\(id)"
+        case .safetyAlerts(let id): "safetyAlerts:\(id)"
+        case .houseConfirm(let id): "houseConfirm:\(id)"
         }
     }
 }

@@ -9,6 +9,9 @@ public enum HomeRoute: Sendable, Equatable {
     /// Card-style editor. `nil` = the global (all-widgets) style; a kind = that widget's override.
     case cardStyle(HomeWidgetKind?)
     case settings
+    case leaveBy
+    case travelDays
+    case safetyAlerts
 }
 
 /// A widget item for the iOS Home dashboard "Your widgets" strip.

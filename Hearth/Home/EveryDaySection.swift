@@ -3,7 +3,6 @@ import HearthKit
 
 /// The "Every day" section of the iOS Home dashboard.
 /// Displays Routines, Leave-by, Travel days, and Safety alerts rows.
-/// Routes to Settings for now (Phase 5 will add dedicated destinations).
 struct EveryDaySection: View {
     private let onTap: (HomeRoute) -> Void
 
@@ -13,7 +12,6 @@ struct EveryDaySection: View {
 
     var body: some View {
         HearthGroup("Every day") {
-            // TODO Phase 5: dedicated routes for each feature
             Button {
                 onTap(.settings)
             } label: {
@@ -29,13 +27,13 @@ struct EveryDaySection: View {
             .buttonStyle(.plain)
 
             Button {
-                onTap(.settings)
+                onTap(.leaveBy)
             } label: {
                 HearthRow(
                     icon: "clock.fill",
                     hue: .blue,
                     title: "Leave-by times",
-                    subtitle: "Smart departure alerts"
+                    subtitle: leaveBySubtitle
                 ) {
                     HomeChevron()
                 }
@@ -43,13 +41,13 @@ struct EveryDaySection: View {
             .buttonStyle(.plain)
 
             Button {
-                onTap(.settings)
+                onTap(.travelDays)
             } label: {
                 HearthRow(
                     icon: "airplane",
                     hue: .amber,
                     title: "Travel days",
-                    subtitle: "Away mode & vacation"
+                    subtitle: travelDaysSubtitle
                 ) {
                     HomeChevron()
                 }
@@ -57,19 +55,34 @@ struct EveryDaySection: View {
             .buttonStyle(.plain)
 
             Button {
-                onTap(.settings)
+                onTap(.safetyAlerts)
             } label: {
                 HearthRow(
                     icon: "bell.badge.fill",
                     hue: .red,
                     title: "Safety alerts",
-                    subtitle: "Critical notifications"
+                    subtitle: safetyAlertsSubtitle
                 ) {
                     HomeChevron()
                 }
             }
             .buttonStyle(.plain)
         }
+    }
+
+    private var leaveBySubtitle: String {
+        guard HouseFeaturesStore.leaveByEnabled else { return "Off" }
+        return "\(HouseFeaturesStore.leaveByMinutes) min before events with a place"
+    }
+
+    private var travelDaysSubtitle: String {
+        guard HouseFeaturesStore.travelEnabled else { return "Off" }
+        return "Vacation mode the night before"
+    }
+
+    private var safetyAlertsSubtitle: String {
+        guard HouseFeaturesStore.safetyEnabled else { return "Off" }
+        return "When a close, lock or arm fails"
     }
 }
 

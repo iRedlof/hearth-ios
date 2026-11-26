@@ -1,0 +1,61 @@
+import Foundation
+
+/// Formatting helpers for house features (leave-by, travel, safety)
+/// These are pure functions to enable testing without UI/permissions.
+
+/// Format the subtitle for the next upcoming trip
+///
+/// - Parameters:
+///   - trips: Sorted trips (by startDate ascending)
+///   - now: Current time
+/// - Returns: Formatted subtitle like "Next: Lisbon trip · Sat" or "No trips in the next 7 days"
+public func nextTripSubtitle(trips: [Trip], now: Date) -> String {
+    guard let first = trips.first else {
+        return "No trips in the next 7 days"
+    }
+
+    // Format day of week (e.g., "Sat")
+    let dayFormatter = Date.FormatStyle()
+        .weekday(.abbreviated)
+    let day = first.startDate.formatted(dayFormatter)
+
+    return "Next: \(first.title) · \(day)"
+}
+
+/// State for calendar permission banner
+public enum CalendarBannerState: Sendable, Equatable {
+    case hidden
+    case needsPermission
+    case restricted
+}
+
+/// State for notification permission banner
+public enum NotificationBannerState: Sendable, Equatable {
+    case hidden
+    case needsPermission
+}
+
+/// Determine if the calendar permission banner should be shown
+///
+/// - Parameters:
+///   - enabled: Whether the feature is enabled
+///   - calendarStatus: EventKit authorization status raw value
+/// - Returns: Banner state
+public func calendarBannerState(enabled: Bool, calendarStatus: Int) -> CalendarBannerState {
+    guard enabled else { return .hidden }
+    // EKAuthorizationStatus: authorized=3, restricted=1, denied=2, notDetermined=0
+    if calendarStatus == 3 { return .hidden }         // .authorized
+    if calendarStatus == 1 { return .restricted }     // .restricted
+    return .needsPermission                            // .denied or .notDetermined
+}
+
+/// Determine if the notification permission banner should be shown
+///
+/// - Parameters:
+///   - enabled: Whether the feature is enabled
+///   - hasNotificationAccess: Whether notification access is authorized
+/// - Returns: Banner state
+public func notificationBannerState(enabled: Bool, hasNotificationAccess: Bool) -> NotificationBannerState {
+    guard enabled else { return .hidden }
+    return hasNotificationAccess ? .hidden : .needsPermission
+}
