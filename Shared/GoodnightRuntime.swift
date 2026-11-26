@@ -44,17 +44,21 @@ public enum GoodnightRuntime {
         // CRITICAL: Each step is independent; failures do NOT abort the sequence
 
         // Step 1: Close garage covers
+        // Best-effort per cover: attempt ALL covers even if one fails
         let garagesClosed: Bool
-        do {
-            let coverIds = plan.covers
-            if !coverIds.isEmpty {
-                for id in coverIds {
+        let coverIds = plan.covers
+        if !coverIds.isEmpty {
+            var anyFailed = false
+            for id in coverIds {
+                do {
                     try await closeCover(id: id, config: haConfig)
+                } catch {
+                    anyFailed = true
                 }
             }
+            garagesClosed = !anyFailed
+        } else {
             garagesClosed = true
-        } catch {
-            garagesClosed = false
         }
 
         // Step 2: Turn off lights

@@ -13,13 +13,24 @@ func closeCover(id: String, config: HaConfig) async throws {
 
 /// Turns off multiple lights via Home Assistant's `light.turn_off` service.
 ///
+/// **Best-effort per entity:** Attempts ALL lights even if one fails. A single flaky bulb
+/// does NOT skip the remaining lights.
+///
 /// - Parameters:
 ///   - ids: The entity IDs of the lights to turn off (e.g., ["light.living_room", "light.bedroom"]).
 ///   - config: Home Assistant configuration for authentication and URL.
-/// - Throws: `HaError` if any service call fails.
+/// - Throws: `HaError` if at least one service call failed (after attempting all).
 func turnOffLights(ids: [String], config: HaConfig) async throws {
     let client = HaClient(config)
+    var anyFailed = false
     for id in ids {
-        try await client.callService(domain: "light", service: "turn_off", entityId: id)
+        do {
+            try await client.callService(domain: "light", service: "turn_off", entityId: id)
+        } catch {
+            anyFailed = true
+        }
+    }
+    if anyFailed {
+        throw HaError("One or more lights failed to turn off")
     }
 }
