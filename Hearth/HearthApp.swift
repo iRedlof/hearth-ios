@@ -103,6 +103,7 @@ struct HearthApp: App {
 /// shows the real car — or the Home Assistant sign-in when not yet connected. **Preview** is the
 /// original verification gallery that renders every Beacon at the medium-widget size.
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var config: HaConfig?
     @State private var selection = ContentView.initialTab()
     @ObservedObject private var climateGate = ClimateGate.shared
@@ -210,9 +211,19 @@ struct ContentView: View {
             if let sheet = presentedSheet, case .thermostat = sheet { return }
             thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
         }
+        .onChange(of: scenePhase) { _, newPhase in
+            if !inertTabs && newPhase == .active {
+                HouseScheduler.refreshScheduleIfNeeded()
+            }
+        }
         #if DEBUG
         .onAppear { handleDebugLaunchArgs() }
         #endif
+        .onAppear {
+            if !inertTabs {
+                HouseScheduler.refreshScheduleIfNeeded()
+            }
+        }
         .sheet(item: $presentedSheet) { sheet in
             switch sheet {
             case .reconnect(_, let original):
