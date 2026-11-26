@@ -46,3 +46,22 @@ public func resolveArmMode(preferred: GoodnightArmMode, panelSupportsNight: Bool
     }
     return preferred
 }
+
+/// Returns the light IDs to turn off: all lights minus the keep-on set, order-stable and deduplicated.
+///
+/// - Parameters:
+///   - all: All light entity IDs to consider (may contain duplicates).
+///   - keepOn: Light entity IDs to exclude from the result.
+/// - Returns: Light IDs from `all` that are not in `keepOn`, preserving `all`'s order, deduplicated.
+public func lightsToTurnOff(all: [String], keepOn: [String]) -> [String] {
+    let keepOnSet = Set(keepOn)
+    var seen = Set<String>()
+    var result = [String]()
+    for id in all {
+        if !keepOnSet.contains(id) && !seen.contains(id) {
+            seen.insert(id)
+            result.append(id)
+        }
+    }
+    return result
+}

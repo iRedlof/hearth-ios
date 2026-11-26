@@ -167,6 +167,48 @@ struct GoodnightLogicTests {
         #expect(result == .home)
     }
 
+    // MARK: - Lights To Turn Off
+
+    @Test("lightsToTurnOff: excludes keep-on lights")
+    func lightsExcludesKeepOn() {
+        let all = ["light.living_room", "light.bedroom", "light.kitchen"]
+        let keepOn = ["light.bedroom"]
+        let result = lightsToTurnOff(all: all, keepOn: keepOn)
+        #expect(result == ["light.living_room", "light.kitchen"])
+    }
+
+    @Test("lightsToTurnOff: empty keepOn returns all lights (deduplicated)")
+    func lightsEmptyKeepOnReturnsAll() {
+        let all = ["light.living_room", "light.bedroom", "light.living_room"]
+        let keepOn: [String] = []
+        let result = lightsToTurnOff(all: all, keepOn: keepOn)
+        #expect(result == ["light.living_room", "light.bedroom"])
+    }
+
+    @Test("lightsToTurnOff: keepOn id not in all has no effect")
+    func lightsKeepOnNotInAllHasNoEffect() {
+        let all = ["light.living_room", "light.bedroom"]
+        let keepOn = ["light.kitchen"]
+        let result = lightsToTurnOff(all: all, keepOn: keepOn)
+        #expect(result == ["light.living_room", "light.bedroom"])
+    }
+
+    @Test("lightsToTurnOff: duplicates in all are deduplicated")
+    func lightsDuplicatesDeduped() {
+        let all = ["light.a", "light.b", "light.a", "light.c", "light.b"]
+        let keepOn = ["light.c"]
+        let result = lightsToTurnOff(all: all, keepOn: keepOn)
+        #expect(result == ["light.a", "light.b"])
+    }
+
+    @Test("lightsToTurnOff: empty all returns empty")
+    func lightsEmptyAllReturnsEmpty() {
+        let all: [String] = []
+        let keepOn = ["light.bedroom"]
+        let result = lightsToTurnOff(all: all, keepOn: keepOn)
+        #expect(result == [])
+    }
+
     // MARK: - Helpers
 
     private func makeCalendar(timeZone: TimeZone) -> Calendar {
