@@ -82,9 +82,7 @@ extension HearthRow {
 // MARK: - Preview
 
 #Preview("Connections Group — Light") {
-    @Environment(\.colorScheme) var scheme
-
-    return VStack(spacing: 20) {
+    VStack(spacing: 20) {
         HearthGroup("Connections") {
             HearthRow(
                 icon: "house",
@@ -104,7 +102,6 @@ extension HearthRow {
             ) {
                 StatusPill("Needs sign-in", tone: .warn)
             }
-            .hearthDivider(scheme)
         }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -113,9 +110,7 @@ extension HearthRow {
 }
 
 #Preview("Connections Group — Dark") {
-    @Environment(\.colorScheme) var scheme
-
-    return VStack(spacing: 20) {
+    VStack(spacing: 20) {
         HearthGroup("Connections") {
             HearthRow(
                 icon: "house",
@@ -135,7 +130,6 @@ extension HearthRow {
             ) {
                 StatusPill("Needs sign-in", tone: .warn)
             }
-            .hearthDivider(scheme)
         }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -144,9 +138,7 @@ extension HearthRow {
 }
 
 #Preview("Connections Group — Accessibility") {
-    @Environment(\.colorScheme) var scheme
-
-    return VStack(spacing: 20) {
+    VStack(spacing: 20) {
         HearthGroup("Connections") {
             HearthRow(
                 icon: "house",
@@ -166,7 +158,6 @@ extension HearthRow {
             ) {
                 StatusPill("Needs sign-in", tone: .warn)
             }
-            .hearthDivider(scheme)
         }
     }
     .frame(maxWidth: .infinity, maxHeight: .infinity)
