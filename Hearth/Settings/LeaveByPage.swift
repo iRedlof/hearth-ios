@@ -41,7 +41,7 @@ struct LeaveByPage: View {
                 }
                 .padding(.top, 20)
 
-                // Calendar permission banners
+                // Calendar permission banners (only when enabled)
                 let bannerState = calendarBannerState(enabled: enabled, calendarStatus: calendarStatus.rawValue)
                 if bannerState == .needsPermission {
                     calendarDeniedBanner
@@ -49,16 +49,16 @@ struct LeaveByPage: View {
                     calendarRestrictedBanner
                 }
 
+                // Description (always show)
+                descriptionSection
+
+                // Minutes before chips (only when enabled)
                 if enabled {
-                    // Description
-                    descriptionSection
-
-                    // Minutes before chips
                     minutesBeforeSection
-
-                    // Privacy note
-                    privacySection
                 }
+
+                // Privacy note (always show)
+                privacySection
             }
             .padding(.bottom, 20)
         }

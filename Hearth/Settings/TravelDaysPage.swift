@@ -38,7 +38,7 @@ struct TravelDaysPage: View {
                 }
                 .padding(.top, 20)
 
-                // Calendar permission banners
+                // Calendar permission banners (only when enabled)
                 let bannerState = calendarBannerState(enabled: enabled, calendarStatus: calendarStatus.rawValue)
                 if bannerState == .needsPermission {
                     calendarDeniedBanner
@@ -46,13 +46,11 @@ struct TravelDaysPage: View {
                     calendarRestrictedBanner
                 }
 
-                if enabled {
-                    // Description sections
-                    tripDefinitionSection
-                    notificationTimeSection
-                    confirmationSection
-                    privacySection
-                }
+                // Description sections (always show)
+                tripDefinitionSection
+                notificationTimeSection
+                confirmationSection
+                privacySection
             }
             .padding(.bottom, 20)
         }

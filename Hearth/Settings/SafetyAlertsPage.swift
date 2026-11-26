@@ -45,16 +45,14 @@ struct SafetyAlertsPage: View {
                 }
                 .padding(.top, 20)
 
-                // Notifications denied banner
+                // Notifications denied banner (only when enabled)
                 if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
                     notificationsDeniedBanner
                 }
 
-                if enabled {
-                    // Description sections
-                    failureDescriptionSection
-                    retryDescriptionSection
-                }
+                // Description sections (always show)
+                failureDescriptionSection
+                retryDescriptionSection
             }
             .padding(.bottom, 20)
         }
