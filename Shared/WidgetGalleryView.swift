@@ -167,6 +167,18 @@ struct WidgetGalleryView: View {
 
     @ViewBuilder private func widget(for kind: WidgetPreviewKind) -> some View {
         switch kind {
+        case .glance:
+            let summary = GlanceSummary(
+                verdict: .ok,
+                word: "OK",
+                tone: .ok,
+                lines: [],
+                support: "Checked 9:41",
+                calmLine: "Alarm · Doors · Lights",
+                key: nil
+            )
+            let plan = glanceLayout(summary: summary, size: .small2x1)
+            GlanceView(summary: summary, plan: plan)
         case .car:
             if selectedFamily(for: kind) == .small {
                 CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
