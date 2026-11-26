@@ -332,11 +332,11 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 **One-tap Goodnight sequence:**
 - Runs a fixed sequence: Close garage → Lights off (except keep-on) → Lock → Arm Night
 - Triggered via lock-screen **App Intent** (`RunGoodnightIntent`, `openAppWhenRun=false`), NOT CoreNFC
-- Active only within the night window (default 9 PM–5 AM, overnight-wrap handled via `nightWindow` utils)
+- Active only within the night window (default 9 PM–5 AM, overnight-wrap handled via `goodnightActive` utils)
 - **No-abort semantics:** A garage or lights failure still proceeds to lock + arm (see G3 ruling)
 - **Per-entity best-effort:** One flaky light/cover doesn't skip the rest (see G1 ruling)
 - Arm-mode is **Night with Home fallback** when the panel lacks Night capability (see G2 ruling)
-- Garage covers sourced from the **Doors widget config** (`HouseConfig.garageCoverIds`)
+- Garage covers sourced from the **Doors widget config** (`haConfig.doorIds` filtered to `cover.*`)
 - **No auto-run:** Only explicit intent invocation + window gate (no scheduled triggers)
 
 **Reachability:**
@@ -347,13 +347,13 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 **Components built:**
 - `GoodnightPage` — Enable/disable toggle, overnight window editor, sequence explanation, lights/garage config editors
 - `RunGoodnightIntent` — Lock-screen App Intent for one-tap execution (runs in widget-extension process)
-- `GoodnightExecutor` — Sequential execution engine with best-effort entity handling
+- `GoodnightRuntime` — Sequential execution engine with best-effort entity handling
 - `nightWindow` utilities — Overnight time-range wrap detection (10 PM–6 AM crossing midnight)
 
 **Integration:**
 - Reuses `AlarmActionRuntime` for lock + arm (benefits from existing confirmation/safety behavior)
-- Garage close uses `HomeAssistantClient.closeCover` (same path as Doors widget)
-- Lights off uses `HomeAssistantClient.turnOffLight` with keep-on exclusion list
+- Garage close uses `HaClient.closeCover` (same path as Doors widget)
+- Lights off uses `HaClient.turnOffLights` with keep-on exclusion list
 
 **States implemented:**
 - Enabled: Shows overnight window, sequence explanation, config editors
