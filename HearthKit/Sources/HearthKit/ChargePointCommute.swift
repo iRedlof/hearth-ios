@@ -109,3 +109,39 @@ public func parseCommuteSensors(_ body: String) -> (chargeNow: Bool, signinNeede
 
     return (chargeNow: chargeNow, signinNeeded: signinNeeded)
 }
+
+/// Status of the morning-commute sensor detection.
+public enum CommuteStatus: Sendable, Equatable {
+    case found              // fresh sensor read (within threshold)
+    case lastHeard(Date)    // stale sensor read (older than threshold)
+    case waiting            // never heard from sensor (nil)
+}
+
+/**
+ Map the last sensor read timestamp to a UI-facing status.
+
+ - Parameter lastHeard: The timestamp of the last sensor read from HA, or `nil` if never heard.
+ - Parameter now: Current time (from `@Dependency(\.date)` in production).
+ - Parameter threshold: Freshness window in seconds (default 300 = 5 minutes).
+ - Returns: Status enum representing found/lastHeard/waiting state.
+
+ Logic:
+ - `nil` → `.waiting` (never heard from sensor).
+ - Fresh (age ≤ threshold) → `.found` (sensor is active).
+ - Stale (age > threshold) → `.lastHeard(date)` (sensor went silent).
+
+ Threshold is exclusive: exactly at threshold is considered stale.
+ */
+public func commuteStatus(lastHeard: Date?, now: Date, threshold: TimeInterval = 300) -> CommuteStatus {
+    guard let lastHeard else {
+        return .waiting
+    }
+
+    let age = now.timeIntervalSince(lastHeard)
+
+    if age < threshold {
+        return .found
+    } else {
+        return .lastHeard(lastHeard)
+    }
+}
