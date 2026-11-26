@@ -12,6 +12,7 @@ public enum HomeRoute: Sendable, Equatable {
     case leaveBy
     case travelDays
     case safetyAlerts
+    case goodnight
 }
 
 /// A widget item for the iOS Home dashboard "Your widgets" strip.

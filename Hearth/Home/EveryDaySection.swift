@@ -67,6 +67,20 @@ struct EveryDaySection: View {
                 }
             }
             .buttonStyle(.plain)
+
+            Button {
+                onTap(.goodnight)
+            } label: {
+                HearthRow(
+                    icon: "moon.stars.fill",
+                    hue: .purple,
+                    title: "Goodnight key",
+                    subtitle: "One tap: close garage, lights off, lock, arm"
+                ) {
+                    HomeChevron()
+                }
+            }
+            .buttonStyle(.plain)
         }
     }
 

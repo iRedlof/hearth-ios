@@ -442,6 +442,19 @@ struct ContentView: View {
                         }
                 }
                 .id(sheet.id)
+            case .goodnight(_):
+                NavigationStack {
+                    GoodnightPage()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
             case .houseConfirm(_):
                 houseConfirmSheetView(for: sheet)
             }
@@ -572,6 +585,11 @@ struct ContentView: View {
             settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .safetyAlerts(UUID())
+        case .goodnight:
+            // Present Goodnight page
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .goodnight(UUID())
         }
     }
 
@@ -686,6 +704,8 @@ struct ContentView: View {
             presentedSheet = .travelDays(UUID())
         } else if args.contains("-safetyAlerts") {
             presentedSheet = .safetyAlerts(UUID())
+        } else if args.contains("-goodnight") {
+            presentedSheet = .goodnight(UUID())
         } else if args.contains("-houseConfirm") {
             presentedSheet = .houseConfirm(UUID())
         }
@@ -712,6 +732,7 @@ private enum HearthSheet: Identifiable {
     case leaveBy(UUID)
     case travelDays(UUID)
     case safetyAlerts(UUID)
+    case goodnight(UUID)
     case houseConfirm(UUID)
     var id: String {
         switch self {
@@ -729,6 +750,7 @@ private enum HearthSheet: Identifiable {
         case .leaveBy(let id): "leaveBy:\(id)"
         case .travelDays(let id): "travelDays:\(id)"
         case .safetyAlerts(let id): "safetyAlerts:\(id)"
+        case .goodnight(let id): "goodnight:\(id)"
         case .houseConfirm(let id): "houseConfirm:\(id)"
         }
     }
