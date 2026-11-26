@@ -217,6 +217,43 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 
 ---
 
+## Morning commute (Phase 5a)
+
+**Status:** ✅ Shipped
+
+**Feature ported:** Morning commute auto-join from Android `ChargePointCommute.kt`
+
+**Components built:**
+- `MorningCommutePage` — Enable/disable morning commute, sensor detection status, copy-paste YAML config
+- `CommuteStore` — Persistent enable/disable state via UserDefaults
+- `commuteDecide` — Pure decision function (NOT a TCA reducer; 9 tests, ported 1:1 from Android `ChargePointCommute.kt`) returning `.armAuto` / `.notifySignIn` / `.none` from the two sensor booleans plus live CP state (charging / already-armed / signed-out) and the per-day stamps
+- `CommuteFetch` / `CommuteStore` — HA `/api/template` sensor read + App-Group persistence (`enabled`, `lastArmDay`, `lastNotifyDay`, `lastHeard`)
+
+**States implemented:**
+- Enabled: Shows the enable toggle plus the Detection status row and the two sensor-YAML copy cards
+- Disabled: Shows only the enable toggle — the Detection and YAML sections are hidden until the feature is turned on
+- Notification permission: Requests permission when enabling if not yet determined; shows an amber Settings-deep-link banner when denied
+- Detection status reflects sensor-fetch FRESHNESS, not sensor values: `.found` (green) when the last successful sensor read is recent (< 5 min), `.lastHeard(time)` when stale, `.waiting` (neutral) when no read has happened yet
+
+**Integration:**
+- Reachable via Settings → ChargePoint → Morning commute
+- Engine runs in ChargePoint widget's 15-min refresh cycle (Phase 4 `CpWidgetProvider.timeline`)
+- Reads two Home Assistant booleans: `commute_charge_now` and `commute_signin_needed` via `/api/template`
+- Google Routes, geofence, and ETA calculations live in the owner's Home Assistant configuration (app only reads sensor values)
+- Once-per-day guarantee: Never arms/notifies more than once per calendar day; a failed arm does NOT burn the day (retries allowed within the morning window)
+- Acts once per day per branch: `commute_charge_now` → auto-joins the waitlist (no notification); `commute_signin_needed` while signed-out/expired → sends an iOS local notification nudging ChargePoint sign-in
+
+**DEBUG hook:** `-morningCommute` presents MorningCommutePage directly for screenshots
+
+**Parity vs Android:**
+- Engine logic is a 1:1 port from Android `ChargePointCommute.kt`
+- 9 `commuteDecide` tests port all Android test cases (never arms twice, retries within window, respects calendar day boundary)
+- Detection status row is honest — it reflects real sensor-fetch freshness (reads `CommuteStore.lastHeard`, written on each successful fetch), never a hardcoded "Found"
+- Both sensor YAML configs ship as copy-paste cards in the settings page
+- Minor: iOS uses local notifications instead of Android system notifications (platform API difference)
+
+---
+
 ## Fix log (newest first)
 - A3 ✅ improved: `invalidatableContent` added to the freshness stamp in all 7 refreshable widgets (Car/Alarm/Thermostat/Battery/Lights/Favourites/Doors) → "updating" redaction on tap. Spinner itself is an iOS wall. Build + screenshot `invalidatable.png` confirm normal render intact.
 - A2 ⚠️ resolved as platform wall (researched, 8 Apple/dev sources): the under-widget label is system-drawn and NOT removable by any WidgetKit API; user-side hide only. Documented.

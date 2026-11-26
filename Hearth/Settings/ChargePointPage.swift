@@ -51,6 +51,7 @@ struct ChargePointPage: View {
                     accountGroup
                     waitlistGroup
                     alertsGroup
+                    morningCommuteGroup
                     widgetGroup
                     signOutButton
                 }
@@ -431,6 +432,31 @@ struct ChargePointPage: View {
         } else {
             return "\(count) of 4 on"
         }
+    }
+
+    // MARK: - Morning Commute Group
+
+    @ViewBuilder
+    private var morningCommuteGroup: some View {
+        HearthGroup("Morning commute") {
+            NavigationLink {
+                MorningCommutePage()
+            } label: {
+                HearthRow(
+                    icon: "car",
+                    hue: .neutral,
+                    title: "Morning commute",
+                    subtitle: commuteSubtitle
+                ) {
+                    HomeChevron()
+                }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var commuteSubtitle: String {
+        CommuteStore.enabled ? "Auto-join on weekday mornings" : "Off"
     }
 
     // MARK: - Widget Group
