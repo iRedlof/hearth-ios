@@ -1,0 +1,155 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Hearth — parity decisions</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;background:#0b0b0d;color:#e9e9ec;font:15px/1.5 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;padding-bottom:60px}
+  header{padding:26px 24px 10px}
+  h1{font-size:23px;margin:0 0 4px}
+  .sub{color:#9a9aa2;font-size:14px;max-width:900px}
+  .prog{position:sticky;top:0;background:#0b0b0dF2;padding:10px 24px;border-bottom:1px solid #1d1d22;z-index:10;font-size:14px}
+  .prog b{color:#5fd48a}
+  .note{margin:10px 24px;padding:10px 14px;background:#141418;border:1px solid #23232a;border-radius:10px;color:#b9b9c0;font-size:13px}
+  .card{margin:16px 24px;padding:16px;background:#121216;border:1px solid #23232a;border-radius:14px}
+  .card.decided{border-color:#2d5a3a}
+  .ctitle{font-size:16px;font-weight:700;margin:0 0 4px}
+  .cnum{display:inline-flex;width:22px;height:22px;border-radius:50%;background:#2a2a32;color:#cfcfd6;align-items:center;justify-content:center;font-size:12px;font-weight:700;margin-right:8px}
+  .cdesc{color:#b9b9c0;font-size:13.5px;margin:0 0 12px}
+  .imgs{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px}
+  .pane{background:#141418;border:1px solid #23232a;border-radius:12px;padding:8px}
+  .plabel{font-size:11px;font-weight:700;color:#9a9aa2;letter-spacing:.04em;margin:0 0 6px}
+  .pane img{width:100%;height:auto;border-radius:9px;display:block;background:#000}
+  .opts{display:flex;gap:10px;flex-wrap:wrap}
+  .opt{display:flex;align-items:center;gap:7px;padding:8px 14px;border:1px solid #33333c;border-radius:10px;cursor:pointer;font-size:14px;background:#181820}
+  .opt:hover{border-color:#4f8cff}
+  .opt.sel{border-color:#5fd48a;background:#15351f;color:#c7f5d6}
+  .opt input{accent-color:#5fd48a}
+  footer{padding:20px 24px;color:#7a7a82;font-size:13px}
+  @media(max-width:760px){.imgs{grid-template-columns:1fr}}
+</style></head><body>
+<header><h1>Hearth — iOS ↔ Android parity decisions</h1>
+<div class="sub">Every remaining discrepancy, side by side. Pick the direction for each — → iOS, → Android, or keep both. Your choices save to the server and I implement them. The full gallery is on <a href="index.html" style="color:#8fb7ff">index.html</a>.</div></header>
+<div class="prog"><b id="count">0</b> / 9 decided</div>
+<div class="note">🚗 Car is fully converged. The only visible difference is “Tesla unavailable” — that's just because the emulator has no Tesla app installed; a real device shows “Open Tesla”, same as iOS. No change needed.</div>
+<div class="card" data-id="cp-labels">
+<div class="ctitle"><span class="cnum">1</span>ChargePoint — button labels</div>
+<div class="cdesc">Android uses long labels (“Stop charging”, “Open ChargePoint”, “Join waitlist”, “Start charge”, “Rejoin now”); iOS uses short ones (“Stop”, “Open”, “Join”, “Start”, “Rejoin”).<br><span style="color:#6f6f77">reference state: <code>chargepoint-available</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-available.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-available.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="ios"><input type="radio" name="cp-labels" onchange="choose('cp-labels','ios','ChargePoint — button labels')">Short labels (iOS)</label>
+<label class="opt" data-choice="android"><input type="radio" name="cp-labels" onchange="choose('cp-labels','android','ChargePoint — button labels')">Long labels (Android)</label>
+<label class="opt" data-choice="keep"><input type="radio" name="cp-labels" onchange="choose('cp-labels','keep','ChargePoint — button labels')">Keep each as-is</label>
+</div></div>
+<div class="card" data-id="cp-charging-open">
+<div class="ctitle"><span class="cnum">2</span>ChargePoint — charging: second “Open” button</div>
+<div class="cdesc">Android shows “Stop charging” + “Open”; iOS shows only “Stop”.<br><span style="color:#6f6f77">reference state: <code>chargepoint-charging</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-charging.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-charging.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="ios"><input type="radio" name="cp-charging-open" onchange="choose('cp-charging-open','ios','ChargePoint — charging: second “Open” button')">Stop only (iOS)</label>
+<label class="opt" data-choice="android"><input type="radio" name="cp-charging-open" onchange="choose('cp-charging-open','android','ChargePoint — charging: second “Open” button')">Stop + Open (Android)</label>
+</div></div>
+<div class="card" data-id="cp-charging-stats">
+<div class="ctitle"><span class="cnum">3</span>ChargePoint — charging: session stats</div>
+<div class="cdesc">Android shows Est. distance / Time elapsed / Charger in the right panel; iOS shows nothing there.<br><span style="color:#6f6f77">reference state: <code>chargepoint-charging</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-charging.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-charging.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="ios"><input type="radio" name="cp-charging-stats" onchange="choose('cp-charging-stats','ios','ChargePoint — charging: session stats')">Hide them (iOS)</label>
+<label class="opt" data-choice="android"><input type="radio" name="cp-charging-stats" onchange="choose('cp-charging-stats','android','ChargePoint — charging: session stats')">Show the stats (Android)</label>
+</div></div>
+<div class="card" data-id="cp-held-leave">
+<div class="ctitle"><span class="cnum">4</span>ChargePoint — held: third “Leave” button</div>
+<div class="cdesc">Android has Start + Snooze + Leave; iOS has Start + Snooze.<br><span style="color:#6f6f77">reference state: <code>chargepoint-held</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-held.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-held.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="ios"><input type="radio" name="cp-held-leave" onchange="choose('cp-held-leave','ios','ChargePoint — held: third “Leave” button')">Start + Snooze (iOS)</label>
+<label class="opt" data-choice="android"><input type="radio" name="cp-held-leave" onchange="choose('cp-held-leave','android','ChargePoint — held: third “Leave” button')">+ Leave (Android)</label>
+</div></div>
+<div class="card" data-id="cp-timed-detail">
+<div class="ctitle"><span class="cnum">5</span>ChargePoint — timed-state detail lines</div>
+<div class="cdesc">In offer/held/snoozed/done, Android adds extra lines (“to accept”, “1 snooze left”, “Back in line at…”, the state word as its own line); iOS is minimal (clock + one word + “respond by…”).<br><span style="color:#6f6f77">reference state: <code>chargepoint-offer</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/chargepoint-offer.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/chargepoint-offer.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="ios"><input type="radio" name="cp-timed-detail" onchange="choose('cp-timed-detail','ios','ChargePoint — timed-state detail lines')">Minimal (iOS)</label>
+<label class="opt" data-choice="android"><input type="radio" name="cp-timed-detail" onchange="choose('cp-timed-detail','android','ChargePoint — timed-state detail lines')">Verbose (Android)</label>
+<label class="opt" data-choice="keep"><input type="radio" name="cp-timed-detail" onchange="choose('cp-timed-detail','keep','ChargePoint — timed-state detail lines')">Keep each</label>
+</div></div>
+<div class="card" data-id="th-off">
+<div class="ctitle"><span class="cnum">6</span>Thermostat — Off-state message</div>
+<div class="cdesc">Android shows an “Off / Choose a mode to turn on” message box; iOS shows nothing in the middle.<br><span style="color:#6f6f77">reference state: <code>thermostat-off</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-off.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-off.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="ios"><input type="radio" name="th-off" onchange="choose('th-off','ios','Thermostat — Off-state message')">No message (iOS)</label>
+<label class="opt" data-choice="android"><input type="radio" name="th-off" onchange="choose('th-off','android','Thermostat — Off-state message')">Show message (Android)</label>
+</div></div>
+<div class="card" data-id="th-setup">
+<div class="ctitle"><span class="cnum">7</span>Thermostat — Setup state</div>
+<div class="cdesc">Android shows a proper “Set up thermostat / Connect” card; iOS shows a greyed “Mode” chip + “Unavailable” (looks unfinished).<br><span style="color:#6f6f77">reference state: <code>thermostat-setup</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/thermostat-setup.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/thermostat-setup.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="android"><input type="radio" name="th-setup" onchange="choose('th-setup','android','Thermostat — Setup state')">Proper setup card (Android) → fix iOS</label>
+<label class="opt" data-choice="ios"><input type="radio" name="th-setup" onchange="choose('th-setup','ios','Thermostat — Setup state')">Keep iOS minimal</label>
+</div></div>
+<div class="card" data-id="al-armhome-icon">
+<div class="ctitle"><span class="cnum">8</span>Alarm — Arm home button icon</div>
+<div class="cdesc">On the Arm-home button, Android uses a house-in-shield; iOS uses a plain house. (Look at the buttons bottom-right.)<br><span style="color:#6f6f77">reference state: <code>alarm-disarmed</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-disarmed.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-disarmed.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="ios"><input type="radio" name="al-armhome-icon" onchange="choose('al-armhome-icon','ios','Alarm — Arm home button icon')">Plain house (iOS)</label>
+<label class="opt" data-choice="android"><input type="radio" name="al-armhome-icon" onchange="choose('al-armhome-icon','android','Alarm — Arm home button icon')">House-in-shield (Android)</label>
+</div></div>
+<div class="card" data-id="al-glyph-style">
+<div class="ctitle"><span class="cnum">9</span>Alarm — rail glyph style (disarmed / away / alert)</div>
+<div class="cdesc">Same concepts on both, but Android draws custom vectors while iOS uses SF Symbols, so the exact weight/shape differs. Pixel-match them?<br><span style="color:#6f6f77">reference state: <code>alarm-armed_away</code></span></div>
+<div class="imgs">
+<div class="pane"><div class="plabel">ANDROID</div><img loading="lazy" src="and/alarm-armed_away.png"></div>
+<div class="pane"><div class="plabel">iOS</div><img loading="lazy" src="ios/alarm-armed_away.png"></div>
+</div><div class="opts">
+<label class="opt" data-choice="ios"><input type="radio" name="al-glyph-style" onchange="choose('al-glyph-style','ios','Alarm — rail glyph style (disarmed / away / alert)')">Match iOS SF Symbols</label>
+<label class="opt" data-choice="android"><input type="radio" name="al-glyph-style" onchange="choose('al-glyph-style','android','Alarm — rail glyph style (disarmed / away / alert)')">Match Android vectors</label>
+<label class="opt" data-choice="keep"><input type="radio" name="al-glyph-style" onchange="choose('al-glyph-style','keep','Alarm — rail glyph style (disarmed / away / alert)')">Close enough — keep</label>
+</div></div>
+<footer>When you've picked the ones you care about, tell me "go" and I'll implement every decision, re-render, and release.</footer>
+<script>
+let decided = {};
+const TOTAL = 9;
+function refresh(){
+  const n = Object.keys(decided).length;
+  document.getElementById('count').textContent = n;
+  document.querySelectorAll('.card').forEach(c=>{
+    const id=c.dataset.id;
+    c.classList.toggle('decided', !!decided[id]);
+    c.querySelectorAll('.opt').forEach(o=>{
+      const on = decided[id]===o.dataset.choice;
+      o.classList.toggle('sel', on);
+      o.querySelector('input').checked = on;
+    });
+  });
+}
+async function load(){
+  try{ decided = await (await fetch('/decisions')).json(); }catch(e){}
+  // normalise {id:{choice}} -> {id:choice}
+  const m={}; for(const k in decided){ m[k]=decided[k].choice; } decided=m;
+  refresh();
+}
+function choose(id, choice, title){
+  decided[id]=choice; refresh();
+  fetch('/decision',{method:'POST',body:JSON.stringify({id,choice,title})});
+}
+load();
+</script></body></html>

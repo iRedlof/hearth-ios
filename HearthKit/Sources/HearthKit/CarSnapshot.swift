@@ -9,6 +9,11 @@ public struct CarSnapshot: Sendable, Equatable {
     public var name: String          // header, e.g. "Stargate"
     public var checkedAt: String     // "3:47 PM"
     public var battery: Int?         // 72  (nil → "—")
+    public var limit: Int?           // actual charge limit; nil → no marker
+    public var stale: Bool           // historical readings must not look live
+    public var error: String?        // full refresh error for accessibility
+    public var needsSettings: Bool
+    public var needsSignIn: Bool
     public var range: String         // "219 mi range"
     public var lock: String          // "Locked" / "Unlocked" / "—"
     public var lockWarn: Bool        // unlocked
@@ -26,11 +31,16 @@ public struct CarSnapshot: Sendable, Equatable {
     public init(name: String, checkedAt: String, battery: Int?, range: String,
                 lock: String, lockWarn: Bool, doors: String, doorsWarn: Bool,
                 cabin: String, outside: String, tires: String, tiresWarn: Bool,
-                place: String, sentry: SentryState, chargeLine: String, tone: BeaconTone) {
+                place: String, sentry: SentryState, chargeLine: String, tone: BeaconTone,
+                limit: Int? = nil, stale: Bool = false, error: String? = nil,
+                needsSettings: Bool = false, needsSignIn: Bool = false) {
         self.name = name; self.checkedAt = checkedAt; self.battery = battery; self.range = range
         self.lock = lock; self.lockWarn = lockWarn; self.doors = doors; self.doorsWarn = doorsWarn
         self.cabin = cabin; self.outside = outside; self.tires = tires; self.tiresWarn = tiresWarn
         self.place = place; self.sentry = sentry; self.chargeLine = chargeLine; self.tone = tone
+        self.limit = limit; self.stale = stale
+        self.error = error; self.needsSettings = needsSettings
+        self.needsSignIn = needsSignIn
     }
 
     /// Realistic sample for previews / the gallery — matches the on-device v1.4.28 screenshot.
@@ -38,5 +48,5 @@ public struct CarSnapshot: Sendable, Equatable {
         name: "Stargate", checkedAt: "3:47 PM", battery: 72, range: "219 mi range",
         lock: "Locked", lockWarn: false, doors: "All shut", doorsWarn: false,
         cabin: "68°F", outside: "52.7°F", tires: "38–39 psi", tiresWarn: false,
-        place: "Home · asleep since 10:59 PM", sentry: .on, chargeLine: "Unplugged", tone: .mint)
+        place: "Home · asleep since 10:59 PM", sentry: .on, chargeLine: "Unplugged", tone: .mint, limit: 80)
 }

@@ -34,7 +34,7 @@ private func optBool(_ d: [String: Any]?, _ k: String) -> Bool { (d?[k] as? NSNu
 
 // MARK: - Model (ChargePointState.kt)
 
-public struct CpBounds: Sendable, Equatable {
+public struct CpBounds: Sendable, Equatable, Codable {
     public let swLat, swLon, neLat, neLon: Double
 }
 
@@ -51,7 +51,7 @@ public struct CpStation: Sendable, Equatable {
 }
 
 /// A location: every station at one address, its area + name (the site code like "SEA41", else the address).
-public struct CpLocation: Sendable, Equatable {
+public struct CpLocation: Sendable, Equatable, Codable {
     public let name: String
     public let address: String
     public let deviceIds: [Int64]
@@ -195,6 +195,26 @@ public func cpLocationNow(_ loc: CpLocation, _ stations: [CpStation]) -> CpNow {
     let mine = stations.filter { ids.contains($0.deviceId) }
     return CpNow(free: mine.reduce(0) { $0 + $1.free }, inUse: mine.reduce(0) { $0 + $1.inUse },
                  offline: mine.reduce(0) { $0 + $1.offline }, stations: mine.count)
+}
+
+/// One parking level's availability (free of total plugs), for the floor-stats panel. Ported from
+/// Android's `CpRight.Floors`.
+public struct CpFloor: Sendable, Equatable, Codable {
+    public let level: String
+    public let free: Int
+    public let total: Int
+    public init(level: String, free: Int, total: Int) { self.level = level; self.free = free; self.total = total }
+}
+
+/// The location's per-level availability (its own stations grouped by level, "P2"…"P6"), level-sorted.
+public func cpFloorsFrom(_ loc: CpLocation, _ stations: [CpStation]) -> [CpFloor] {
+    let ids = Set(loc.deviceIds)
+    let mine = stations.filter { ids.contains($0.deviceId) && !$0.level.isEmpty }
+    return Dictionary(grouping: mine, by: { $0.level }).map { level, s in
+        CpFloor(level: level,
+                free: s.reduce(0) { $0 + $1.free },
+                total: s.reduce(0) { $0 + $1.free + $1.inUse + $1.offline })
+    }.sorted { $0.level.localizedStandardCompare($1.level) == .orderedAscending }
 }
 
 /// "SEA41 SEA41-29 P3" (site, then charger) -> "SEA41-29 P3".

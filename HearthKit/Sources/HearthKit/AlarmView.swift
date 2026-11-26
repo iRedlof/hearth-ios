@@ -60,7 +60,7 @@ public func actionsFor(_ state: String?) -> [AlarmAction] {
     case "disarmed": return [.armHome, .armAway]
     case "armed_home", "armed_away", "armed_night", "armed_vacation", "armed_custom_bypass",
          "arming", "disarming", "pending", "triggered": return [.disarm]
-    default: return AlarmAction.allCases
+    default: return []
     }
 }
 
@@ -103,8 +103,8 @@ public func lockStatusFor(_ state: String?) -> LockView {
 public func lockActionFor(_ state: String?) -> LockAction? {
     switch state {
     case "locked": return .unlock
-    case "locking", "unlocking", "opening": return nil
-    default: return .lock
+    case "unlocked", "open", "jammed": return .lock
+    default: return nil
     }
 }
 

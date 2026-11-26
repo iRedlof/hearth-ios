@@ -1,21 +1,46 @@
 import SwiftUI
+import AppIntents
 import HearthKit
+import WidgetKit
 
-/// The Alarm Beacon card, ported from the Android `AlarmWidget` (v1.4.26): a tone-coloured left rail
-/// (the security state's colour) with the shield glyph + state word + the always-shown "<state> at <time>"
-/// line; a dark right surface with the home name, the Front Door lock row, and the arm/disarm buttons.
+/// Actual panel/door telemetry with a centered door well and controls bound to their rendered origin.
 public struct AlarmBeaconView: View {
     public let snap: AlarmSnapshot
-    public init(_ snap: AlarmSnapshot) { self.snap = snap }
+    public let family: WidgetFamily
+    private let destination: AlarmReadingsDestination
+    public init(_ snap: AlarmSnapshot, family: WidgetFamily = .systemMedium,
+                destination: AlarmReadingsDestination = .inert) {
+        self.snap = snap; self.family = family; self.destination = destination
+    }
+    public init(_ payload: AlarmReadingsEntryPayload, family: WidgetFamily) {
+        self.init(payload.snapshot, family: family, destination: payload.destination)
+    }
 
     private var fill: Color { Color(argb: snap.tone.fillARGB) }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }                 // dark text on the light tone rail
     private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) } // bright text on graphite
+    private var hasOrigin: Bool { !snap.requestScope.isEmpty && !snap.alarmRevision.isEmpty }
+    private var doorStatusColor: Color {
+        if snap.doorStale || snap.doorError != nil { return surfaceInk.opacity(0.78) }
+        switch snap.doorLocked {
+        case .some(true):  return Color(argb: 0xFF8FD6A8)   // green when locked
+        case .some(false): return Color(argb: 0xFFF2A0A4)   // red when unlocked
+        case nil:          return surfaceInk.opacity(0.75)  // unknown / in-transit
+        }
+    }
 
     public var body: some View {
-        HStack(spacing: 0) {
-            rail.frame(maxWidth: .infinity)
-            surface.frame(maxWidth: .infinity)
+        if family == .systemSmall { AlarmSmallCard(snap: snap, destination: destination) }
+        else { medium }
+    }
+
+    private var medium: some View {
+        GeometryReader { geo in
+            let s = beaconSplit(width: geo.size.width)   // Android rail is ~37%, not 50%
+            HStack(spacing: 0) {
+                rail.frame(width: s.rail)
+                surface.frame(maxWidth: .infinity)
+            }
         }
     }
 
@@ -27,8 +52,9 @@ public struct AlarmBeaconView: View {
             Text(snap.stateWord)
                 .font(.system(size: snap.stateWord.count > 10 ? 20 : 25, weight: .heavy)).tracking(-0.5)
                 .foregroundStyle(ink).lineLimit(2).minimumScaleFactor(0.7).fixedSize(horizontal: false, vertical: true)
-            Text(snap.detail).font(.system(size: 11)).foregroundStyle(ink.opacity(0.82))
-                .lineLimit(1).minimumScaleFactor(0.7).padding(.top, 3)
+            Text(snap.commandFeedback ?? snap.detail).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82))
+                .lineLimit(3).padding(.top, 3)
+                .accessibilityLabel(snap.commandError ?? snap.commandFeedback ?? snap.detail)
         }
         .padding(.horizontal, 13).padding(.vertical, 13)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
@@ -39,51 +65,150 @@ public struct AlarmBeaconView: View {
     private var surface: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
-                Text(snap.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk).lineLimit(1)
+                Text(alarmTitle).font(.system(size: 16, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
-                VStack(alignment: .trailing, spacing: -1) {
-                    Text("Checked").font(.system(size: 10))
-                    Text(snap.checkedAt).font(.system(size: 10))
-                }.foregroundStyle(surfaceInk.opacity(0.78))
+                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk)
             }
-            Spacer(minLength: 6)
-            doorRow
-            Spacer(minLength: 6)
-            actionsRow
+            BeaconMiddle(maximumHeight: 72) {
+                if snap.setup {
+                    Text("Set up home alarm").font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 13))
+                } else {
+                    doorRow
+                }
+            }
+            if snap.setup || snap.error.map(beaconNeedsSettings) == true || snap.error.map(beaconNeedsSignIn) == true {
+                Button(intent: HaSetupIntent(reconnect: snap.needsSignIn)) {
+                    Text(snap.needsSignIn ? "Sign in" : snap.setup ? "Connect" : "Open Settings")
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk)
+                        .frame(maxWidth: .infinity).frame(height: 34)
+                        .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                }.buttonStyle(.plain)
+            } else {
+                actionsRow
+            }
         }
-        .padding(.horizontal, 13).padding(.vertical, 12)
+        .padding(.horizontal, 13).padding(.top, 11).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }
 
-    private var doorRow: some View {
+    /// Independent lock freshness; unknown and historical readings never imply a freshly secure door.
+    @ViewBuilder private var doorRow: some View {
+        if snap.doorSelected {
+            selectedDoorRow
+        } else {
+            Button(intent: HaSetupIntent(reconnect: false)) {
+                VStack(spacing: 4) {
+                    Label("No door selected", systemImage: "questionmark.circle")
+                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk)
+                    Text("Choose a door in Settings").font(.system(size: 12))
+                        .foregroundStyle(surfaceInk.opacity(0.8))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
+            }.buttonStyle(.plain)
+        }
+    }
+
+    private var selectedDoorRow: some View {
         HStack(spacing: 8) {
-            Image(systemName: (snap.doorLocked ?? true) ? "lock.fill" : "lock.open.fill")
+            Image(systemName: snap.doorStale ? "clock" : snap.doorLocked.map { $0 ? "lock.fill" : "lock.open.fill" } ?? "questionmark.circle")
                 .font(.system(size: 17)).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
-                Text(snap.doorName).font(.system(size: 12.5, weight: .medium)).foregroundStyle(surfaceInk).lineLimit(1)
-                Text([snap.doorState, snap.doorSince].compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 10.5)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1).minimumScaleFactor(0.8)
+                Text(snap.doorName).font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk).lineLimit(1)
+                // Status green when locked, red when unlocked; "since …" on its own line so neither clips.
+                Text(snap.doorState).font(.system(size: 12, weight: .semibold)).foregroundStyle(doorStatusColor).lineLimit(1)
+                if let since = snap.doorSince {
+                    Text(snap.doorStale ? since.replacingOccurrences(of: "Last checked ", with: "") : since)
+                        .font(.system(size: 11.5)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1)
+                        .accessibilityLabel(since)
+                }
+            }.frame(maxWidth: .infinity, alignment: .leading)
+            if let action = snap.doorAction {
+                doorButton(action)
+            } else if !snap.doorSelected || snap.doorError.map(beaconNeedsSettings) == true
+                        || snap.doorError.map(beaconNeedsSignIn) == true {
+                Button(intent: HaSetupIntent(reconnect: snap.doorError.map(beaconNeedsSignIn) == true)) {
+                    doorLabel(snap.doorError.map(beaconNeedsSignIn) == true ? "Sign in" : "Settings")
+                }.buttonStyle(.plain)
+            } else if snap.commandPending && snap.doorLocked != nil {
+                doorLabel(snap.doorLocked == true ? "Unlock" : "Lock").opacity(0.7)
             }
-            Spacer(minLength: 0)
         }
         .padding(9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(snap.doorName), \(snap.doorStale ? "last known " : "")\(snap.doorState). \(snap.doorError ?? "")")
+    }
+
+    private func doorLabel(_ text: String) -> some View {
+        Text(text).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            .foregroundStyle(surfaceInk).padding(.horizontal, 8).frame(height: 32)
+            .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
+            .fixedSize(horizontal: true, vertical: false)
+    }
+    @ViewBuilder private func doorButton(_ action: LockAction) -> some View {
+        if !hasOrigin {
+            doorLabel(action.label)
+        } else if action == .unlock {
+            Button(intent: AlarmGatedIntent(action.rawValue, snapshot: snap, entityID: snap.lockID)) {
+                doorLabel(action.label)
+            }.buttonStyle(.plain)
+        } else {
+            Button(intent: AlarmControlIntent(action.rawValue, snapshot: snap, entityID: snap.lockID)) {
+                doorLabel(action.label)
+            }.buttonStyle(.plain)
+        }
     }
 
     private var actionsRow: some View {
         HStack(spacing: 7) {
-            ForEach(snap.actions, id: \.self) { action in
-                let primary = (action == .disarm)
-                Text(action.label)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(primary ? Color(white: 0.12) : surfaceInk)
+            if snap.actionSlots.isEmpty {
+                Text(snap.commandPending ? "Updating…" : snap.stale || snap.error != nil ? "Refresh to check" : "No supported controls")
+                    .font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.75))
                     .frame(maxWidth: .infinity).frame(height: 34)
-                    .background(primary ? Color(white: 0.94) : Color.white.opacity(0.12),
-                                in: RoundedRectangle(cornerRadius: 10))
+            }
+            ForEach(snap.actionSlots, id: \.self) { action in
+                if !hasOrigin || !snap.actions.contains(action) {
+                    actionLabel(action).opacity(snap.commandPending ? 0.7 : 1)
+                } else if action.needsConfirm {
+                    Button(intent: AlarmGatedIntent(action.rawValue, snapshot: snap, entityID: snap.entityID)) { actionLabel(action) }
+                        .buttonStyle(.plain)
+                } else {                    // Arm home / Arm away → in place
+                    Button(intent: AlarmControlIntent(action.rawValue, snapshot: snap, entityID: snap.entityID)) { actionLabel(action) }
+                        .buttonStyle(.plain)
+                }
             }
         }
+    }
+
+    /// A pill styled like the Android action button (now with an icon); Disarm is the bright "primary" pill.
+    private func actionLabel(_ action: AlarmAction) -> some View {
+        let primary = (action == .disarm)
+        return HStack(spacing: 5) {
+            Image(systemName: armIcon(action)).font(.system(size: 11, weight: .semibold))
+            Text(action.label).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+        }
+        .foregroundStyle(primary ? Color(white: 0.12) : surfaceInk)
+        .frame(maxWidth: .infinity).frame(height: 34)
+        .background(primary ? Color(white: 0.94) : Color.white.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 10))
+    }
+
+    private func armIcon(_ action: AlarmAction) -> String {
+        switch action {
+        case .armHome: "house.fill"
+        case .armAway: "car.fill"
+        case .disarm:  "shield.slash.fill"
+        }
+    }
+
+    /// The home name without a trailing " Alarm" (Rohit prefers "Home", not "Home Alarm").
+    private var alarmTitle: String {
+        snap.name.hasSuffix(" Alarm") ? String(snap.name.dropLast(6)) : snap.name
     }
 
     private var glyphSymbol: String {
@@ -93,5 +218,93 @@ public struct AlarmBeaconView: View {
         case .lock:  "lock.shield.fill"
         case .alert: "exclamationmark.shield.fill"
         }
+    }
+}
+
+
+/// A single navigation target; optional groups yield before critical state or operation qualifiers.
+private struct AlarmSmallCard: View {
+    let snap: AlarmSnapshot
+    let destination: AlarmReadingsDestination
+    @Environment(\.dynamicTypeSize) private var dynamicType
+    @ScaledMetric(relativeTo: .title2) private var criticalSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .subheadline) private var supportSize: CGFloat = 14
+    @ScaledMetric(relativeTo: .body) private var openSize: CGFloat = 16
+    private var content: AlarmSmallContent { alarmSmallContent(snap, destination: destination) }
+    private var ink: Color { Color(argb: content.tone.inkARGB) }
+    private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
+
+    var body: some View {
+        GeometryReader { geometry in
+            if let url = content.navigationURL {
+                Link(destination: url) { composition(size: geometry.size) }.buttonStyle(.plain)
+            } else { composition(size: geometry.size) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(alarmSmallAccessibility(content))
+        .accessibilityAddTraits(content.navigationURL == nil ? [] : .isLink)
+        .accessibilityIdentifier("alarm.production-small")
+    }
+    private func composition(size: CGSize) -> some View {
+        ViewThatFits(in: [.horizontal, .vertical]) {
+            if !dynamicType.isAccessibilitySize {
+                standard(size: size, identity: true, context: true)
+                standard(size: size, identity: true, context: false)
+                standard(size: size, identity: false, context: false)
+            }
+            critical(width: max(0, size.width - 22))
+            handoff
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding(11).frame(width: size.width, height: size.height)
+        .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),
+            Color(argb: content.tone.fillARGB).opacity(0.86)],
+            startPoint: .topLeading, endPoint: .bottomTrailing))
+        .overlay(ContainerRelativeShape().strokeBorder(.white.opacity(0.24), lineWidth: 1))
+    }
+    private func standard(size: CGSize, identity: Bool, context: Bool) -> some View {
+        let contextHeight = context && content.optionalContext != nil ? ceil(supportSize * 1.3) + 4 : 0
+        return VStack(spacing: 4) {
+            if identity {
+                HStack(spacing: 5) {
+                    Image(systemName: "shield")
+                    Text(snap.name).lineLimit(1).truncationMode(.tail)
+                    Spacer(minLength: 0)
+                }.font(.system(size: supportSize, weight: .semibold)).frame(minHeight: 20)
+            }
+            critical(width: max(0, size.width - 22))
+                .frame(minHeight: max(0, size.height - 22 - (identity ? 24 : 0) - 48 - contextHeight),
+                       alignment: .center)
+            if context, let text = content.optionalContext {
+                Text(text).font(.system(size: supportSize)).fixedSize(horizontal: true, vertical: true)
+            }
+            footer
+        }
+        .foregroundStyle(ink).fixedSize(horizontal: false, vertical: true)
+    }
+    private func critical(width: CGFloat) -> some View {
+        VStack(spacing: 2) {
+            ForEach(content.criticalTexts, id: \.self) { text in
+                Text(text).font(.system(size: criticalSize, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }.frame(width: width).fixedSize(horizontal: false, vertical: true).foregroundStyle(ink)
+    }
+    private var footer: some View {
+        Text("Open").font(.system(size: openSize, weight: .semibold)).fixedSize()
+            .frame(maxWidth: .infinity, minHeight: 44).foregroundStyle(surfaceInk)
+            .background(Color(argb: BeaconSurfaceColors.graphiteARGB),
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .opacity(content.navigationURL == nil ? 0.35 : 1)
+    }
+    private var handoff: some View {
+        VStack(spacing: 4) {
+            Image(systemName: content.statusSymbol).font(.system(size: supportSize))
+            Text("Open").font(.system(size: openSize, weight: .semibold)).fixedSize()
+        }.foregroundStyle(surfaceInk).frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(argb: BeaconSurfaceColors.graphiteARGB),
+                in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .opacity(content.navigationURL == nil ? 0.35 : 1)
     }
 }
