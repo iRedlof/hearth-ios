@@ -82,7 +82,9 @@ struct YourWidgetsStrip: View {
         Button {
             onTap(.addWidget)
         } label: {
-            VStack {
+            VStack(spacing: 8) {
+                Spacer()
+
                 Image(systemName: "plus")
                     .font(.system(size: 24, weight: .medium))
                     .foregroundStyle(HearthColor.mute(colorScheme))
@@ -90,8 +92,11 @@ struct YourWidgetsStrip: View {
                 Text("Add")
                     .font(HearthFont.rowTitle.font)
                     .foregroundStyle(HearthColor.sub(colorScheme))
+
+                Spacer()
             }
-            .frame(width: HearthMetrics.miniCardW, height: 160)
+            .padding(16)
+            .frame(width: HearthMetrics.miniCardW, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: HearthMetrics.miniCardRadius)
                     .fill(HearthColor.card(colorScheme))

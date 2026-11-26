@@ -6,8 +6,6 @@ import HearthKit
 struct LookSection: View {
     private let onTap: (HomeRoute) -> Void
 
-    @Environment(\.colorScheme) private var scheme
-
     init(onTap: @escaping (HomeRoute) -> Void) {
         self.onTap = onTap
     }
@@ -24,9 +22,7 @@ struct LookSection: View {
                     title: "Card style",
                     subtitle: "Customize widget appearance"
                 ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HearthColor.mute(scheme))
+                    HomeChevron()
                 }
             }
             .buttonStyle(.plain)

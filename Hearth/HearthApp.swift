@@ -414,8 +414,8 @@ struct ContentView: View {
             settingsCarReturn = nil
             retireThermostat()
             let cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
-            let route: CpSetupRoute = cpSignedIn ? .location : .signin
-            presentedSheet = .chargepoint(route, UUID())
+            let cpRoute: CpSetupRoute = cpSignedIn ? .location : .signin
+            presentedSheet = .chargepoint(cpRoute, UUID())
         case .addWidget, .settings:
             // Go to Settings tab
             selection = 1

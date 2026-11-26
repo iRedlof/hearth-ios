@@ -10,12 +10,12 @@ struct HomeHeader: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Hearth")
                 .font(HearthFont.largeTitle.font)
-                .foregroundColor(HearthColor.ink(colorScheme))
+                .foregroundStyle(HearthColor.ink(colorScheme))
 
             if let toast {
                 Text(toast)
                     .font(HearthFont.subtitle.font)
-                    .foregroundColor(HearthColor.mute(colorScheme))
+                    .foregroundStyle(HearthColor.mute(colorScheme))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background(HearthColor.tint(colorScheme))

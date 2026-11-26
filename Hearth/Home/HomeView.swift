@@ -26,17 +26,20 @@ struct HomeView: View {
                 HomeHeader()
 
                 // First-run Get-started OR Sign-in banner
-                let haConnected = config.hasAuth && config.isSignedIn
+                let ha = haConnectionStatus(config)
                 let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
-                if showGetStarted(haConnected: haConnected, widgetCount: kinds.count) {
+                let cpSession = try? CpSessionStore.context().session
+                let cpHasAccount = (cpSession?.userId ?? 0) != 0 || !(cpSession?.email ?? "").isEmpty
+
+                if ha == .needsSignIn {
+                    signInBanner()
+                } else if showGetStarted(haConnected: ha == .connected, widgetCount: kinds.count) {
                     GetStartedCard(
-                        haConnected: haConnected,
+                        haConnected: ha == .connected,
                         hasWidget: !kinds.isEmpty,
                         onConnect: { onRoute(.homeAssistant) },
                         onAddWidget: { onRoute(.addWidget) }
                     )
-                } else if needsSignInBanner() {
-                    signInBanner()
                 }
 
                 // Your widgets strip
@@ -44,8 +47,8 @@ struct HomeView: View {
 
                 // Connections section
                 ConnectionsSection(
-                    ha: haConnectionStatus(config),
-                    cp: cpConnectionStatus(signedIn: cpSignedIn, hasAccount: false),
+                    ha: ha,
+                    cp: cpConnectionStatus(signedIn: cpSignedIn, hasAccount: cpHasAccount),
                     onTap: onRoute
                 )
 
@@ -118,7 +121,9 @@ struct HomeView: View {
 
     private func needsSignInBanner() -> Bool {
         let haStatus = haConnectionStatus(config)
-        let cpStatus = cpConnectionStatus(signedIn: cpSignedIn, hasAccount: false)
+        let cpSession = try? CpSessionStore.context().session
+        let cpHasAccount = (cpSession?.userId ?? 0) != 0 || !(cpSession?.email ?? "").isEmpty
+        let cpStatus = cpConnectionStatus(signedIn: cpSignedIn, hasAccount: cpHasAccount)
         return haStatus == .needsSignIn || cpStatus == .needsSignIn
     }
 
@@ -237,7 +242,7 @@ private extension HaConfig {
     HomeView(
         config: HaConfig(
             baseUrl: "https://home.example.com",
-            token: "mock-token",
+            token: "",
             entityId: "alarm_control_panel.home"
         ),
         onSignOut: {},
@@ -250,7 +255,7 @@ private extension HaConfig {
     HomeView(
         config: HaConfig(
             baseUrl: "https://home.example.com",
-            token: "mock-token",
+            token: "",
             entityId: "alarm_control_panel.home"
         ),
         onSignOut: {},

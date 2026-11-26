@@ -8,8 +8,6 @@ struct ConnectionsSection: View {
     private let cp: CpConnectionStatus
     private let onTap: (HomeRoute) -> Void
 
-    @Environment(\.colorScheme) private var scheme
-
     init(
         ha: HaConnectionStatus,
         cp: CpConnectionStatus,

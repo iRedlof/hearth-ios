@@ -21,6 +21,11 @@ struct WidgetHealthTests {
         #expect(WidgetHealth.setup > WidgetHealth.stale)
     }
 
+    @Test("needsSignIn > setup")
+    func needsSignInGreaterThanSetup() {
+        #expect(WidgetHealth.needsSignIn > WidgetHealth.setup)
+    }
+
     @Test("sortsFirst is false only for ok")
     func sortsFirstOnlyForNonOk() {
         #expect(WidgetHealth.ok.sortsFirst == false)

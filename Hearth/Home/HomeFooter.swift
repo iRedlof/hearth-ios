@@ -15,14 +15,14 @@ struct HomeFooter: View {
         VStack(spacing: 8) {
             Text(versionText)
                 .font(HearthFont.subtitle.font)
-                .foregroundColor(HearthColor.mute(colorScheme))
+                .foregroundStyle(HearthColor.mute(colorScheme))
 
             Button(action: {
                 // TODO Phase 6: iOS has no Sparkle; wire an updater affordance
             }) {
                 Text("Check for updates")
                     .font(HearthFont.subtitle.font)
-                    .foregroundColor(HearthColor.mute(colorScheme))
+                    .foregroundStyle(HearthColor.mute(colorScheme))
             }
         }
         .frame(maxWidth: .infinity)

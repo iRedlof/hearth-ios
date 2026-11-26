@@ -7,8 +7,6 @@ import HearthKit
 struct EveryDaySection: View {
     private let onTap: (HomeRoute) -> Void
 
-    @Environment(\.colorScheme) private var scheme
-
     init(onTap: @escaping (HomeRoute) -> Void) {
         self.onTap = onTap
     }
@@ -25,9 +23,7 @@ struct EveryDaySection: View {
                     title: "Routines",
                     subtitle: "Automate your day"
                 ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HearthColor.mute(scheme))
+                    HomeChevron()
                 }
             }
             .buttonStyle(.plain)
@@ -41,9 +37,7 @@ struct EveryDaySection: View {
                     title: "Leave-by times",
                     subtitle: "Smart departure alerts"
                 ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HearthColor.mute(scheme))
+                    HomeChevron()
                 }
             }
             .buttonStyle(.plain)
@@ -57,9 +51,7 @@ struct EveryDaySection: View {
                     title: "Travel days",
                     subtitle: "Away mode & vacation"
                 ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HearthColor.mute(scheme))
+                    HomeChevron()
                 }
             }
             .buttonStyle(.plain)
@@ -73,9 +65,7 @@ struct EveryDaySection: View {
                     title: "Safety alerts",
                     subtitle: "Critical notifications"
                 ) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HearthColor.mute(scheme))
+                    HomeChevron()
                 }
             }
             .buttonStyle(.plain)
