@@ -313,36 +313,5 @@ struct GoodnightPage: View {
     }
 }
 
-#Preview("No Alarm - Light") {
-    struct NoAlarmPreview: View {
-        init() {
-            // Simulate no alarm configured
-            // In real app, hasAlarm comes from HaConfigStore.load()?.isComplete
-        }
-
-        var body: some View {
-            NavigationStack {
-                GoodnightPage()
-            }
-        }
-    }
-    return NoAlarmPreview()
-        .preferredColorScheme(.light)
-}
-
-#Preview("No Alarm - Dark") {
-    struct NoAlarmPreview: View {
-        init() {
-            // Simulate no alarm configured
-            // In real app, hasAlarm comes from HaConfigStore.load()?.isComplete
-        }
-
-        var body: some View {
-            NavigationStack {
-                GoodnightPage()
-            }
-        }
-    }
-    return NoAlarmPreview()
-        .preferredColorScheme(.dark)
-}
+// No-alarm previews removed: they cannot inject state to force hasAlarm=false
+// (hasAlarm comes from HaConfigStore.load()?.isComplete at runtime)
