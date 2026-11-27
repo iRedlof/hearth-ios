@@ -14,6 +14,8 @@ private enum AuthState: Equatable {
 struct HomeView: View {
     let config: HaConfig
     var onRoute: (HomeRoute) -> Void
+    var onRefresh: (() -> Void)?
+    var onSignOut: (() -> Void)?
 
     @State private var car: CarSnapshot?
     @State private var alarm: AlarmSnapshot?
@@ -34,7 +36,7 @@ struct HomeView: View {
         ZStack(alignment: .bottom) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    HomeHeader()
+                    HomeHeader(onRefresh: onRefresh, onSignOut: onSignOut)
 
                 // First-run Get-started OR Sign-in banner
                 let ha = haConnectionStatus(config)
