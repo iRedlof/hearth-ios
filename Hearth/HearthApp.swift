@@ -415,6 +415,8 @@ struct ContentView: View {
                             }
                         }
                 }
+                .presentationDetents([.height(480), .medium])
+                .presentationDragIndicator(.visible)
                 .id(sheet.id)
             case .travelDays(_):
                 NavigationStack {
@@ -428,6 +430,8 @@ struct ContentView: View {
                             }
                         }
                 }
+                .presentationDetents([.height(520), .medium])
+                .presentationDragIndicator(.visible)
                 .id(sheet.id)
             case .safetyAlerts(_):
                 NavigationStack {
@@ -547,7 +551,7 @@ struct ContentView: View {
         if inertTabs {
             Text("Controlled Car route fixture · Live tab")
         } else if let config, config.carReady {
-            HomeView(config: config, onSignOut: signOut, onRoute: handleHomeRoute)
+            HomeView(config: config, onRoute: handleHomeRoute)
         } else {
             SignInView(onSignedIn: { config = HaConfigStore.load() })
         }
@@ -634,9 +638,15 @@ struct ContentView: View {
         Group {
             if inertTabs { Text("Controlled Car route fixture · Settings tab") }
             else {
-                SettingsView(config: config, onChange: { config = $0 }, onOpenGallery: {
-                    presentedSheet = .addWidgetGallery(UUID())
-                })
+                SettingsView(
+                    config: config,
+                    onChange: { config = $0 },
+                    onOpenGallery: {
+                        presentedSheet = .addWidgetGallery(UUID())
+                    },
+                    onRefresh: refreshFromSettings,
+                    onSignOut: signOut
+                )
                 .id(HaConfigStore.requestScope())
             }
         }
@@ -689,6 +699,10 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    private func refreshFromSettings() {
+        RefreshSignal.shared.bump()
     }
 
     private func signOut() {
@@ -822,7 +836,6 @@ private struct HomePreviewFixture: View {
     var body: some View {
         HomeView(
             config: fixtureConfig,
-            onSignOut: {},
             onRoute: { _ in }
         )
     }

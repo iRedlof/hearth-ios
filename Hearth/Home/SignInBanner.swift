@@ -2,46 +2,63 @@ import SwiftUI
 import HearthKit
 
 /// Amber banner shown when a connection needs sign-in.
-/// Displays a warning message with a "Sign in" action button.
+/// Displays a lock icon, title, affected widgets detail, and a "Sign in" button.
 struct SignInBanner: View {
-    private let message: String
+    private let title: String
+    private let detail: String?
     private let onFix: () -> Void
 
     @Environment(\.colorScheme) private var scheme
 
-    init(message: String, onFix: @escaping () -> Void) {
-        self.message = message
+    init(title: String, detail: String? = nil, onFix: @escaping () -> Void) {
+        self.title = title
+        self.detail = detail
         self.onFix = onFix
     }
 
     var body: some View {
-        Button {
-            onFix()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .font(.system(size: 18))
-                    .foregroundStyle(HearthColor.amber(scheme))
+        HStack(spacing: 12) {
+            Image(systemName: "lock.fill")
+                .font(HearthFont.cardHeading.font)
+                .foregroundStyle(HearthColor.amber(scheme))
 
-                Text(message)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
                     .font(HearthFont.rowTitle.font)
                     .foregroundStyle(HearthColor.ink(scheme))
                     .fixedSize(horizontal: false, vertical: true)
 
-                Spacer(minLength: 8)
+                if let detail {
+                    Text(detail)
+                        .font(HearthFont.subtitle.font)
+                        .foregroundStyle(HearthColor.amber(scheme))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
 
+            Spacer(minLength: 8)
+
+            Button {
+                onFix()
+            } label: {
                 Text("Sign in")
                     .font(HearthFont.button.font)
-                    .foregroundStyle(HearthColor.amber(scheme))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(Color.black)
+                    )
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(HearthColor.amberBg(scheme))
-            .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius, style: .continuous))
-            .padding(.horizontal, HearthMetrics.groupInset)
+            .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
+        .padding(.horizontal, HearthMetrics.pagePadding)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(HearthColor.amberBg(scheme))
+        .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius, style: .continuous))
+        .padding(.horizontal, HearthMetrics.groupInset)
     }
 }
 
@@ -49,7 +66,8 @@ struct SignInBanner: View {
 
 #Preview("Sign-in banner — Light") {
     SignInBanner(
-        message: "ChargePoint needs sign-in to sync your sessions",
+        title: "Home Assistant needs sign-in",
+        detail: "Home alarm, Hallway thermostat, Lights and Stargate are paused",
         onFix: {}
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -59,7 +77,8 @@ struct SignInBanner: View {
 
 #Preview("Sign-in banner — Dark") {
     SignInBanner(
-        message: "ChargePoint needs sign-in to sync your sessions",
+        title: "Home Assistant needs sign-in",
+        detail: "Home alarm, Hallway thermostat, Lights and Stargate are paused",
         onFix: {}
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -67,9 +86,9 @@ struct SignInBanner: View {
     .preferredColorScheme(.dark)
 }
 
-#Preview("Long message — Light") {
+#Preview("No detail — Light") {
     SignInBanner(
-        message: "Home Assistant connection has expired and needs re-authentication to continue syncing your devices and automations",
+        title: "ChargePoint needs sign-in",
         onFix: {}
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -77,9 +96,9 @@ struct SignInBanner: View {
     .preferredColorScheme(.light)
 }
 
-#Preview("Long message — Dark") {
+#Preview("No detail — Dark") {
     SignInBanner(
-        message: "Home Assistant connection has expired and needs re-authentication to continue syncing your devices and automations",
+        title: "ChargePoint needs sign-in",
         onFix: {}
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)

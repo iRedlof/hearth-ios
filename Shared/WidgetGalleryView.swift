@@ -104,14 +104,14 @@ struct WidgetGalleryView: View {
         HStack(spacing: 12) {
             if let symbol {
                 Image(systemName: symbol)
-                    .font(.system(size: 20, weight: .regular))
+                    .font(HearthFont.iconMedium.font.weight(.regular))
                     .symbolRenderingMode(.monochrome)
                     .frame(width: 24, height: 24)
             }
             Text(title).font(.body)
             Spacer(minLength: 8)
             Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 14, weight: .regular))
+                .font(HearthFont.callout.font.weight(.regular))
                 .foregroundStyle(.secondary)
         }
         .foregroundStyle(.primary)

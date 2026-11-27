@@ -122,7 +122,7 @@ public struct HearthSwitch: View {
                 }
                 .padding()
                 .background(Color(white: 0.95))
-                .cornerRadius(8)
+                .cornerRadius(HearthMetrics.chipRadius)
 
                 // Dark mode
                 VStack(spacing: 16) {
@@ -146,7 +146,7 @@ public struct HearthSwitch: View {
                 }
                 .padding()
                 .background(Color(white: 0.1))
-                .cornerRadius(8)
+                .cornerRadius(HearthMetrics.chipRadius)
                 .environment(\.colorScheme, .dark)
             }
             .padding()

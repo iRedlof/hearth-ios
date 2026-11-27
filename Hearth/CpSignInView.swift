@@ -34,7 +34,7 @@ struct CpSignInView: View {
                     } catch { phase = friendlyError(error) }
                 }
             } else { ProgressView() }
-            Text(phase).font(.caption).foregroundStyle(.secondary).padding(8)
+            Text(phase).font(.caption).foregroundStyle(.secondary).padding(HearthMetrics.smallPadding)
         }
         .navigationTitle("ChargePoint")
         .navigationBarTitleDisplayMode(.inline)

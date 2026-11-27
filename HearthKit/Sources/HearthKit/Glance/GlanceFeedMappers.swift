@@ -1,5 +1,4 @@
 import Foundation
-import HearthKit
 
 /// Converts widget snapshots to GlanceFeed entries for the Glance widget.
 /// Each widget provider calls the appropriate mapper when it refreshes.

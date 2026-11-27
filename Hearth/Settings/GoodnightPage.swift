@@ -14,6 +14,7 @@ struct GoodnightPage: View {
     @State private var allLights: [String] = []
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         let loaded = GoodnightStore.load()
@@ -58,6 +59,7 @@ struct GoodnightPage: View {
                     footerText
                 }
             }
+            .hearthContentAnimation(value: hasAlarm, reduceMotion: reduceMotion)
             .padding(.bottom, 20)
         }
         .background(HearthColor.page(scheme))
@@ -157,7 +159,7 @@ struct GoodnightPage: View {
     private var noAlarmBanner: some View {
         HStack(spacing: 12) {
             Image(systemName: "shield.checkered")
-                .font(.system(size: HearthMetrics.iconLarge))
+                .font(HearthFont.iconLarge.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Uses the Home key on an Alarm widget")
@@ -179,7 +181,7 @@ struct GoodnightPage: View {
                     .clipShape(Capsule())
             }
         }
-        .padding(20)
+        .padding(HearthMetrics.pagePadding)
         .background(HearthColor.card(scheme))
         .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
         .padding(.horizontal, HearthMetrics.groupInset)
@@ -209,7 +211,7 @@ struct GoodnightPage: View {
     private func actionIcon(_ systemName: String, label: String) -> some View {
         VStack(spacing: 6) {
             Image(systemName: systemName)
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
                 .frame(width: HearthMetrics.iconTile, height: HearthMetrics.iconTile)
                 .background(HearthColor.tint(scheme))
@@ -246,7 +248,7 @@ struct GoodnightPage: View {
                         subtitle: hoursSubtitle
                     ) {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
+                            .font(HearthFont.iconSmall.font.weight(.semibold))
                             .foregroundStyle(HearthColor.sub(scheme))
                     }
                 }
@@ -266,7 +268,7 @@ struct GoodnightPage: View {
                         subtitle: armModeSubtitle
                     ) {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
+                            .font(HearthFont.iconSmall.font.weight(.semibold))
                             .foregroundStyle(HearthColor.sub(scheme))
                     }
                 }
@@ -324,7 +326,7 @@ struct GoodnightPage: View {
                         subtitle: keepOnSubtitle
                     ) {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: HearthMetrics.iconSmall, weight: .semibold))
+                            .font(HearthFont.iconSmall.font.weight(.semibold))
                             .foregroundStyle(HearthColor.sub(scheme))
                     }
                 }

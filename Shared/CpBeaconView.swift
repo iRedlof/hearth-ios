@@ -42,17 +42,17 @@ public struct CpBeaconView: View {
                         Text("0:00")
                     }
                 }
-                .font(.system(size: 34, weight: .heavy)).monospacedDigit().tracking(-0.5)
+                .font(HearthFont.largeTitle.font.weight(.heavy)).monospacedDigit().tracking(-0.5)
                 .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.5)
-                Text(snap.unit.isEmpty ? snap.bigAnswer : snap.unit).font(.system(size: 13, weight: .semibold))
+                Text(snap.unit.isEmpty ? snap.bigAnswer : snap.unit).font(HearthFont.groupLabel.font.weight(.semibold))
                     .foregroundStyle(ink.opacity(0.9)).lineLimit(1).minimumScaleFactor(0.7)
                 if !snap.sub.isEmpty {
-                    Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
+                    Text(snap.sub).font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.8))
                         .lineLimit(2).minimumScaleFactor(0.85)
                         .accessibilityLabel(snap.statusDescription ?? snap.sub)
                 }
                 ForEach(snap.railNotes, id: \.self) { note in
-                    Text(note).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8)).lineLimit(1).minimumScaleFactor(0.8)
+                    Text(note).font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.8)).lineLimit(1).minimumScaleFactor(0.8)
                 }
             } else {
                 // Android parity: a large plug-count hero + the "of 86 plugs / 7 in use / 1 offline" detail.
@@ -60,27 +60,27 @@ public struct CpBeaconView: View {
                     .font(.system(size: snap.bigAnswer.count > 6 ? 30 : 48, weight: .heavy)).tracking(-1)
                     .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.5)
                 if !snap.unit.isEmpty {
-                    Text(snap.unit).font(.system(size: 15, weight: .semibold)).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.8)
+                    Text(snap.unit).font(HearthFont.rowTitle.font.weight(.semibold)).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.8)
                 }
                 ForEach(snap.freeDetail, id: \.self) { line in
-                    Text(line).font(.system(size: 11)).foregroundStyle(ink.opacity(0.78)).lineLimit(1).minimumScaleFactor(0.8)
+                    Text(line).font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.78)).lineLimit(1).minimumScaleFactor(0.8)
                 }
                 if !snap.sub.isEmpty {
-                    Text(snap.sub).font(.system(size: 11)).foregroundStyle(ink.opacity(0.8))
+                    Text(snap.sub).font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.8))
                         .lineLimit(2).minimumScaleFactor(0.8).padding(.top, snap.unit.isEmpty ? 2 : 0)
                         .accessibilityLabel(snap.statusDescription ?? snap.sub)
                 }
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 13).padding(.vertical, 12)
+        .padding(.horizontal, 13).padding(.vertical, HearthMetrics.mediumPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [fill, fill.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
     private var autoLabel: some View {
         HStack(spacing: 5) {
-            Text("Auto").font(.system(size: 12, weight: .bold))
+            Text("Auto").font(HearthFont.footnote.font.weight(.bold))
             Circle().fill(Color(argb: snap.autoOn ? 0xFF34C759 : 0xFF626A63))
                 .overlay(Circle().strokeBorder(ink.opacity(0.45), lineWidth: 0.7))
                 .frame(width: 8, height: 8)
@@ -111,10 +111,10 @@ public struct CpBeaconView: View {
             // Android parity: site + account on the left, the refresh + "Checked" stamp on the right.
             HStack(alignment: .top, spacing: 6) {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(snap.site).font(.system(size: 18, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
+                    Text(snap.site).font(HearthFont.cardHeading.font.weight(.bold)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
                     HStack(spacing: 4) {
-                        Image(systemName: "person.fill").font(.system(size: 10)).foregroundStyle(surfaceInk.opacity(0.7))
-                        Text(snap.account).font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
+                        Image(systemName: "person.fill").font(HearthFont.caption.font).foregroundStyle(surfaceInk.opacity(0.7))
+                        Text(snap.account).font(HearthFont.footnote.font).foregroundStyle(surfaceInk.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
                     }
                 }
                 Spacer(minLength: 2)
@@ -137,7 +137,7 @@ public struct CpBeaconView: View {
     /// A narrow "Open" key beside the primary action, deep-linking to ChargePoint (Android idle parity).
     private var openKey: some View {
         Link(destination: URL(string: "chargepoint://")!) {
-            Text("Open").font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk)
+            Text("Open").font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk)
                 .padding(.horizontal, 16).frame(height: 36)
                 .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 11))
         }
@@ -150,22 +150,22 @@ public struct CpBeaconView: View {
             if let level = cpLevelOf(goTo) {
                 ViewThatFits(in: .vertical) {
                     VStack(alignment: .leading, spacing: 0) {
-                        Text("Go to level").font(.system(size: 13)).foregroundStyle(surfaceInk.opacity(0.7))
-                        Text(level).font(.system(size: 34, weight: .heavy))
+                        Text("Go to level").font(HearthFont.groupLabel.font).foregroundStyle(surfaceInk.opacity(0.7))
+                        Text(level).font(HearthFont.largeTitle.font.weight(.heavy))
                             .foregroundStyle(fill).lineLimit(1)
-                        Text(cpChargerShort(goTo)).font(.system(size: 14, weight: .bold))
+                        Text(cpChargerShort(goTo)).font(HearthFont.callout.font.weight(.bold))
                             .foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.85)
                     }
                     HStack(spacing: 8) {
-                        Text(level).font(.system(size: 26, weight: .heavy)).foregroundStyle(fill)
-                        Text(cpChargerShort(goTo)).font(.system(size: 14, weight: .bold))
+                        Text(level).font(HearthFont.title3.font.weight(.heavy)).foregroundStyle(fill)
+                        Text(cpChargerShort(goTo)).font(HearthFont.callout.font.weight(.bold))
                             .foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.85)
                     }
                 }
             } else {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Go to charger").font(.system(size: 13)).foregroundStyle(surfaceInk.opacity(0.7))
-                    Text(cpChargerShort(goTo)).font(.system(size: 16, weight: .bold))
+                    Text("Go to charger").font(HearthFont.groupLabel.font).foregroundStyle(surfaceInk.opacity(0.7))
+                    Text(cpChargerShort(goTo)).font(HearthFont.cardHeading.font.weight(.bold))
                         .foregroundStyle(surfaceInk).lineLimit(2).minimumScaleFactor(0.85)
                 }
             }
@@ -174,9 +174,9 @@ public struct CpBeaconView: View {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(snap.stats, id: \.label) { s in
                     HStack(spacing: 4) {
-                        Text(s.label).font(.system(size: 11.5)).foregroundStyle(surfaceInk.opacity(0.7))
+                        Text(s.label).font(HearthFont.caption.font).foregroundStyle(surfaceInk.opacity(0.7))
                         Spacer(minLength: 4)
-                        Text(s.value).font(.system(size: 12.5, weight: .semibold)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
+                        Text(s.value).font(HearthFont.subtitle.font.weight(.semibold)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
                     }
                 }
             }
@@ -186,8 +186,8 @@ public struct CpBeaconView: View {
             }
         } else if let plugs = snap.plugsFree {
             HStack(spacing: 5) {
-                Image(systemName: "powerplug.fill").font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.8))
-                Text(plugs).font(.system(size: 12.5)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
+                Image(systemName: "powerplug.fill").font(HearthFont.footnote.font).foregroundStyle(surfaceInk.opacity(0.8))
+                Text(plugs).font(HearthFont.subtitle.font).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
             }
         }
     }
@@ -195,7 +195,7 @@ public struct CpBeaconView: View {
     /// One parking level: label + a mini availability bar + "free/total".
     private func floorRow(_ f: CpFloor) -> some View {
         HStack(spacing: 6) {
-            Text(f.level).font(.system(size: 11.5, weight: .semibold)).foregroundStyle(surfaceInk)
+            Text(f.level).font(HearthFont.caption.font.weight(.semibold)).foregroundStyle(surfaceInk)
                 .frame(width: 26, alignment: .leading)
             GeometryReader { g in
                 ZStack(alignment: .leading) {
@@ -204,7 +204,7 @@ public struct CpBeaconView: View {
                         .frame(width: f.total > 0 ? g.size.width * CGFloat(min(max(f.free, 0), f.total)) / CGFloat(f.total) : 0)
                 }
             }.frame(height: 5)
-            Text("\(f.free)/\(f.total)").font(.system(size: 11)).foregroundStyle(surfaceInk.opacity(0.85))
+            Text("\(f.free)/\(f.total)").font(HearthFont.caption.font).foregroundStyle(surfaceInk.opacity(0.85))
                 .frame(width: 40, alignment: .trailing)
         }
     }
@@ -213,7 +213,7 @@ public struct CpBeaconView: View {
     /// opens Hearth, where sign-in / join live).
     @ViewBuilder private var actionButton: some View {
         let label = Text(snap.actionLabel == "Open" ? "Open ChargePoint" : snap.actionLabel)
-            .font(.system(size: 13, weight: .semibold)).foregroundStyle(Color(white: 0.12))
+            .font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(Color(white: 0.12))
             .frame(maxWidth: .infinity).frame(height: 36)
             .background(fill, in: RoundedRectangle(cornerRadius: 11))
         if snap.bigAnswer == "Set up" {
@@ -248,7 +248,7 @@ public struct CpBeaconView: View {
     }
 
     private func keyLabel(_ text: String) -> some View {
-        Text(text).font(.system(size: 14, weight: .semibold)).foregroundStyle(Color(white: 0.12))
+        Text(text).font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(Color(white: 0.12))
             .multilineTextAlignment(.center).lineLimit(2)
             .frame(maxWidth: .infinity).frame(height: 40)
             .background(fill, in: RoundedRectangle(cornerRadius: 11))

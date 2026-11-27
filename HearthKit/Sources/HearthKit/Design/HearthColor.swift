@@ -65,6 +65,14 @@ public enum HearthColor {
     public static let onAccentLight: UInt32 = pageLight
     public static let onAccentDark: UInt32 = pageDark
 
+    // Widget preview background (warm accent for widget preview cards)
+    public static let widgetPreviewBgLight: UInt32 = 0xFFFFD4B3
+    public static let widgetPreviewBgDark: UInt32 = 0xFF3D2F28
+
+    // Placeholder background (for unimplemented widget previews)
+    public static let placeholderBgLight: UInt32 = 0xFF2A2D2E
+    public static let placeholderBgDark: UInt32 = 0xFF2A2D2E
+
     // MARK: - ColorScheme Helpers
 
     public static func page(_ scheme: ColorScheme) -> Color {
@@ -121,6 +129,14 @@ public enum HearthColor {
 
     public static func onAccent(_ scheme: ColorScheme) -> Color {
         Color(argb: scheme == .dark ? onAccentDark : onAccentLight)
+    }
+
+    public static func widgetPreviewBg(_ scheme: ColorScheme) -> Color {
+        Color(argb: scheme == .dark ? widgetPreviewBgDark : widgetPreviewBgLight)
+    }
+
+    public static func placeholderBg(_ scheme: ColorScheme) -> Color {
+        Color(argb: scheme == .dark ? placeholderBgDark : placeholderBgLight)
     }
 }
 

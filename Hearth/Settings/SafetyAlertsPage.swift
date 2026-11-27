@@ -16,49 +16,61 @@ struct SafetyAlertsPage: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Enable toggle
-                HearthGroup("Safety alerts") {
-                    HearthRow(
-                        icon: "shield",
-                        hue: .neutral,
-                        title: "Safety alerts",
-                        subtitle: enabled ? "On" : "Off"
-                    ) {
-                        HearthSwitch(isOn: Binding(
-                            get: { enabled },
-                            set: { newValue in
-                                enabled = newValue
-                                HouseFeaturesStore.safetyEnabled = newValue
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Safety alerts")
+                    .font(HearthFont.pageTitle.font)
+                    .foregroundStyle(HearthColor.ink(scheme))
+                Text("If a close, lock or arm fails")
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, HearthMetrics.groupInset + 12)
+            .padding(.top, 24)
+            .padding(.bottom, 20)
 
-                                // Request notification permission when enabling (if not determined)
-                                if newValue && notificationStatus == .notDetermined {
-                                    Task {
-                                        let granted = await HouseNotify.requestPermission()
-                                        notificationStatus = granted ? .authorized : .denied
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Enable toggle
+                    HearthGroup {
+                        HearthRow(
+                            icon: "shield",
+                            hue: .neutral,
+                            title: "Safety alerts",
+                            subtitle: enabled ? "On" : "Off"
+                        ) {
+                            HearthSwitch(isOn: Binding(
+                                get: { enabled },
+                                set: { newValue in
+                                    enabled = newValue
+                                    HouseFeaturesStore.safetyEnabled = newValue
+
+                                    // Request notification permission when enabling (if not determined)
+                                    if newValue && notificationStatus == .notDetermined {
+                                        Task {
+                                            let granted = await HouseNotify.requestPermission()
+                                            notificationStatus = granted ? .authorized : .denied
+                                        }
                                     }
                                 }
-                            }
-                        ))
+                            ))
+                        }
                     }
-                }
-                .padding(.top, 20)
 
-                // Notifications denied banner (only when enabled)
-                if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
-                    notificationsDeniedBanner
-                }
+                    // Notifications denied banner (only when enabled)
+                    if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
+                        notificationsDeniedBanner
+                    }
 
-                // Description sections (always show)
-                failureDescriptionSection
-                retryDescriptionSection
+                    // Description sections (always show)
+                    failureDescriptionSection
+                    retryDescriptionSection
+                }
+                .padding(.bottom, 20)
             }
-            .padding(.bottom, 20)
         }
         .background(HearthColor.page(scheme))
-        .navigationTitle("Safety alerts")
-        .navigationBarTitleDisplayMode(.inline)
         .task {
             notificationStatus = await HouseNotify.authorizationStatus()
         }
@@ -71,7 +83,7 @@ struct SafetyAlertsPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "bell.slash.fill")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -98,7 +110,7 @@ struct SafetyAlertsPage: View {
                     .clipShape(Capsule())
             }
         }
-        .padding(20)
+        .padding(HearthMetrics.pagePadding)
         .background(HearthColor.amberBg(scheme))
         .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
         .padding(.horizontal, HearthMetrics.groupInset)
@@ -110,7 +122,7 @@ struct SafetyAlertsPage: View {
     private var failureDescriptionSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "shield.checkered")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Tells you when the garage won't close, a lock won't lock or the alarm won't arm.")
@@ -125,7 +137,7 @@ struct SafetyAlertsPage: View {
     private var retryDescriptionSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.clockwise")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Hearth tries again once before it tells you.")

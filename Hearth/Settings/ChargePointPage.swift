@@ -217,7 +217,7 @@ struct ChargePointPage: View {
             VStack(spacing: 12) {
                 HStack(spacing: 12) {
                     Text("1")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(HearthFont.iconMedium.font.weight(.semibold))
                         .foregroundStyle(HearthColor.sub(scheme))
                         .frame(width: 32, height: 32)
                         .background(HearthColor.tint(scheme))
@@ -251,7 +251,7 @@ struct ChargePointPage: View {
 
                 HStack(spacing: 12) {
                     Text("2")
-                        .font(.system(size: 20, weight: .semibold))
+                        .font(HearthFont.iconMedium.font.weight(.semibold))
                         .foregroundStyle(HearthColor.sub(scheme))
                         .frame(width: 32, height: 32)
                         .background(HearthColor.tint(scheme))
@@ -267,7 +267,7 @@ struct ChargePointPage: View {
                 }
             }
         }
-        .padding(20)
+        .padding(HearthMetrics.pagePadding)
         .background(HearthColor.card(scheme))
         .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
         .padding(.horizontal, HearthMetrics.groupInset)
@@ -376,7 +376,7 @@ struct ChargePointPage: View {
                 ) {
                     if cp.auto {
                         Image(systemName: "chevron.right")
-                            .font(.system(size: 14, weight: .semibold))
+                            .font(HearthFont.callout.font.weight(.semibold))
                             .foregroundStyle(HearthColor.sub(scheme))
                     }
                 }
@@ -520,7 +520,7 @@ private struct FasterOffersSheet: View {
                     // Header
                     VStack(spacing: 12) {
                         Image(systemName: "bolt.circle.fill")
-                            .font(.system(size: 48))
+                            .font(HearthFont.iconHero.font)
                             .foregroundStyle(HearthColor.amber(scheme))
 
                         Text("Faster Offers")

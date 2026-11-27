@@ -79,28 +79,28 @@ public struct ThermostatBeaconView: View {
                 Text(snap.roomTemp).font(.system(size: 36 * textScale, weight: .heavy)).tracking(-1).foregroundStyle(ink)
                     .lineLimit(1)
                 Spacer(minLength: 0)
-                Image(systemName: "thermometer.medium").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
+                Image(systemName: "thermometer.medium").font(HearthFont.groupLabel.font).foregroundStyle(ink.opacity(0.9))
             }
             .frame(height: 43, alignment: .leading)
-            Text(snap.roomSub).font(.system(size: 12, weight: .medium)).foregroundStyle(ink)
+            Text(snap.roomSub).font(HearthFont.footnote.font.weight(.medium)).foregroundStyle(ink)
                 .lineLimit(1).frame(height: 15, alignment: .leading)
             if let h = snap.humidity {
-                Text(h).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+                Text(h).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                     .frame(height: 15, alignment: .leading)
             }
-            Text(snap.commandFeedback ?? snap.status).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+            Text(snap.commandFeedback ?? snap.status).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                 .frame(height: 15, alignment: .leading)
                 .accessibilityLabel(snap.commandError ?? snap.error ?? snap.commandFeedback ?? snap.status)
             Rectangle().fill(ink.opacity(0.26)).frame(height: 1).padding(.vertical, compact ? 1 : 2)
             ForEach(snap.sensors.prefix(3), id: \.id) { s in
                 HStack(spacing: 3) {
-                    Text(s.name).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+                    Text(s.name).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                     Spacer(minLength: 2)
                     HStack(spacing: 2) {
                         if s.stale {
-                            Image(systemName: "clock").font(.system(size: 10)).foregroundStyle(ink.opacity(0.85))
+                            Image(systemName: "clock").font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.85))
                         }
-                        Text(s.value).font(.system(size: 12, weight: .bold)).foregroundStyle(ink).lineLimit(1)
+                        Text(s.value).font(HearthFont.footnote.font.weight(.bold)).foregroundStyle(ink).lineLimit(1)
                     }.layoutPriority(1)
                 }.frame(height: compact ? 16 : 17)
                     .accessibilityElement(children: .ignore)
@@ -108,7 +108,7 @@ public struct ThermostatBeaconView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12).padding(.vertical, compact ? 7 : 10)
+        .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, compact ? 7 : 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
@@ -144,9 +144,9 @@ public struct ThermostatBeaconView: View {
             offCard
         } else if snap.heatSetpoint == nil && snap.coolSetpoint == nil {
             VStack(spacing: 3) {
-                Text(stale ? "Unavailable" : snap.mode).font(.system(size: 14, weight: .semibold))
+                Text(stale ? "Unavailable" : snap.mode).font(HearthFont.callout.font.weight(.semibold))
                 if !stale {
-                    Text("No temperature target").font(.system(size: 12))
+                    Text("No temperature target").font(HearthFont.footnote.font)
                         .foregroundStyle(surfaceInk.opacity(0.7)).multilineTextAlignment(.center)
                 }
             }
@@ -196,7 +196,7 @@ public struct ThermostatBeaconView: View {
 
     /// Setup middle CTA — a large recessed "Set up thermostat" button filling the mid-region (Android parity).
     private var setupCta: some View {
-        Text("Set up thermostat").font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk)
+        Text("Set up thermostat").font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 13))
     }
@@ -205,7 +205,7 @@ public struct ThermostatBeaconView: View {
     private var connectButton: some View {
         Button(intent: HaSetupIntent(reconnect: snap.needsSignIn)) {
             Text(snap.needsSignIn ? "Sign in" : isSetup ? "Connect" : "Open Settings")
-                .font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk)
+                .font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk)
                 .frame(maxWidth: .infinity).frame(height: 34)
                 .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.plain)
@@ -214,8 +214,8 @@ public struct ThermostatBeaconView: View {
     /// Off middle message — a recessed card "Off / Choose a mode to turn on" (Android parity).
     private var offCard: some View {
         VStack(spacing: 3) {
-            Text("Off").font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk)
-            Text("Choose a mode to turn on").font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.7))
+            Text("Off").font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(surfaceInk)
+            Text("Choose a mode to turn on").font(HearthFont.footnote.font).foregroundStyle(surfaceInk.opacity(0.7))
                 .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 8)
@@ -225,18 +225,18 @@ public struct ThermostatBeaconView: View {
 
     private func setpointRow(_ label: String, _ value: String, _ valueColor: UInt32, side: ClimateSide) -> some View {
         HStack(spacing: 5) {
-            Text(label).font(.system(size: 12)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
+            Text(label).font(HearthFont.footnote.font).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 2)
             Button(intent: ClimateSetpointIntent("\(side.rawValue)Down", entityID: snap.entityID,
                 scope: snap.requestScope, revision: snap.climateRevision, selectionRevision: selectionRevision, expectedMode: observedMode)) {
-                Image(systemName: "minus.circle.fill").font(.system(size: 20)).foregroundStyle(surfaceInk.opacity(0.85))
+                Image(systemName: "minus.circle.fill").font(HearthFont.iconMedium.font).foregroundStyle(surfaceInk.opacity(0.85))
             }.buttonStyle(.plain).disabled(!canAdjust(side, up: false)).opacity(canAdjust(side, up: false) ? 1 : 0.4)
-            Text(value).font(.system(size: 18, weight: .semibold))
+            Text(value).font(HearthFont.cardHeading.font.weight(.semibold))
                 .foregroundStyle(stale ? Color(argb: BeaconTone.offline.fillARGB) : Color(argb: valueColor))
                 .lineLimit(1).frame(minWidth: 36)
             Button(intent: ClimateSetpointIntent("\(side.rawValue)Up", entityID: snap.entityID,
                 scope: snap.requestScope, revision: snap.climateRevision, selectionRevision: selectionRevision, expectedMode: observedMode)) {
-                Image(systemName: "plus.circle.fill").font(.system(size: 20)).foregroundStyle(surfaceInk.opacity(0.85))
+                Image(systemName: "plus.circle.fill").font(HearthFont.iconMedium.font).foregroundStyle(surfaceInk.opacity(0.85))
             }.buttonStyle(.plain).disabled(!canAdjust(side, up: true)).opacity(canAdjust(side, up: true) ? 1 : 0.4)
         }
     }
@@ -248,8 +248,8 @@ public struct ThermostatBeaconView: View {
 
     private func chip(_ label: String?, _ value: String, enabled: Bool) -> some View {
         VStack(spacing: 0) {
-            if let label { Text(label).font(.system(size: 9)).foregroundStyle(surfaceInk.opacity(0.7)) }
-            Text(value).font(.system(size: 12, weight: .semibold))
+            if let label { Text(label).font(HearthFont.caption.font).foregroundStyle(surfaceInk.opacity(0.7)) }
+            Text(value).font(HearthFont.footnote.font.weight(.semibold))
                 .foregroundStyle(surfaceInk.opacity(enabled ? 1 : 0.82))
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
@@ -503,7 +503,7 @@ private struct ThermostatFocusedCard: View {
                         .accessibilityLabel("Example \(payload.snapshot.name). Open readings and controls inactive")
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, HearthMetrics.mediumPadding)
             .frame(width: size.width, height: size.height * 0.54)
             .foregroundStyle(ink)
             .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),
@@ -529,7 +529,7 @@ private struct ThermostatFocusedCard: View {
                         .accessibilityLabel("No context selected")
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, HearthMetrics.mediumPadding)
             .frame(width: size.width, height: size.height * 0.46)
             .foregroundStyle(surfaceInk)
             .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
@@ -606,7 +606,7 @@ private struct ThermostatFocusedCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .foregroundStyle(ink)
         .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),

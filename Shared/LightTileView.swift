@@ -26,7 +26,7 @@ public struct LightTileView: View {
                         LazyVGrid(columns: columns, spacing: 8) { ForEach(visibleOn, id: \.id) { tile($0) } }
                     }
                     if !visiblePinned.isEmpty {
-                        Text("ALWAYS SHOW").font(.system(size: 11, weight: .semibold)).tracking(0.5)
+                        Text("ALWAYS SHOW").font(HearthFont.caption.font.weight(.semibold)).tracking(0.5)
                             .foregroundStyle(ink.opacity(0.7)).padding(.top, 2)
                         LazyVGrid(columns: columns, spacing: 8) {
                             ForEach(visiblePinned, id: \.id) { tile($0) }
@@ -34,7 +34,7 @@ public struct LightTileView: View {
                     }
                     if snap.summary.on.isEmpty && snap.summary.pinned.isEmpty {
                         Text(snap.summary.offCount > 0 ? "\(snap.summary.offCount) off" : "No lights")
-                            .font(.system(size: 13)).foregroundStyle(ink.opacity(0.6)).padding(.top, 4)
+                            .font(HearthFont.groupLabel.font).foregroundStyle(ink.opacity(0.6)).padding(.top, 4)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -51,13 +51,13 @@ public struct LightTileView: View {
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(snap.state == .ready || snap.state == .empty ? snap.summary.headline : "Lights")
-                .font(.system(size: 18, weight: .bold)).foregroundStyle(ink)
+                .font(HearthFont.cardHeading.font.weight(.bold)).foregroundStyle(ink)
                 .lineLimit(1).minimumScaleFactor(0.7)
             Spacer()
             Button(intent: WidgetRefreshIntent("com.rohit.hearth.lights")) {
-                Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold)).foregroundStyle(ink.opacity(0.7))
+                Image(systemName: "arrow.clockwise").font(HearthFont.footnote.font.weight(.semibold)).foregroundStyle(ink.opacity(0.7))
             }.buttonStyle(.plain)
-            Text(snap.checkedAt).font(.system(size: 10)).foregroundStyle(ink.opacity(0.7)).padding(.leading, 6).invalidatableContent()
+            Text(snap.checkedAt).font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.7)).padding(.leading, 6).invalidatableContent()
         }
     }
 
@@ -66,14 +66,14 @@ public struct LightTileView: View {
         let label = VStack(alignment: .leading, spacing: 2) {
                 HStack {
                     Image(systemName: v.on ? "lightbulb.fill" : "lightbulb")
-                        .font(.system(size: 15)).foregroundStyle(v.on ? accent : ink.opacity(0.45))
+                        .font(HearthFont.rowTitle.font).foregroundStyle(v.on ? accent : ink.opacity(0.45))
                     Spacer()
-                    if let p = v.percent { Text("\(p)%").font(.system(size: 10, weight: .semibold)).foregroundStyle(ink.opacity(0.7)) }
+                    if let p = v.percent { Text("\(p)%").font(HearthFont.caption.font.weight(.semibold)).foregroundStyle(ink.opacity(0.7)) }
                 }
                 Spacer(minLength: 2)
-                Text(v.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(ink).lineLimit(2)
+                Text(v.name).font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(ink).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(v.tile).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                Text(v.tile).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
             }
             .padding(9).frame(maxWidth: .infinity, alignment: .topLeading).frame(height: 92)
             .background(v.on ? ink.opacity(0.13) : ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))

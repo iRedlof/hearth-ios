@@ -63,7 +63,7 @@ public struct AlarmBeaconView: View {
             Text(snap.stateWord)
                 .font(.system(size: (snap.stateWord.count > 10 ? 20 : 25) * textScale, weight: .heavy)).tracking(-0.5)
                 .foregroundStyle(ink).lineLimit(2).minimumScaleFactor(0.7).fixedSize(horizontal: false, vertical: true)
-            Text(snap.commandFeedback ?? snap.detail).font(.system(size: 12)).foregroundStyle(ink.opacity(0.82))
+            Text(snap.commandFeedback ?? snap.detail).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.82))
                 .lineLimit(3).padding(.top, 3)
                 .accessibilityLabel(snap.commandError ?? snap.commandFeedback ?? snap.detail)
         }
@@ -83,7 +83,7 @@ public struct AlarmBeaconView: View {
             }
             BeaconMiddle(maximumHeight: 72) {
                 if snap.setup {
-                    Text("Set up home alarm").font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk)
+                    Text("Set up home alarm").font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(surfaceInk)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 13))
                 } else {
@@ -93,7 +93,7 @@ public struct AlarmBeaconView: View {
             if snap.setup || snap.error.map(beaconNeedsSettings) == true || snap.error.map(beaconNeedsSignIn) == true {
                 Button(intent: HaSetupIntent(reconnect: snap.needsSignIn)) {
                     Text(snap.needsSignIn ? "Sign in" : snap.setup ? "Connect" : "Open Settings")
-                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(surfaceInk)
+                        .font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(surfaceInk)
                         .frame(maxWidth: .infinity).frame(height: 34)
                         .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                 }.buttonStyle(.plain)
@@ -114,8 +114,8 @@ public struct AlarmBeaconView: View {
             Button(intent: HaSetupIntent(reconnect: false)) {
                 VStack(spacing: 4) {
                     Label("No door selected", systemImage: "questionmark.circle")
-                        .font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk)
-                    Text("Choose a door in Settings").font(.system(size: 12))
+                        .font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk)
+                    Text("Choose a door in Settings").font(HearthFont.footnote.font)
                         .foregroundStyle(surfaceInk.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -127,14 +127,14 @@ public struct AlarmBeaconView: View {
     private var selectedDoorRow: some View {
         HStack(spacing: 8) {
             Image(systemName: snap.doorStale ? "clock" : snap.doorLocked.map { $0 ? "lock.fill" : "lock.open.fill" } ?? "questionmark.circle")
-                .font(.system(size: 17)).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
+                .font(HearthFont.cardHeading.font).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
-                Text(snap.doorName).font(.system(size: 13, weight: .semibold)).foregroundStyle(surfaceInk).lineLimit(1)
+                Text(snap.doorName).font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk).lineLimit(1)
                 // Status green when locked, red when unlocked; "since …" on its own line so neither clips.
-                Text(snap.doorState).font(.system(size: 12, weight: .semibold)).foregroundStyle(doorStatusColor).lineLimit(1)
+                Text(snap.doorState).font(HearthFont.footnote.font.weight(.semibold)).foregroundStyle(doorStatusColor).lineLimit(1)
                 if let since = snap.doorSince {
                     Text(snap.doorStale ? since.replacingOccurrences(of: "Last checked ", with: "") : since)
-                        .font(.system(size: 11.5)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1)
+                        .font(HearthFont.caption.font).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1)
                         .accessibilityLabel(since)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
@@ -157,7 +157,7 @@ public struct AlarmBeaconView: View {
     }
 
     private func doorLabel(_ text: String) -> some View {
-        Text(text).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+        Text(text).font(HearthFont.groupLabel.font.weight(.semibold)).lineLimit(1)
             .foregroundStyle(surfaceInk).padding(.horizontal, 8).frame(height: 32)
             .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
             .fixedSize(horizontal: true, vertical: false)
@@ -180,7 +180,7 @@ public struct AlarmBeaconView: View {
         HStack(spacing: 7) {
             if snap.actionSlots.isEmpty {
                 Text(snap.commandPending ? "Updating…" : snap.stale || snap.error != nil ? "Refresh to check" : "No supported controls")
-                    .font(.system(size: 12)).foregroundStyle(surfaceInk.opacity(0.75))
+                    .font(HearthFont.footnote.font).foregroundStyle(surfaceInk.opacity(0.75))
                     .frame(maxWidth: .infinity).frame(height: 34)
             }
             ForEach(snap.actionSlots, id: \.self) { action in
@@ -201,8 +201,8 @@ public struct AlarmBeaconView: View {
     private func actionLabel(_ action: AlarmAction) -> some View {
         let primary = (action == .disarm)
         return HStack(spacing: 5) {
-            Image(systemName: armIcon(action)).font(.system(size: 11, weight: .semibold))
-            Text(action.label).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+            Image(systemName: armIcon(action)).font(HearthFont.caption.font.weight(.semibold))
+            Text(action.label).font(HearthFont.groupLabel.font.weight(.semibold)).lineLimit(1)
         }
         .foregroundStyle(primary ? Color(white: 0.12) : surfaceInk)
         .frame(maxWidth: .infinity).frame(height: 34)

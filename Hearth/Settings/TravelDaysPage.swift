@@ -19,59 +19,80 @@ struct TravelDaysPage: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Enable toggle
-                HearthGroup("Travel days") {
-                    HearthRow(
-                        icon: "calendar",
-                        hue: .neutral,
-                        title: "Travel days",
-                        subtitle: enabled ? subtitleText : "Off"
-                    ) {
-                        HearthSwitch(isOn: Binding(
-                            get: { enabled },
-                            set: { newValue in
-                                enabled = newValue
-                                HouseFeaturesStore.travelEnabled = newValue
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Travel days")
+                    .font(HearthFont.pageTitle.font)
+                    .foregroundStyle(HearthColor.ink(scheme))
+                Text("Asks before a trip on your calendar")
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, HearthMetrics.groupInset + 12)
+            .padding(.top, 24)
+            .padding(.bottom, 20)
 
-                                // Request notification permission when enabling (if not determined)
-                                if newValue && notificationStatus == .notDetermined {
-                                    Task {
-                                        let granted = await HouseNotify.requestPermission()
-                                        notificationStatus = granted ? .authorized : .denied
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Enable toggle
+                    HearthGroup {
+                        HearthRow(
+                            icon: "calendar",
+                            hue: .neutral,
+                            title: "Travel days",
+                            subtitle: enabled ? subtitleText : "Off"
+                        ) {
+                            HearthSwitch(isOn: Binding(
+                                get: { enabled },
+                                set: { newValue in
+                                    enabled = newValue
+                                    HouseFeaturesStore.travelEnabled = newValue
+
+                                    // Request calendar permission when enabling (if not determined)
+                                    if newValue && calendarStatus == .notDetermined {
+                                        Task {
+                                            let granted = await CalendarAccess().requestAccess()
+                                            calendarStatus = granted ? .authorized : .denied
+                                            if granted {
+                                                await loadNextTrip()
+                                            }
+                                        }
+                                    }
+
+                                    // Request notification permission when enabling (if not determined)
+                                    if newValue && notificationStatus == .notDetermined {
+                                        Task {
+                                            let granted = await HouseNotify.requestPermission()
+                                            notificationStatus = granted ? .authorized : .denied
+                                        }
                                     }
                                 }
-                            }
-                        ))
+                            ))
+                        }
                     }
-                }
-                .padding(.top, 20)
 
-                // Calendar permission banners (only when enabled)
-                let bannerState = calendarBannerState(enabled: enabled, calendarStatus: calendarStatus.rawValue)
-                if bannerState == .needsPermission {
-                    calendarDeniedBanner
-                } else if bannerState == .restricted {
-                    calendarRestrictedBanner
-                }
+                    // Calendar permission banner (only when enabled and calendar access needed)
+                    if enabled {
+                        if calendarStatus == .notDetermined || calendarStatus == .denied {
+                            calendarDeniedBanner
+                        } else if calendarStatus == .restricted {
+                            calendarRestrictedBanner
+                        }
+                    }
 
-                // Notifications denied banner (only when enabled)
-                if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
-                    notificationsDeniedBanner
-                }
+                    // Description sections (3 icon bullets)
+                    tripDefinitionSection
+                    notificationTimeSection
+                    confirmationSection
 
-                // Description sections (always show)
-                tripDefinitionSection
-                notificationTimeSection
-                confirmationSection
-                privacySection
+                    // Privacy note
+                    privacySection
+                }
+                .padding(.bottom, 20)
             }
-            .padding(.bottom, 20)
         }
         .background(HearthColor.page(scheme))
-        .navigationTitle("Travel days")
-        .navigationBarTitleDisplayMode(.inline)
         .task {
             calendarStatus = CalendarAccess().authorizationStatus()
             notificationStatus = await HouseNotify.authorizationStatus()
@@ -86,46 +107,6 @@ struct TravelDaysPage: View {
         return nextTripText
     }
 
-    // MARK: - Notifications Denied Banner
-
-    @ViewBuilder
-    private var notificationsDeniedBanner: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: "bell.slash.fill")
-                    .font(.system(size: HearthMetrics.iconLarge))
-                    .foregroundStyle(HearthColor.amber(scheme))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Notifications are off for Hearth")
-                        .font(HearthFont.cardHeading.font)
-                        .foregroundStyle(HearthColor.ink(scheme))
-
-                    Text("Travel days can't reach you")
-                        .font(HearthFont.subtitle.font)
-                        .foregroundStyle(HearthColor.sub(scheme))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Button {
-                handleNotificationPermission()
-            } label: {
-                Text("Turn on")
-                    .font(HearthFont.rowTitle.font)
-                    .foregroundStyle(HearthColor.onAccent(scheme))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(HearthColor.amber(scheme))
-                    .clipShape(Capsule())
-            }
-        }
-        .padding(20)
-        .background(HearthColor.amberBg(scheme))
-        .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
-        .padding(.horizontal, HearthMetrics.groupInset)
-    }
-
     // MARK: - Calendar Denied Banner
 
     @ViewBuilder
@@ -133,7 +114,7 @@ struct TravelDaysPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "calendar.badge.exclamationmark")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -160,7 +141,7 @@ struct TravelDaysPage: View {
                     .clipShape(Capsule())
             }
         }
-        .padding(20)
+        .padding(HearthMetrics.pagePadding)
         .background(HearthColor.amberBg(scheme))
         .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
         .padding(.horizontal, HearthMetrics.groupInset)
@@ -173,7 +154,7 @@ struct TravelDaysPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.lock")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -188,7 +169,7 @@ struct TravelDaysPage: View {
                 }
             }
         }
-        .padding(20)
+        .padding(HearthMetrics.pagePadding)
         .background(HearthColor.amberBg(scheme))
         .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
         .padding(.horizontal, HearthMetrics.groupInset)
@@ -200,7 +181,7 @@ struct TravelDaysPage: View {
     private var tripDefinitionSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "calendar")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("A trip is an all-day event, or one 24 h or longer, in the next 7 days.")
@@ -215,7 +196,7 @@ struct TravelDaysPage: View {
     private var notificationTimeSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "clock")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("At 8 PM the night before, Hearth offers: arm Away, thermostat low.")
@@ -230,7 +211,7 @@ struct TravelDaysPage: View {
     private var confirmationSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "hand.tap")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Nothing runs until you confirm.")
@@ -245,7 +226,7 @@ struct TravelDaysPage: View {
     private var privacySection: some View {
         HStack(spacing: 12) {
             Image(systemName: "lock.shield")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Reads your calendar on this phone only. Nothing leaves the device.")
@@ -273,19 +254,6 @@ struct TravelDaysPage: View {
                 }
             }
         } else if calendarStatus == .denied {
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(url)
-            }
-        }
-    }
-
-    private func handleNotificationPermission() {
-        if notificationStatus == .notDetermined {
-            Task {
-                let granted = await HouseNotify.requestPermission()
-                notificationStatus = granted ? .authorized : .denied
-            }
-        } else {
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }

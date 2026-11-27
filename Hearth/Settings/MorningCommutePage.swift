@@ -6,36 +6,61 @@ import UserNotifications
 /// Enables the feature, shows sensor detection status, provides HA config YAML, and handles notification permissions.
 @MainActor
 struct MorningCommutePage: View {
-    @State private var enabled: Bool
+    @State private var autojoinEnabled: Bool
+    @State private var checkBeforeLeaveEnabled: Bool
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @State private var lastHeardDate: Date? = nil
-    @State private var copiedChargeNow = false
-    @State private var copiedSignIn = false
+    @State private var copiedSensor = false
+    @State private var copiedAutomation = false
 
     @Environment(\.colorScheme) private var scheme
 
     init() {
-        _enabled = State(initialValue: CommuteStore.enabled)
+        _autojoinEnabled = State(initialValue: CommuteStore.enabled)
+        _checkBeforeLeaveEnabled = State(initialValue: CommuteStore.checkBeforeLeaveEnabled)
         _lastHeardDate = State(initialValue: CommuteStore.lastHeard)
     }
 
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                // Enable toggle
-                HearthGroup("Morning Commute") {
+                // Two toggle rows in one card
+                HearthGroup {
                     HearthRow(
-                        icon: "sunrise",
-                        hue: .orange,
-                        title: "Auto-join on commute",
-                        subtitle: "Arms waitlist when approaching office"
+                        icon: "figure.run",
+                        hue: .blue,
+                        title: "Auto-join on my commute",
+                        subtitle: "Weekday mornings, when Home Assistant sees you ~30 min from work, Hearth joins in auto-run"
                     ) {
                         HearthSwitch(isOn: Binding(
-                            get: { enabled },
+                            get: { autojoinEnabled },
                             set: { newValue in
-                                enabled = newValue
+                                autojoinEnabled = newValue
                                 CommuteStore.enabled = newValue
 
+                                // Request notification permission when enabling (if not determined)
+                                if newValue && notificationStatus == .notDetermined {
+                                    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                                        Task { @MainActor in
+                                            await refreshNotificationStatus()
+                                        }
+                                    }
+                                }
+                            }
+                        ))
+                    }
+
+                    HearthRow(
+                        icon: "checkmark.rectangle.portrait",
+                        hue: .purple,
+                        title: "Check before I leave",
+                        subtitle: "At the door, asks you to sign in if Join would run out"
+                    ) {
+                        HearthSwitch(isOn: Binding(
+                            get: { checkBeforeLeaveEnabled },
+                            set: { newValue in
+                                checkBeforeLeaveEnabled = newValue
+                                CommuteStore.checkBeforeLeaveEnabled = newValue
                                 // Request notification permission when enabling (if not determined)
                                 if newValue && notificationStatus == .notDetermined {
                                     UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
@@ -50,27 +75,13 @@ struct MorningCommutePage: View {
                 }
                 .padding(.top, 20)
 
-                // Detection status
-                if enabled {
-                    HearthGroup("Detection") {
-                        HearthRow(
-                            icon: "sensor",
-                            hue: .purple,
-                            title: "Sensor status",
-                            subtitle: detectionSubtitle
-                        ) {
-                            detectionPill
-                        }
-                    }
-                }
-
                 // Notifications denied banner
                 if notificationStatus == .denied {
                     notificationsDeniedBanner
                 }
 
-                // HA config sections
-                if enabled {
+                // Needed for Check before I leave section
+                if checkBeforeLeaveEnabled {
                     haConfigSection
                 }
             }
@@ -122,7 +133,7 @@ struct MorningCommutePage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "bell.slash.fill")
-                    .font(.system(size: 24))
+                    .font(HearthFont.title3.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -151,7 +162,7 @@ struct MorningCommutePage: View {
                     .clipShape(Capsule())
             }
         }
-        .padding(20)
+        .padding(HearthMetrics.pagePadding)
         .background(HearthColor.amberBg(scheme))
         .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
         .padding(.horizontal, HearthMetrics.groupInset)
@@ -161,96 +172,72 @@ struct MorningCommutePage: View {
 
     @ViewBuilder
     private var haConfigSection: some View {
-        VStack(spacing: 20) {
-            // Charge Now sensor
-            VStack(alignment: .leading, spacing: 12) {
-                Text("HOME ASSISTANT CONFIG")
-                    .font(HearthFont.groupLabel.font)
-                    .foregroundStyle(HearthColor.sub(scheme))
-                    .padding(.horizontal, HearthMetrics.groupInset + 12)
+        VStack(spacing: 16) {
+            Text("Needed for Check before I leave")
+                .font(HearthFont.groupLabel.font)
+                .foregroundStyle(HearthColor.sub(scheme))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, HearthMetrics.groupInset + 12)
 
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("1. Charge Now Sensor")
-                        .font(HearthFont.cardHeading.font)
-                        .foregroundStyle(HearthColor.ink(scheme))
-
-                    Text("Triggers auto-join when ETA ≤ 30 min on weekday mornings (09:00–11:00).")
-                        .font(HearthFont.subtitle.font)
-                        .foregroundStyle(HearthColor.sub(scheme))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    yamlBlock(chargeNowYAML)
-
+            HearthGroup {
+                HearthRow(
+                    icon: "sensor",
+                    hue: .green,
+                    title: "Copy the sensor",
+                    subtitle: sensorStatusText
+                ) {
                     Button {
-                        UIPasteboard.general.string = chargeNowYAML
-                        copiedChargeNow = true
+                        UIPasteboard.general.string = sensorYAML
+                        copiedSensor = true
                         Task {
                             try? await Task.sleep(for: .seconds(2))
-                            copiedChargeNow = false
+                            copiedSensor = false
                         }
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: copiedChargeNow ? "checkmark" : "doc.on.doc")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text(copiedChargeNow ? "Copied" : "Copy YAML")
-                                .font(HearthFont.rowTitle.font)
+                        HStack(spacing: 6) {
+                            Image(systemName: "doc.on.doc")
+                                .font(HearthFont.callout.font.weight(.semibold))
+                            Text("Copy")
+                                .font(HearthFont.button.font)
                         }
-                        .foregroundStyle(copiedChargeNow ? HearthColor.green(scheme) : HearthColor.ink(scheme))
+                        .foregroundStyle(HearthColor.ink(scheme))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(copiedChargeNow ? HearthColor.greenBg(scheme) : HearthColor.tint(scheme))
+                        .background(HearthColor.tint(scheme))
                         .clipShape(Capsule())
                     }
                 }
-                .padding(20)
-                .background(HearthColor.card(scheme))
-                .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
-                .padding(.horizontal, HearthMetrics.groupInset)
-            }
 
-            // Sign-in Needed sensor
-            VStack(alignment: .leading, spacing: 12) {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text("2. Sign-in Needed Sensor")
-                        .font(HearthFont.cardHeading.font)
-                        .foregroundStyle(HearthColor.ink(scheme))
-
-                    Text("Notifies you to sign in when ETA ≤ 45 min (earlier margin for re-auth).")
-                        .font(HearthFont.subtitle.font)
-                        .foregroundStyle(HearthColor.sub(scheme))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    yamlBlock(signInNeededYAML)
-
+                HearthRow(
+                    icon: "arrow.triangle.turn.up.right.diamond",
+                    hue: .green,
+                    title: "Copy the automation",
+                    subtitle: automationStatusText
+                ) {
                     Button {
-                        UIPasteboard.general.string = signInNeededYAML
-                        copiedSignIn = true
+                        UIPasteboard.general.string = automationYAML
+                        copiedAutomation = true
                         Task {
                             try? await Task.sleep(for: .seconds(2))
-                            copiedSignIn = false
+                            copiedAutomation = false
                         }
                     } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: copiedSignIn ? "checkmark" : "doc.on.doc")
-                                .font(.system(size: 14, weight: .semibold))
-                            Text(copiedSignIn ? "Copied" : "Copy YAML")
-                                .font(HearthFont.rowTitle.font)
+                        HStack(spacing: 6) {
+                            Image(systemName: "doc.on.doc")
+                                .font(HearthFont.callout.font.weight(.semibold))
+                            Text("Copy")
+                                .font(HearthFont.button.font)
                         }
-                        .foregroundStyle(copiedSignIn ? HearthColor.green(scheme) : HearthColor.ink(scheme))
+                        .foregroundStyle(HearthColor.ink(scheme))
                         .padding(.horizontal, 16)
                         .padding(.vertical, 8)
-                        .background(copiedSignIn ? HearthColor.greenBg(scheme) : HearthColor.tint(scheme))
+                        .background(HearthColor.tint(scheme))
                         .clipShape(Capsule())
                     }
                 }
-                .padding(20)
-                .background(HearthColor.card(scheme))
-                .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
-                .padding(.horizontal, HearthMetrics.groupInset)
             }
 
-            // Installation note
-            Text("Add these sensors to your Home Assistant configuration (config/templates.yaml or a package), then reload Template Entities.")
+            Text("Paste the sensor into configuration.yaml and the automation as a new automation. Nothing else is shared.")
                 .font(HearthFont.subtitle.font)
                 .foregroundStyle(HearthColor.sub(scheme))
                 .padding(.horizontal, HearthMetrics.groupInset + 12)
@@ -258,44 +245,58 @@ struct MorningCommutePage: View {
         }
     }
 
-    @ViewBuilder
-    private func yamlBlock(_ yaml: String) -> some View {
-        Text(yaml)
-            .font(.system(size: 12, weight: .regular, design: .monospaced))
-            .foregroundStyle(HearthColor.ink(scheme))
-            .padding(12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(HearthColor.tint(scheme))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+    private var sensorStatusText: String {
+        switch detectionStatus {
+        case .found:
+            return "Found in Home Assistant"
+        case .lastHeard(let date):
+            let formatter = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
+            return "Last heard: today \(date.formatted(formatter))"
+        case .waiting:
+            return "Waiting for first read"
+        }
     }
+
+    private var automationStatusText: String {
+        // For now, show found if sensor is found
+        switch detectionStatus {
+        case .found:
+            return "Found in Home Assistant"
+        case .lastHeard(let date):
+            let formatter = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
+            return "Last heard: today \(date.formatted(formatter))"
+        case .waiting:
+            return "Waiting for first read"
+        }
+    }
+
 
     // MARK: - HA YAML Templates
 
-    private var chargeNowYAML: String {
+    private var sensorYAML: String {
         """
         template:
           - binary_sensor:
-              - name: "Commute charge now"
-                unique_id: commute_charge_now
+              - name: "Leaving home soon"
+                unique_id: leaving_home_soon
                 state: >
-                  {% set eta = states('sensor.waze_commute_to_work') | float(none) %}
-                  {% set in_window = now().weekday() < 5 and 9 <= now().hour < 11 %}
-                  {% set away = states('person.rohit_chandani') != 'home' %}
-                  {{ in_window and away and eta is not none and 0 < eta <= 30 }}
+                  {% set door = states('binary_sensor.front_door_contact') %}
+                  {{ door == 'on' }}
         """
     }
 
-    private var signInNeededYAML: String {
+    private var automationYAML: String {
         """
-        template:
-          - binary_sensor:
-              - name: "Commute signin needed"
-                unique_id: commute_signin_needed
-                state: >
-                  {% set eta = states('sensor.waze_commute_to_work') | float(none) %}
-                  {% set in_window = now().weekday() < 5 and 9 <= now().hour < 11 %}
-                  {% set away = states('person.rohit_chandani') != 'home' %}
-                  {{ in_window and away and eta is not none and 0 < eta <= 45 }}
+        automation:
+          - alias: "Check before leave reminder"
+            trigger:
+              - platform: state
+                entity_id: binary_sensor.leaving_home_soon
+                to: 'on'
+            action:
+              - service: notify.mobile_app
+                data:
+                  message: "Check if you need to sign in to ChargePoint"
         """
     }
 

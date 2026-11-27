@@ -79,9 +79,11 @@ public struct StatusPill: View {
             Text(text)
                 .font(HearthFont.pill.font)
                 .foregroundStyle(tone.ink(colorScheme))
+                .minimumScaleFactor(0.8)
+                .lineLimit(2)
         }
-        .padding(.horizontal, 12)
-        .frame(height: HearthMetrics.chipH)
+        .padding(.horizontal, HearthMetrics.mediumPadding)
+        .frame(minHeight: HearthMetrics.chipH)
         .background(
             Capsule()
                 .fill(tone.bg(colorScheme))

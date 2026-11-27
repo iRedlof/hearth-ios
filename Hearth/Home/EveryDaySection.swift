@@ -13,10 +13,24 @@ struct EveryDaySection: View {
     var body: some View {
         HearthGroup("Every day") {
             Button {
+                onTap(.goodnight)
+            } label: {
+                HearthRow(
+                    icon: "moon.stars.fill",
+                    hue: .purple,
+                    title: "Goodnight key",
+                    subtitle: "One tap: close garage, lights off, lock, arm"
+                ) {
+                    HomeChevron()
+                }
+            }
+            .buttonStyle(.plain)
+
+            Button {
                 onTap(.routines)
             } label: {
                 HearthRow(
-                    icon: "arrow.triangle.2.circlepath",
+                    icon: "sparkles",
                     hue: .purple,
                     title: "Routines",
                     subtitle: routinesSubtitle
@@ -30,7 +44,7 @@ struct EveryDaySection: View {
                 onTap(.leaveBy)
             } label: {
                 HearthRow(
-                    icon: "clock.fill",
+                    icon: "figure.walk",
                     hue: .blue,
                     title: "Leave-by times",
                     subtitle: leaveBySubtitle
@@ -44,7 +58,7 @@ struct EveryDaySection: View {
                 onTap(.travelDays)
             } label: {
                 HearthRow(
-                    icon: "airplane",
+                    icon: "suitcase.fill",
                     hue: .amber,
                     title: "Travel days",
                     subtitle: travelDaysSubtitle
@@ -58,24 +72,10 @@ struct EveryDaySection: View {
                 onTap(.safetyAlerts)
             } label: {
                 HearthRow(
-                    icon: "bell.badge.fill",
+                    icon: "shield.fill",
                     hue: .red,
                     title: "Safety alerts",
                     subtitle: safetyAlertsSubtitle
-                ) {
-                    HomeChevron()
-                }
-            }
-            .buttonStyle(.plain)
-
-            Button {
-                onTap(.goodnight)
-            } label: {
-                HearthRow(
-                    icon: "moon.stars.fill",
-                    hue: .purple,
-                    title: "Goodnight key",
-                    subtitle: "One tap: close garage, lights off, lock, arm"
                 ) {
                     HomeChevron()
                 }

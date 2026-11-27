@@ -127,7 +127,7 @@ struct RoutinesPage: View {
                 // Header: big time + X button
                 HStack {
                     Text(formatTime(routine.medianTime))
-                        .font(.system(size: HearthMetrics.iconHero, weight: .regular, design: .default))
+                        .font(HearthFont.iconHero.font)
                         .foregroundStyle(HearthColor.ink(scheme))
 
                     Spacer()
@@ -136,7 +136,7 @@ struct RoutinesPage: View {
                         removeRoutine(routine)
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: HearthMetrics.iconSmall))
+                            .font(HearthFont.iconSmall.font)
                             .foregroundStyle(HearthColor.sub(scheme))
                             .frame(width: 28, height: 28)
                     }
@@ -156,7 +156,7 @@ struct RoutinesPage: View {
                 // Appears on row
                 HStack(spacing: 8) {
                     Image(systemName: surfaceIcon)
-                        .font(.system(size: HearthMetrics.iconSmall))
+                        .font(HearthFont.iconSmall.font)
                         .foregroundStyle(HearthColor.sub(scheme))
                     Text("Appears on \(surfaceName) around \(formatTime(routine.medianTime))")
                         .font(HearthFont.subtitle.font)
@@ -168,7 +168,7 @@ struct RoutinesPage: View {
                 if routine.matchesGoodnightKey {
                     HStack(spacing: 8) {
                         Image(systemName: "moon.stars")
-                            .font(.system(size: HearthMetrics.iconSmall))
+                            .font(HearthFont.iconSmall.font)
                             .foregroundStyle(HearthColor.sub(scheme))
                         Text("Same as Goodnight key")
                             .font(HearthFont.subtitle.font)
@@ -224,7 +224,7 @@ struct RoutinesPage: View {
     private func iconForAction(_ name: String) -> some View {
         let iconName = iconNameForAction(name)
         return Image(systemName: iconName)
-            .font(.system(size: HearthMetrics.iconSmall))
+            .font(HearthFont.iconSmall.font)
     }
 
     // MARK: - Helpers
@@ -471,11 +471,11 @@ private struct RoutinesPagePreview: View {
                 // Header: big time + X button
                 HStack {
                     Text(formatTime(routine.medianTime))
-                        .font(.system(size: HearthMetrics.iconHero, weight: .regular, design: .default))
+                        .font(HearthFont.iconHero.font)
                         .foregroundStyle(HearthColor.ink(scheme))
                     Spacer()
                     Image(systemName: "xmark")
-                        .font(.system(size: HearthMetrics.iconSmall))
+                        .font(HearthFont.iconSmall.font)
                         .foregroundStyle(HearthColor.sub(scheme))
                 }
 
@@ -492,7 +492,7 @@ private struct RoutinesPagePreview: View {
                 // Appears on row
                 HStack(spacing: 8) {
                     Image(systemName: surfaceIcon)
-                        .font(.system(size: HearthMetrics.iconSmall))
+                        .font(HearthFont.iconSmall.font)
                         .foregroundStyle(HearthColor.sub(scheme))
                     Text("Appears on \(surfaceName) around \(formatTime(routine.medianTime))")
                         .font(HearthFont.subtitle.font)
@@ -504,7 +504,7 @@ private struct RoutinesPagePreview: View {
                 if routine.matchesGoodnightKey {
                     HStack(spacing: 8) {
                         Image(systemName: "moon.stars")
-                            .font(.system(size: HearthMetrics.iconSmall))
+                            .font(HearthFont.iconSmall.font)
                             .foregroundStyle(HearthColor.sub(scheme))
                         Text("Same as Goodnight key")
                             .font(HearthFont.subtitle.font)
@@ -578,7 +578,7 @@ private struct RoutinesPagePreview: View {
     private func iconForActionPreview(_ name: String) -> some View {
         let iconName = iconNameForActionPreview(name)
         return Image(systemName: iconName)
-            .font(.system(size: HearthMetrics.iconSmall))
+            .font(HearthFont.iconSmall.font)
     }
 
     private func entityNamePreview(from entityID: String) -> String {

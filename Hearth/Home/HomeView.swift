@@ -6,7 +6,6 @@ import HearthKit
 /// Fetches live snapshots (car, alarm, CP, thermostat) and maps them to WidgetHealth + stateLine for the widgets strip.
 struct HomeView: View {
     let config: HaConfig
-    var onSignOut: () -> Void
     var onRoute: (HomeRoute) -> Void
 
     @State private var car: CarSnapshot?
@@ -19,48 +18,46 @@ struct HomeView: View {
     @ObservedObject private var refreshSignal = RefreshSignal.shared
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 HomeHeader()
 
-                // First-run Get-started OR Sign-in banner
-                let ha = haConnectionStatus(config)
-                let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
-                let cpSession = try? CpSessionStore.context().session
-                let cpHasAccount = (cpSession?.userId ?? 0) != 0 || !(cpSession?.email ?? "").isEmpty
+            // First-run Get-started OR Sign-in banner
+            let ha = haConnectionStatus(config)
+            let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
+            let cpSession = try? CpSessionStore.context().session
+            let cpHasAccount = (cpSession?.userId ?? 0) != 0 || !(cpSession?.email ?? "").isEmpty
 
-                if ha == .needsSignIn {
-                    signInBanner()
-                } else if showGetStarted(haConnected: ha == .connected, widgetCount: kinds.count) {
-                    GetStartedCard(
-                        haConnected: ha == .connected,
-                        hasWidget: !kinds.isEmpty,
-                        onConnect: { onRoute(.homeAssistant) },
-                        onAddWidget: { onRoute(.addWidget) }
-                    )
-                }
-
-                // Your widgets strip
-                YourWidgetsStrip(items: builtItems(), onTap: onRoute)
-
-                // Connections section
-                ConnectionsSection(
-                    ha: ha,
-                    cp: cpConnectionStatus(signedIn: cpSignedIn, hasAccount: cpHasAccount),
-                    onTap: onRoute
+            if ha == .needsSignIn {
+                signInBanner()
+            } else if showGetStarted(haConnected: ha == .connected, widgetCount: kinds.count) {
+                GetStartedCard(
+                    haConnected: ha == .connected,
+                    hasWidget: !kinds.isEmpty,
+                    onConnect: { onRoute(.homeAssistant) },
+                    onAddWidget: { onRoute(.addWidget) }
                 )
+            }
 
-                // Every day section
-                EveryDaySection(onTap: onRoute)
+            // Your widgets header + strip
+            YourWidgetsHeader(onAdd: { onRoute(.addWidget) })
+            YourWidgetsStrip(items: builtItems(), onTap: onRoute)
 
-                // Look section
-                LookSection(onTap: onRoute)
+            // Connections section
+            ConnectionsSection(
+                ha: ha,
+                cp: cpConnectionStatus(signedIn: cpSignedIn, hasAccount: cpHasAccount),
+                onTap: onRoute
+            )
 
-                // Footer with refresh + sign out
-                footerControls
-                    .padding(.horizontal, 20)
+            // Every day section
+            EveryDaySection(onTap: onRoute)
+
+            // Look section
+            LookSection(onTap: onRoute)
 
                 HomeFooter()
             }
@@ -119,45 +116,40 @@ struct HomeView: View {
         return homeWidgetItems(kinds: kinds, readings: readings)
     }
 
-    private func needsSignInBanner() -> Bool {
-        let haStatus = haConnectionStatus(config)
-        let cpSession = try? CpSessionStore.context().session
-        let cpHasAccount = (cpSession?.userId ?? 0) != 0 || !(cpSession?.email ?? "").isEmpty
-        let cpStatus = cpConnectionStatus(signedIn: cpSignedIn, hasAccount: cpHasAccount)
-        return haStatus == .needsSignIn || cpStatus == .needsSignIn
-    }
-
     @ViewBuilder
     private func signInBanner() -> some View {
         let haStatus = haConnectionStatus(config)
         if haStatus == .needsSignIn {
-            SignInBanner(message: "Home Assistant needs sign-in to sync your devices") {
+            let affectedWidgets = affectedWidgetNames()
+            let detail = affectedWidgets.isEmpty ? nil : "\(affectedWidgets) are paused"
+            SignInBanner(
+                title: "Home Assistant needs sign-in",
+                detail: detail
+            ) {
                 onRoute(.homeAssistant)
             }
         }
         // CP banner would go here if needed
     }
 
-    private var footerControls: some View {
-        HStack(spacing: 12) {
-            Button {
-                if let context = HaConfigStore.context(), let selection = ThermostatSelectionOrigin(context) {
-                    thermostat.refresh(ThermostatRefreshRequest(selection: selection), source: .dashboardRefresh)
-                }
-                Task { await load() }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
+    private func affectedWidgetNames() -> String {
+        let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
+        let names = kinds.compactMap { kind -> String? in
+            switch kind {
+            case .thermostat: return "Hallway thermostat"
+            case .alarm: return "Home alarm"
+            case .lights: return "Lights"
+            case .car: return "Stargate"
+            case .chargePoint: return nil
+            case .glance, .doors, .quick, .favourites, .activity, .battery:
+                return kind.displayName
             }
-            .buttonStyle(.bordered)
-            .disabled(loading)
-
-            Button(role: .destructive, action: onSignOut) {
-                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
         }
-        .padding(.top, 4)
+        guard !names.isEmpty else { return "" }
+        guard names.count > 1 else { return names[0] }
+        return names.dropLast().joined(separator: ", ") + " and " + names.last!
     }
+
 
     private func load() async {
         thermostat.loadCache()
@@ -205,7 +197,6 @@ private extension HaConfig {
 #Preview("Populated — Light") {
     HomeView(
         config: .populated,
-        onSignOut: {},
         onRoute: { _ in }
     )
     .preferredColorScheme(.light)
@@ -214,7 +205,6 @@ private extension HaConfig {
 #Preview("Populated — Dark") {
     HomeView(
         config: .populated,
-        onSignOut: {},
         onRoute: { _ in }
     )
     .preferredColorScheme(.dark)
@@ -223,7 +213,6 @@ private extension HaConfig {
 #Preview("First-run — Light") {
     HomeView(
         config: HaConfig(baseUrl: "", token: "", entityId: ""),
-        onSignOut: {},
         onRoute: { _ in }
     )
     .preferredColorScheme(.light)
@@ -232,7 +221,6 @@ private extension HaConfig {
 #Preview("First-run — Dark") {
     HomeView(
         config: HaConfig(baseUrl: "", token: "", entityId: ""),
-        onSignOut: {},
         onRoute: { _ in }
     )
     .preferredColorScheme(.dark)
@@ -245,7 +233,6 @@ private extension HaConfig {
             token: "",
             entityId: "alarm_control_panel.home"
         ),
-        onSignOut: {},
         onRoute: { _ in }
     )
     .preferredColorScheme(.light)
@@ -258,7 +245,6 @@ private extension HaConfig {
             token: "",
             entityId: "alarm_control_panel.home"
         ),
-        onSignOut: {},
         onRoute: { _ in }
     )
     .preferredColorScheme(.dark)
@@ -267,7 +253,6 @@ private extension HaConfig {
 #Preview("Large text — Light") {
     HomeView(
         config: .populated,
-        onSignOut: {},
         onRoute: { _ in }
     )
     .environment(\.sizeCategory, .accessibilityExtraLarge)

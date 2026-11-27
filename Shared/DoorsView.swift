@@ -135,7 +135,7 @@ public struct DoorsView: View {
 
     private func row(_ v: DoorView, height: CGFloat, identity: DoorRowIdentity?) -> some View {
         HStack(spacing: 9) {
-            Image(systemName: icon(v)).font(.system(size: 18)).foregroundStyle(ink.opacity(0.85)).frame(width: 20)
+            Image(systemName: icon(v)).font(HearthFont.cardHeading.font).foregroundStyle(ink.opacity(0.85)).frame(width: 20)
             VStack(alignment: .leading, spacing: 0) {
                 Text(v.name).font(.system(size: nameSize, weight: .medium)).foregroundStyle(ink).lineLimit(1)
                 Text(identity?.label.map { "\($0) · \(rowStatus(v).components(separatedBy: " ·").first ?? rowStatus(v))" } ?? rowStatus(v))
@@ -171,7 +171,7 @@ public struct DoorsView: View {
         Button(intent: DoorActionIntent(scope: snap.actionScope ?? "", revision: snap.actionRevision ?? "", id: id, action: action,
             replacingOperation: action == .stop && snap.operation?.pending == true ? snap.operation?.id ?? "" : "")) {
             Text(action.label).font(.system(size: nameSize, weight: .semibold)).foregroundStyle(ink)
-                .padding(.horizontal, 12).frame(height: 34 * fontScale)
+                .padding(.horizontal, HearthMetrics.mediumPadding).frame(height: 34 * fontScale)
                 .background(ink.opacity(0.14), in: Capsule())
         }.buttonStyle(.plain).disabled((snap.actionScope ?? "").isEmpty || (snap.actionRevision ?? "").isEmpty)
     }

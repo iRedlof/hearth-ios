@@ -25,9 +25,15 @@ struct GetStartedCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
-            Text("Get started")
-                .font(HearthFont.cardHeading.font)
-                .foregroundStyle(HearthColor.ink(scheme))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Get started")
+                    .font(HearthFont.cardHeading.font)
+                    .foregroundStyle(HearthColor.ink(scheme))
+
+                Text("2 steps · this card goes away when you finish")
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+            }
 
             VStack(alignment: .leading, spacing: 16) {
                 // Step 1: Connect Home Assistant
@@ -83,7 +89,7 @@ struct GetStartedCard: View {
 
             if done {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(HearthFont.callout.font.weight(.bold))
                     .foregroundStyle(HearthColor.onAccent(scheme))
             } else {
                 Text("\(number)")

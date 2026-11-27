@@ -26,7 +26,7 @@ struct SignInView: View {
         VStack(spacing: 18) {
             Spacer()
             Image(systemName: "house.lodge.fill")
-                .font(.system(size: 52))
+                .font(HearthFont.heroLarge.font)
                 .foregroundStyle(.tint)
             Text("Connect to Home Assistant")
                 .font(.title2.weight(.bold))
@@ -67,14 +67,14 @@ struct SignInView: View {
             if !auth.status.isEmpty {
                 Text(auth.status)
                     .font(.footnote)
-                    .foregroundStyle(auth.isError ? Color.red : Color.secondary)
+                    .foregroundStyle(auth.isError ? HearthColor.red(.dark) : HearthColor.sub(.dark))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer()
         }
         .padding(28)
-        .background(Color(white: 0.08).ignoresSafeArea())
+        .background(HearthColor.page(.dark).ignoresSafeArea())
         .preferredColorScheme(.dark)
         .onAppear { auth.onSignedIn = onSignedIn }
     }

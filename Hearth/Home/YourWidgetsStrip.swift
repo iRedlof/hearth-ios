@@ -62,7 +62,7 @@ struct YourWidgetsStrip: View {
                     Spacer()
 
                     Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .semibold))
+                        .font(HearthFont.footnote.font.weight(.semibold))
                         .foregroundStyle(HearthColor.mute(colorScheme))
                 }
             }
@@ -86,7 +86,7 @@ struct YourWidgetsStrip: View {
                 Spacer()
 
                 Image(systemName: "plus")
-                    .font(.system(size: 24, weight: .medium))
+                    .font(HearthFont.title3.font.weight(.medium))
                     .foregroundStyle(HearthColor.mute(colorScheme))
 
                 Text("Add")

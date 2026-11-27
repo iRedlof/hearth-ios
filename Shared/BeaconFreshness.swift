@@ -34,8 +34,8 @@ struct BeaconFreshness: View {
         HStack(spacing: 6) {
             if showSmallPrint {
                 VStack(alignment: .trailing, spacing: -1) {
-                    Text("Checked").font(.system(size: 10))
-                    Text(checkedAt).font(.system(size: 10))
+                    Text("Checked").font(HearthFont.caption.font)
+                    Text(checkedAt).font(HearthFont.caption.font)
                 }
                 .foregroundStyle(ink.opacity(0.78))
                 .invalidatableContent()
@@ -51,7 +51,7 @@ struct BeaconFreshness: View {
 
     private var refreshLabel: some View {
         Image(systemName: "arrow.clockwise")
-            .font(.system(size: 12, weight: .semibold))
+            .font(HearthFont.footnote.font.weight(.semibold))
             .foregroundStyle(ink.opacity(0.9))
             .frame(width: 26, height: 26)
             .background(ink.opacity(0.14), in: Circle())

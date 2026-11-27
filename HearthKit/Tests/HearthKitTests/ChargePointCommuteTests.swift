@@ -10,9 +10,10 @@ final class ChargePointCommuteTests: XCTestCase {
     private let today: CommuteDay = 20261027      // Oct 27, 2026 (yyyymmdd)
     private let yesterday: CommuteDay = 20261026  // Oct 26, 2026
 
-    /// Helper to call `commuteDecide` with defaults, mirroring the Kotlin test helper.
+    /// Helper to call `commuteDecide` with defaults.
     private func decide(
-        enabled: Bool = true,
+        autojoinEnabled: Bool = false,
+        checkBeforeLeaveEnabled: Bool = false,
         chargeNow: Bool = false,
         signinNeeded: Bool = false,
         armed: Bool = false,
@@ -22,7 +23,8 @@ final class ChargePointCommuteTests: XCTestCase {
         lastNotifyDay: CommuteDay? = nil
     ) -> CommuteAction {
         commuteDecide(
-            enabled: enabled,
+            autojoinEnabled: autojoinEnabled,
+            checkBeforeLeaveEnabled: checkBeforeLeaveEnabled,
             chargeNow: chargeNow,
             signinNeeded: signinNeeded,
             alreadyArmed: armed,
@@ -34,42 +36,66 @@ final class ChargePointCommuteTests: XCTestCase {
         )
     }
 
-    func testDisabledDoesNothingEvenWhenEverythingElseSaysGo() {
-        XCTAssertEqual(.none, decide(enabled: false, chargeNow: true, signinNeeded: true))
+    func testBothDisabledDoesNothingEvenWhenEverythingElseSaysGo() {
+        XCTAssertEqual(.none, decide(autojoinEnabled: false, checkBeforeLeaveEnabled: false, chargeNow: true, signinNeeded: true))
     }
 
-    func testInRangeAndSignedInArmsTheAutoRun() {
-        XCTAssertEqual(.armAuto, decide(chargeNow: true, signinNeeded: true))
+    // MARK: - Auto-join branch tests (autojoinEnabled gates armAuto)
+
+    func testAutojoinEnabledInRangeAndSignedInArmsTheAutoRun() {
+        XCTAssertEqual(.armAuto, decide(autojoinEnabled: true, chargeNow: true, signinNeeded: true))
     }
 
-    func testAlreadyArmedDoesNotReArm() {
-        XCTAssertEqual(.none, decide(chargeNow: true, signinNeeded: true, armed: true))
+    func testAutojoinEnabledAlreadyArmedDoesNotReArm() {
+        XCTAssertEqual(.none, decide(autojoinEnabled: true, chargeNow: true, signinNeeded: true, armed: true))
     }
 
-    func testChargingDoesNotArm() {
-        XCTAssertEqual(.none, decide(chargeNow: true, signinNeeded: true, charging: true))
+    func testAutojoinEnabledChargingDoesNotArm() {
+        XCTAssertEqual(.none, decide(autojoinEnabled: true, chargeNow: true, signinNeeded: true, charging: true))
     }
 
-    func testArmsAtMostOncePerMorning() {
-        XCTAssertEqual(.none, decide(chargeNow: true, signinNeeded: true, lastArmDay: today))
-        XCTAssertEqual(.armAuto, decide(chargeNow: true, signinNeeded: true, lastArmDay: yesterday))
+    func testAutojoinEnabledArmsAtMostOncePerMorning() {
+        XCTAssertEqual(.none, decide(autojoinEnabled: true, chargeNow: true, signinNeeded: true, lastArmDay: today))
+        XCTAssertEqual(.armAuto, decide(autojoinEnabled: true, chargeNow: true, signinNeeded: true, lastArmDay: yesterday))
     }
 
-    func testSignedOutWhileApproachingNudgesToSignInDoesNotArm() {
-        XCTAssertEqual(.notifySignIn, decide(chargeNow: true, signinNeeded: true, signedOutOrExpired: true))
+    func testAutojoinDisabledDoesNotArmEvenWhenConditionsMet() {
+        XCTAssertEqual(.none, decide(autojoinEnabled: false, chargeNow: true))
     }
 
-    func testNudgesAtMostOncePerMorning() {
-        XCTAssertEqual(.none, decide(signinNeeded: true, signedOutOrExpired: true, lastNotifyDay: today))
-        XCTAssertEqual(.notifySignIn, decide(signinNeeded: true, signedOutOrExpired: true, lastNotifyDay: yesterday))
+    // MARK: - Check-before-leave branch tests (checkBeforeLeaveEnabled gates notifySignIn)
+
+    func testCheckBeforeLeaveEnabledSignedOutWhileApproachingNudgesToSignIn() {
+        XCTAssertEqual(.notifySignIn, decide(checkBeforeLeaveEnabled: true, chargeNow: true, signinNeeded: true, signedOutOrExpired: true))
+    }
+
+    func testCheckBeforeLeaveEnabledNudgesAtMostOncePerMorning() {
+        XCTAssertEqual(.none, decide(checkBeforeLeaveEnabled: true, signinNeeded: true, signedOutOrExpired: true, lastNotifyDay: today))
+        XCTAssertEqual(.notifySignIn, decide(checkBeforeLeaveEnabled: true, signinNeeded: true, signedOutOrExpired: true, lastNotifyDay: yesterday))
+    }
+
+    func testCheckBeforeLeaveDisabledDoesNotNotifyEvenWhenConditionsMet() {
+        XCTAssertEqual(.none, decide(checkBeforeLeaveEnabled: false, signinNeeded: true, signedOutOrExpired: true))
+    }
+
+    // MARK: - Branch independence tests
+
+    func testAutojoinEnabledDoesNotNotifyEvenWhenNotifyConditionsMet() {
+        // Auto-join enabled, signed out, signin needed → does NOT notify (notify branch disabled)
+        XCTAssertEqual(.none, decide(autojoinEnabled: true, checkBeforeLeaveEnabled: false, signinNeeded: true, signedOutOrExpired: true))
+    }
+
+    func testCheckBeforeLeaveEnabledDoesNotArmEvenWhenArmConditionsMet() {
+        // Check-before-leave enabled, signed in, charge now → does NOT arm (arm branch disabled)
+        XCTAssertEqual(.none, decide(autojoinEnabled: false, checkBeforeLeaveEnabled: true, chargeNow: true))
     }
 
     func testSignedInButOnlyWithinTheWiderNudgeWindowNotYet30MinDoesNothing() {
-        XCTAssertEqual(.none, decide(chargeNow: false, signinNeeded: true))
+        XCTAssertEqual(.none, decide(autojoinEnabled: true, chargeNow: false, signinNeeded: true))
     }
 
     func testSignedOutButNotYetWithinTheNudgeWindowDoesNothing() {
-        XCTAssertEqual(.none, decide(signinNeeded: false, signedOutOrExpired: true))
+        XCTAssertEqual(.none, decide(checkBeforeLeaveEnabled: true, signinNeeded: false, signedOutOrExpired: true))
     }
 
     // MARK: - Commute Sensor Parser Tests

@@ -61,10 +61,10 @@ public struct CarBeaconView: View {
                     if snap.battery != nil { Text("%").font(.system(size: 15 * textScale, weight: .heavy)) }
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "car.fill").font(.system(size: 13)).foregroundStyle(ink.opacity(0.9))
+                Image(systemName: "car.fill").font(HearthFont.groupLabel.font).foregroundStyle(ink.opacity(0.9))
             }
             .foregroundStyle(ink).frame(height: 41, alignment: .leading)
-            Text(snap.range).font(.system(size: 12, weight: .medium)).foregroundStyle(ink)
+            Text(snap.range).font(HearthFont.footnote.font.weight(.medium)).foregroundStyle(ink)
                 .lineLimit(1).frame(height: compact ? 15 : 16, alignment: .leading)
             Rectangle().fill(ink.opacity(0.26)).frame(height: 1)
                 .padding(.vertical, compact ? 1 : 2)
@@ -79,16 +79,16 @@ public struct CarBeaconView: View {
             statusRow("Tires", snap.tires, snap.tiresWarn, height: rowHeight)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12).padding(.vertical, compact ? 7 : 10)
+        .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, compact ? 7 : 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
 
     private func statusRow(_ key: String, _ value: String, _ warn: Bool, height: CGFloat) -> some View {
         HStack(spacing: 1) {
-            Text(key).font(.system(size: 13)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+            Text(key).font(HearthFont.groupLabel.font).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
             Spacer(minLength: 0)
-            Text(value).font(.system(size: 13, weight: warn ? .heavy : .bold)).foregroundStyle(ink)
+            Text(value).font(HearthFont.groupLabel.font.weight(warn ? .heavy : .bold)).foregroundStyle(ink)
                 .underline(warn).lineLimit(1).minimumScaleFactor(0.9)
         }.frame(height: height)
             .accessibilityElement(children: .ignore)
@@ -107,7 +107,7 @@ public struct CarBeaconView: View {
             Text(hasSavedReadings ? "Open · Details" : "Open")
                 .fixedSize(horizontal: true, vertical: true)
         }
-        .font(.system(size: 13, weight: .heavy))
+        .font(HearthFont.groupLabel.font.weight(.heavy))
         .foregroundStyle(ink).underline()
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: height)
@@ -127,7 +127,7 @@ public struct CarBeaconView: View {
                     showSmallPrint: style.smallPrint)
             }
             .frame(height: 26, alignment: .top)
-            Text(snap.place).font(.system(size: 12.5)).foregroundStyle(surfaceInk)
+            Text(snap.place).font(HearthFont.subtitle.font).foregroundStyle(surfaceInk)
                 .lineLimit(1).minimumScaleFactor(0.72).frame(height: 15, alignment: .leading).padding(.top, 2)
             // The photo takes the remaining height; readings and the footer retain their own rows.
             Image("CarPremium").resizable().scaledToFit()
@@ -136,13 +136,13 @@ public struct CarBeaconView: View {
             chargeBar.frame(height: 7)
             // Unplugged (left) + Sentry on/off (right-aligned) share one line — frees a row for the photo.
             HStack(spacing: 6) {
-                Text(snap.chargeLine).font(.system(size: 12)).foregroundStyle(surfaceInk)
+                Text(snap.chargeLine).font(HearthFont.footnote.font).foregroundStyle(surfaceInk)
                     .lineLimit(1).minimumScaleFactor(0.8)
                     .accessibilityLabel(snap.error ?? snap.chargeLine)
                 Spacer(minLength: 4)
                 HStack(spacing: 4) {
-                    Image(systemName: "lock.shield.fill").font(.system(size: 10.5))
-                    Text(sentryText).font(.system(size: 12, weight: .medium))
+                    Image(systemName: "lock.shield.fill").font(HearthFont.caption.font)
+                    Text(sentryText).font(HearthFont.footnote.font.weight(.medium))
                 }.foregroundStyle(sentryInk).lineLimit(1).minimumScaleFactor(0.85).fixedSize()
             }.frame(height: 16).padding(.top, 3)
             openTesla.padding(.top, 5)
@@ -188,8 +188,8 @@ public struct CarBeaconView: View {
 
     private func actionLabel(_ title: String) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: "arrow.right").font(.system(size: 13, weight: .semibold))
-            Text(title).font(.system(size: 13, weight: .semibold))
+            Image(systemName: "arrow.right").font(HearthFont.groupLabel.font.weight(.semibold))
+            Text(title).font(HearthFont.groupLabel.font.weight(.semibold))
         }
             .foregroundStyle(surfaceInk)
             .frame(maxWidth: .infinity).frame(height: 36)
@@ -448,7 +448,7 @@ private struct CarReadableSummary: View {
                     }
                 }
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
+            .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .foregroundStyle(Color(argb: BeaconSurfaceColors.inkARGB))

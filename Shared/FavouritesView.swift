@@ -14,19 +14,19 @@ public struct FavouritesView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Favourites").font(.system(size: 18, weight: .bold)).foregroundStyle(ink)
+                Text("Favourites").font(HearthFont.cardHeading.font.weight(.bold)).foregroundStyle(ink)
                 Spacer()
                 Button(intent: WidgetRefreshIntent("com.rohit.hearth.favourites")) {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold)).foregroundStyle(ink.opacity(0.7))
+                    Image(systemName: "arrow.clockwise").font(HearthFont.footnote.font.weight(.semibold)).foregroundStyle(ink.opacity(0.7))
                 }.buttonStyle(.plain)
-                Text(snap.checkedAt).font(.system(size: 10)).foregroundStyle(ink.opacity(0.7)).padding(.leading, 6).invalidatableContent()
+                Text(snap.checkedAt).font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.7)).padding(.leading, 6).invalidatableContent()
             }
             if snap.items.isEmpty {
                 TileStatusContent(state: snap.state, error: snap.error, choice: "Choose your favourites",
                                   empty: "No favourites found")
             } else {
                 if let error = snap.error {
-                    Text(error).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                    Text(error).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
                 }
                 LazyVGrid(columns: columns, spacing: 8) { ForEach(snap.items.prefix(4), id: \.id) { tile($0) } }
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
@@ -41,15 +41,15 @@ public struct FavouritesView: View {
     private func tile(_ f: Fav) -> some View {
         let label = VStack(alignment: .leading, spacing: 2) {
                 HStack {
-                    Image(systemName: icon(f.domain)).font(.system(size: 15))
+                    Image(systemName: icon(f.domain)).font(HearthFont.rowTitle.font)
                         .foregroundStyle(f.on ? Color(argb: 0xFFFF_D27F) : ink.opacity(0.45))
                     Spacer()
                 }
                 Spacer(minLength: 2)
-                Text(f.name).font(.system(size: 14, weight: .semibold)).foregroundStyle(ink).lineLimit(2)
+                Text(f.name).font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(ink).lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(!f.available ? "Unavailable" : f.domain == "script" ? "Run" : (f.on ? "On" : "Off"))
-                    .font(.system(size: 12)).foregroundStyle(ink.opacity(0.8))
+                    .font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.8))
             }
             .padding(9).frame(maxWidth: .infinity, alignment: .topLeading).frame(height: 92)
             .background(f.on ? ink.opacity(0.13) : ink.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))
