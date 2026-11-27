@@ -551,7 +551,7 @@ struct ContentView: View {
         if inertTabs {
             Text("Controlled Car route fixture · Live tab")
         } else if let config, config.carReady {
-            HomeView(config: config, onSignOut: signOut, onRoute: handleHomeRoute)
+            HomeView(config: config, onRoute: handleHomeRoute)
         } else {
             SignInView(onSignedIn: { config = HaConfigStore.load() })
         }
@@ -836,7 +836,6 @@ private struct HomePreviewFixture: View {
     var body: some View {
         HomeView(
             config: fixtureConfig,
-            onSignOut: {},
             onRoute: { _ in }
         )
     }

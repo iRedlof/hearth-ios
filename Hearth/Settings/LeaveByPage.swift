@@ -53,6 +53,14 @@ struct LeaveByPage: View {
                                     enabled = newValue
                                     HouseFeaturesStore.leaveByEnabled = newValue
 
+                                    // Request calendar permission when enabling (if not determined)
+                                    if newValue && calendarStatus == .notDetermined {
+                                        Task {
+                                            let granted = await CalendarAccess().requestAccess()
+                                            calendarStatus = granted ? .authorized : .denied
+                                        }
+                                    }
+
                                     // Request notification permission when enabling (if not determined)
                                     if newValue && notificationStatus == .notDetermined {
                                         Task {
@@ -62,6 +70,15 @@ struct LeaveByPage: View {
                                     }
                                 }
                             ))
+                        }
+                    }
+
+                    // Calendar permission banner (only when enabled and calendar access needed)
+                    if enabled {
+                        if calendarStatus == .notDetermined || calendarStatus == .denied {
+                            calendarDeniedBanner
+                        } else if calendarStatus == .restricted {
+                            calendarRestrictedBanner
                         }
                     }
 
@@ -95,46 +112,6 @@ struct LeaveByPage: View {
             calendarStatus = CalendarAccess().authorizationStatus()
             notificationStatus = await HouseNotify.authorizationStatus()
         }
-    }
-
-    // MARK: - Notifications Denied Banner
-
-    @ViewBuilder
-    private var notificationsDeniedBanner: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: "bell.slash.fill")
-                    .font(HearthFont.iconLarge.font)
-                    .foregroundStyle(HearthColor.amber(scheme))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Notifications are off for Hearth")
-                        .font(HearthFont.cardHeading.font)
-                        .foregroundStyle(HearthColor.ink(scheme))
-
-                    Text("Leave-by can't reach you")
-                        .font(HearthFont.subtitle.font)
-                        .foregroundStyle(HearthColor.sub(scheme))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            Button {
-                handleNotificationPermission()
-            } label: {
-                Text("Turn on")
-                    .font(HearthFont.rowTitle.font)
-                    .foregroundStyle(HearthColor.onAccent(scheme))
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(HearthColor.amber(scheme))
-                    .clipShape(Capsule())
-            }
-        }
-        .padding(HearthMetrics.pagePadding)
-        .background(HearthColor.amberBg(scheme))
-        .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
-        .padding(.horizontal, HearthMetrics.groupInset)
     }
 
     // MARK: - Calendar Denied Banner
@@ -205,35 +182,6 @@ struct LeaveByPage: View {
         .padding(.horizontal, HearthMetrics.groupInset)
     }
 
-    // MARK: - Description Section
-
-    @ViewBuilder
-    private var descriptionSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Image(systemName: "figure.walk")
-                    .font(HearthFont.iconMedium.font)
-                    .foregroundStyle(HearthColor.sub(scheme))
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Checks Home alarm, Front door and Hallway thermostat.")
-                        .font(HearthFont.subtitle.font)
-                        .foregroundStyle(HearthColor.ink(scheme))
-                        .fixedSize(horizontal: false, vertical: true)
-
-                    Text("Asks before it arms, locks or sets Eco; nothing runs until you confirm.")
-                        .font(HearthFont.subtitle.font)
-                        .foregroundStyle(HearthColor.sub(scheme))
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-        }
-        .padding(HearthMetrics.pagePadding)
-        .background(HearthColor.card(scheme))
-        .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
-        .padding(.horizontal, HearthMetrics.groupInset)
-    }
-
     // MARK: - Minutes Before Section
 
     @ViewBuilder
@@ -295,19 +243,6 @@ struct LeaveByPage: View {
                 calendarStatus = granted ? .authorized : .denied
             }
         } else if calendarStatus == .denied {
-            if let url = URL(string: UIApplication.openSettingsURLString) {
-                UIApplication.shared.open(url)
-            }
-        }
-    }
-
-    private func handleNotificationPermission() {
-        if notificationStatus == .notDetermined {
-            Task {
-                let granted = await HouseNotify.requestPermission()
-                notificationStatus = granted ? .authorized : .denied
-            }
-        } else {
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }
