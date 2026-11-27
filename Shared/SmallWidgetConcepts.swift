@@ -226,15 +226,15 @@ struct SmallWidgetConceptView: View {
             } else {
                 Image(systemName: concept.symbol)
                     .resizable().scaledToFit()
-                    .font(.system(size: 17, weight: .medium))
+                    .font(HearthFont.cardHeading.font.weight(.medium))
                     .frame(width: 18, height: 18)
             }
-            Text(concept.title).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+            Text(concept.title).font(HearthFont.callout.font.weight(.semibold)).lineLimit(1)
                 .accessibilityLabel(concept.site ?? concept.title)
             if let auto = concept.auto {
                 Spacer(minLength: 0)
                 HStack(spacing: 4) {
-                    Text("Auto").font(.system(size: 13, weight: .semibold))
+                    Text("Auto").font(HearthFont.groupLabel.font.weight(.semibold))
                     Circle().fill(Color(argb: auto ? 0xFF208345 : 0xFF626A63))
                         .frame(width: 7, height: 7)
                 }
@@ -262,7 +262,7 @@ struct SmallWidgetConceptView: View {
                 }
             }
             if !concept.context.isEmpty {
-                Text(concept.context).font(.system(size: 14, weight: .medium))
+                Text(concept.context).font(HearthFont.callout.font.weight(.medium))
                     .lineLimit(1).fixedSize(horizontal: false, vertical: true)
             }
         }

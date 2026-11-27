@@ -83,7 +83,7 @@ struct GetStartedCard: View {
 
             if done {
                 Image(systemName: "checkmark")
-                    .font(.system(size: 14, weight: .bold))
+                    .font(HearthFont.callout.font.weight(.bold))
                     .foregroundStyle(HearthColor.onAccent(scheme))
             } else {
                 Text("\(number)")

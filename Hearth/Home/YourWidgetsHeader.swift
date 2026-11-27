@@ -24,7 +24,7 @@ struct YourWidgetsHeader: View {
             } label: {
                 HStack(spacing: 6) {
                     Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(HearthFont.callout.font.weight(.semibold))
                     Text("Add")
                         .font(HearthFont.button.font)
                 }

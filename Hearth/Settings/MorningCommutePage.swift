@@ -133,7 +133,7 @@ struct MorningCommutePage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "bell.slash.fill")
-                    .font(.system(size: 24))
+                    .font(HearthFont.title3.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -196,7 +196,7 @@ struct MorningCommutePage: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "doc.on.doc")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(HearthFont.callout.font.weight(.semibold))
                             Text("Copy")
                                 .font(HearthFont.button.font)
                         }
@@ -224,7 +224,7 @@ struct MorningCommutePage: View {
                     } label: {
                         HStack(spacing: 6) {
                             Image(systemName: "doc.on.doc")
-                                .font(.system(size: 14, weight: .semibold))
+                                .font(HearthFont.callout.font.weight(.semibold))
                             Text("Copy")
                                 .font(HearthFont.button.font)
                         }

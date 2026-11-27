@@ -532,7 +532,7 @@ private struct SignInExplainerSheet: View {
                     // Header
                     VStack(spacing: 12) {
                         Image(systemName: "shield.checkered")
-                            .font(.system(size: 48))
+                            .font(HearthFont.iconHero.font)
                             .foregroundStyle(HearthColor.green(scheme))
 
                         Text("About Sign-in")

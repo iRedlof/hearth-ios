@@ -19,7 +19,7 @@ struct SignInBanner: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "lock.fill")
-                .font(.system(size: 18))
+                .font(HearthFont.cardHeading.font)
                 .foregroundStyle(HearthColor.amber(scheme))
 
             VStack(alignment: .leading, spacing: 2) {

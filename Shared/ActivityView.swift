@@ -88,7 +88,7 @@ public struct ActivityView: View {
 
     private var refreshButton: some View {
         Button(intent: WidgetRefreshIntent("com.rohit.hearth.activity")) {
-            Image(systemName: "arrow.clockwise").font(.system(size: 12, weight: .semibold)).foregroundStyle(ink.opacity(0.7))
+            Image(systemName: "arrow.clockwise").font(HearthFont.footnote.font.weight(.semibold)).foregroundStyle(ink.opacity(0.7))
                 .frame(width: 36, height: 36)
         }.buttonStyle(.plain)
     }
@@ -101,7 +101,7 @@ public struct ActivityView: View {
                 Text(activityTimeLabel(item.at, now: now)).font(.system(size: 11 * textScale, weight: .medium))
                     .foregroundStyle(ink.opacity(0.65)).lineLimit(1).frame(width: layout.timeWidth, alignment: .leading)
             }
-            Image(systemName: icon(item.kind)).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).frame(width: 16)
+            Image(systemName: icon(item.kind)).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.8)).frame(width: 16)
             VStack(alignment: .leading, spacing: 0) {
                 if layout.rowMode == .stacked {
                     Text(parts.name).font(.system(size: 13 * textScale, weight: .medium)).foregroundStyle(ink)

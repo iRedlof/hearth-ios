@@ -112,7 +112,7 @@ public struct ConnectionHero<Side: View>: View {
     private var statusPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
             Image(systemName: presentation.icon)
-                .font(.system(size: 32, weight: .medium))
+                .font(HearthFont.largeTitle.font.weight(.medium))
                 .foregroundStyle(presentation.tone.ink(colorScheme))
 
             Text(presentation.word)

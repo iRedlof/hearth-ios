@@ -14,10 +14,10 @@ public struct QuickView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
-                Text("Quick").font(.system(size: 15, weight: .bold)).foregroundStyle(ink)
+                Text("Quick").font(HearthFont.rowTitle.font.weight(.bold)).foregroundStyle(ink)
                 Spacer()
                 Button(intent: WidgetRefreshIntent("com.rohit.hearth.quick")) {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 11, weight: .semibold)).foregroundStyle(ink.opacity(0.7))
+                    Image(systemName: "arrow.clockwise").font(HearthFont.caption.font.weight(.semibold)).foregroundStyle(ink.opacity(0.7))
                 }.buttonStyle(.plain)
             }
             if snap.keys.isEmpty {
@@ -29,7 +29,7 @@ public struct QuickView: View {
                 }
                 if let error = snap.error {
                     HStack(spacing: 6) {
-                        Text(error).font(.system(size: 12)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                        Text(error).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
                         if snap.keys.count > 4 {
                             Spacer(minLength: 0)
                             TileMoreContent(count: snap.keys.count - 4)
@@ -46,11 +46,11 @@ public struct QuickView: View {
 
     private func key(_ k: QuickKey) -> some View {
         let label = HStack(spacing: 6) {
-                Image(systemName: "play.circle.fill").font(.system(size: 14)).foregroundStyle(ink.opacity(0.85))
+                Image(systemName: "play.circle.fill").font(HearthFont.callout.font).foregroundStyle(ink.opacity(0.85))
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(k.name).font(.system(size: 13.5, weight: .semibold)).foregroundStyle(ink).lineLimit(1)
+                    Text(k.name).font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(ink).lineLimit(1)
                     if !k.available {
-                        Text("Unavailable").font(.system(size: 11)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                        Text("Unavailable").font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
                     }
                 }
                 Spacer(minLength: 0)

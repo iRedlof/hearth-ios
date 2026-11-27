@@ -7,7 +7,7 @@ struct HomeChevron: View {
 
     var body: some View {
         Image(systemName: "chevron.right")
-            .font(.system(size: 14, weight: .semibold))
+            .font(HearthFont.callout.font.weight(.semibold))
             .foregroundStyle(HearthColor.mute(scheme))
     }
 }

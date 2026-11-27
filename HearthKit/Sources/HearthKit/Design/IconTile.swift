@@ -79,7 +79,7 @@ public struct IconTile: View {
             .frame(width: HearthMetrics.iconTile, height: HearthMetrics.iconTile)
             .overlay(
                 Image(systemName: systemName)
-                    .font(.system(size: 20))
+                    .font(HearthFont.iconMedium.font)
                     .foregroundStyle(hue.ink(colorScheme))
             )
     }
