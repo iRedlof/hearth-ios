@@ -8,6 +8,7 @@ struct ToastOverlay: View {
     private let onDismiss: () -> Void
 
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(message: String, onDismiss: @escaping () -> Void) {
         self.message = message
@@ -40,6 +41,7 @@ struct ToastOverlay: View {
         )
         .padding(.horizontal, HearthMetrics.groupInset)
         .padding(.bottom, 20)
+        .transition(HearthMotion.respectingReduceMotion(HearthMotion.sheetTransition, reduceMotion: reduceMotion))
     }
 }
 

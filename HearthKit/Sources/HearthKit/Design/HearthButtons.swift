@@ -27,7 +27,7 @@ public struct InkButtonStyle: ButtonStyle {
                 )
                 .opacity(configuration.isPressed ? 0.7 : 1.0)
                 .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-                .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+                .animation(HearthMotion.press, value: configuration.isPressed)
         }
     }
 }
@@ -59,7 +59,7 @@ public struct InlineRowButtonStyle: ButtonStyle {
                 )
                 .opacity(configuration.isPressed ? 0.7 : 1.0)
                 .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-                .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
+                .animation(HearthMotion.press, value: configuration.isPressed)
         }
     }
 }

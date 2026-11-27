@@ -13,6 +13,7 @@ struct LeaveByPage: View {
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let minutesOptions = [10, 15, 20, 30, 45, 60]
 
@@ -85,6 +86,7 @@ struct LeaveByPage: View {
                     // Privacy note (always show)
                     privacySection
                 }
+                .hearthContentAnimation(value: enabled, reduceMotion: reduceMotion)
                 .padding(.bottom, 20)
             }
         }

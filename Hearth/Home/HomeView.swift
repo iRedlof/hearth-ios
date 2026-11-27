@@ -20,6 +20,7 @@ struct HomeView: View {
     @ObservedObject private var refreshSignal = RefreshSignal.shared
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -72,6 +73,7 @@ struct HomeView: View {
                 }
             }
         }
+        .hearthContentAnimation(value: toastMessage, reduceMotion: reduceMotion)
         .task(id: config) { await load() }
         .onDisappear { thermostat.close() }
         .onChange(of: refreshSignal.tick) { Task { await load() } }

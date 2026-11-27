@@ -14,6 +14,7 @@ struct GoodnightPage: View {
     @State private var allLights: [String] = []
 
     @Environment(\.colorScheme) private var scheme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init() {
         let loaded = GoodnightStore.load()
@@ -58,6 +59,7 @@ struct GoodnightPage: View {
                     footerText
                 }
             }
+            .hearthContentAnimation(value: hasAlarm, reduceMotion: reduceMotion)
             .padding(.bottom, 20)
         }
         .background(HearthColor.page(scheme))
