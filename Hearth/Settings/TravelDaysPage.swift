@@ -19,59 +19,60 @@ struct TravelDaysPage: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Enable toggle
-                HearthGroup("Travel days") {
-                    HearthRow(
-                        icon: "calendar",
-                        hue: .neutral,
-                        title: "Travel days",
-                        subtitle: enabled ? subtitleText : "Off"
-                    ) {
-                        HearthSwitch(isOn: Binding(
-                            get: { enabled },
-                            set: { newValue in
-                                enabled = newValue
-                                HouseFeaturesStore.travelEnabled = newValue
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Travel days")
+                    .font(HearthFont.pageTitle.font)
+                    .foregroundStyle(HearthColor.ink(scheme))
+                Text("Asks before a trip on your calendar")
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, HearthMetrics.groupInset + 12)
+            .padding(.top, 24)
+            .padding(.bottom, 20)
 
-                                // Request notification permission when enabling (if not determined)
-                                if newValue && notificationStatus == .notDetermined {
-                                    Task {
-                                        let granted = await HouseNotify.requestPermission()
-                                        notificationStatus = granted ? .authorized : .denied
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Enable toggle
+                    HearthGroup {
+                        HearthRow(
+                            icon: "calendar",
+                            hue: .neutral,
+                            title: "Travel days",
+                            subtitle: enabled ? subtitleText : "Off"
+                        ) {
+                            HearthSwitch(isOn: Binding(
+                                get: { enabled },
+                                set: { newValue in
+                                    enabled = newValue
+                                    HouseFeaturesStore.travelEnabled = newValue
+
+                                    // Request notification permission when enabling (if not determined)
+                                    if newValue && notificationStatus == .notDetermined {
+                                        Task {
+                                            let granted = await HouseNotify.requestPermission()
+                                            notificationStatus = granted ? .authorized : .denied
+                                        }
                                     }
                                 }
-                            }
-                        ))
+                            ))
+                        }
                     }
-                }
-                .padding(.top, 20)
 
-                // Calendar permission banners (only when enabled)
-                let bannerState = calendarBannerState(enabled: enabled, calendarStatus: calendarStatus.rawValue)
-                if bannerState == .needsPermission {
-                    calendarDeniedBanner
-                } else if bannerState == .restricted {
-                    calendarRestrictedBanner
-                }
+                    // Description sections (3 icon bullets)
+                    tripDefinitionSection
+                    notificationTimeSection
+                    confirmationSection
 
-                // Notifications denied banner (only when enabled)
-                if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
-                    notificationsDeniedBanner
+                    // Privacy note
+                    privacySection
                 }
-
-                // Description sections (always show)
-                tripDefinitionSection
-                notificationTimeSection
-                confirmationSection
-                privacySection
+                .padding(.bottom, 20)
             }
-            .padding(.bottom, 20)
         }
         .background(HearthColor.page(scheme))
-        .navigationTitle("Travel days")
-        .navigationBarTitleDisplayMode(.inline)
         .task {
             calendarStatus = CalendarAccess().authorizationStatus()
             notificationStatus = await HouseNotify.authorizationStatus()
