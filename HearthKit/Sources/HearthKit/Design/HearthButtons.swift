@@ -20,7 +20,7 @@ public struct InkButtonStyle: ButtonStyle {
                 .font(HearthFont.button.font)
                 .foregroundStyle(HearthColor.onAccent(colorScheme))
                 .padding(.horizontal, 20)
-                .frame(height: InkButtonStyle.height)
+                .frame(minHeight: InkButtonStyle.height)
                 .background(
                     Capsule()
                         .fill(HearthColor.accent(colorScheme))
@@ -52,7 +52,7 @@ public struct InlineRowButtonStyle: ButtonStyle {
                 .font(HearthFont.button.font)
                 .foregroundStyle(HearthColor.ink(colorScheme))
                 .padding(.horizontal, 16)
-                .frame(height: InlineRowButtonStyle.height)
+                .frame(minHeight: InlineRowButtonStyle.height)
                 .background(
                     Capsule()
                         .fill(HearthColor.tint(colorScheme))
