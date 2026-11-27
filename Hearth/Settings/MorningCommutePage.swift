@@ -6,7 +6,7 @@ import UserNotifications
 /// Enables the feature, shows sensor detection status, provides HA config YAML, and handles notification permissions.
 @MainActor
 struct MorningCommutePage: View {
-    @State private var enabled: Bool
+    @State private var autojoinEnabled: Bool
     @State private var checkBeforeLeaveEnabled: Bool
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
     @State private var lastHeardDate: Date? = nil
@@ -16,7 +16,7 @@ struct MorningCommutePage: View {
     @Environment(\.colorScheme) private var scheme
 
     init() {
-        _enabled = State(initialValue: CommuteStore.enabled)
+        _autojoinEnabled = State(initialValue: CommuteStore.enabled)
         _checkBeforeLeaveEnabled = State(initialValue: CommuteStore.checkBeforeLeaveEnabled)
         _lastHeardDate = State(initialValue: CommuteStore.lastHeard)
     }
@@ -33,9 +33,9 @@ struct MorningCommutePage: View {
                         subtitle: "Weekday mornings, when Home Assistant sees you ~30 min from work, Hearth joins in auto-run"
                     ) {
                         HearthSwitch(isOn: Binding(
-                            get: { enabled },
+                            get: { autojoinEnabled },
                             set: { newValue in
-                                enabled = newValue
+                                autojoinEnabled = newValue
                                 CommuteStore.enabled = newValue
 
                                 // Request notification permission when enabling (if not determined)
@@ -61,6 +61,14 @@ struct MorningCommutePage: View {
                             set: { newValue in
                                 checkBeforeLeaveEnabled = newValue
                                 CommuteStore.checkBeforeLeaveEnabled = newValue
+                                // Request notification permission when enabling (if not determined)
+                                if newValue && notificationStatus == .notDetermined {
+                                    UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { granted, _ in
+                                        Task { @MainActor in
+                                            await refreshNotificationStatus()
+                                        }
+                                    }
+                                }
                             }
                         ))
                     }

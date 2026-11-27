@@ -20,7 +20,8 @@ public enum CommuteAction: Sendable, Equatable {
  Decide the commute action from Home Assistant's two booleans plus ChargePoint run state and
  once-per-morning debounce. Pure: all time/zone/ETA logic is computed in HA's template sensors.
 
- - Parameter enabled: Feature toggle (global commute auto-join setting).
+ - Parameter autojoinEnabled: Gates the armAuto branch (auto-join on my commute).
+ - Parameter checkBeforeLeaveEnabled: Gates the notifySignIn branch (check before I leave).
  - Parameter chargeNow: HA `binary_sensor.commute_charge_now` (weekday 09–11, away, ETA ≤ 30 min).
  - Parameter signinNeeded: HA `binary_sensor.commute_signin_needed` (same but ETA ≤ 45 min, earlier margin).
  - Parameter alreadyArmed: ChargePoint auto-run is currently armed (don't re-arm).
@@ -31,14 +32,14 @@ public enum CommuteAction: Sendable, Equatable {
  - Parameter today: Current day stamp (yyyymmdd), from `@Dependency(\.date)` in `TimeZone.current`.
  - Returns: The action to take (armAuto, notifySignIn, or none).
 
- Logic ported verbatim from Android `commuteDecide` (ChargePointCommute.kt:21-38):
- 1. If not enabled → none.
- 2. If signed out/expired → notifySignIn IF signinNeeded AND haven't notified today, else none.
- 3. If chargeNow AND not already armed AND not charging AND haven't armed today → armAuto.
- 4. Otherwise → none.
+ Two independent toggles:
+ 1. Auto-join: IF autojoinEnabled AND signed in AND chargeNow AND not armed AND not charging AND haven't armed today → armAuto.
+ 2. Check-before-leave: IF checkBeforeLeaveEnabled AND signed out AND signinNeeded AND haven't notified today → notifySignIn.
+ 3. Otherwise → none.
  */
 public func commuteDecide(
-    enabled: Bool,
+    autojoinEnabled: Bool,
+    checkBeforeLeaveEnabled: Bool,
     chargeNow: Bool,
     signinNeeded: Bool,
     alreadyArmed: Bool,
@@ -48,11 +49,12 @@ public func commuteDecide(
     lastNotifyDay: CommuteDay?,
     today: CommuteDay
 ) -> CommuteAction {
-    if !enabled { return .none }
-    if signedOutOrExpired {
-        return (signinNeeded && lastNotifyDay != today) ? .notifySignIn : .none
+    // Check-before-leave: notify branch (only when that feature is enabled)
+    if checkBeforeLeaveEnabled && signedOutOrExpired && signinNeeded && lastNotifyDay != today {
+        return .notifySignIn
     }
-    if chargeNow && !alreadyArmed && !charging && lastArmDay != today {
+    // Auto-join: arm branch (only when that feature is enabled)
+    if autojoinEnabled && !signedOutOrExpired && chargeNow && !alreadyArmed && !charging && lastArmDay != today {
         return .armAuto
     }
     return .none

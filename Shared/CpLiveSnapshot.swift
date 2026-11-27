@@ -9,8 +9,8 @@ enum CpLiveSnapshot {
             let runtime = try CpSessionStore.runtime()
             let snapshot = try await runtime.refresh(runAuto: advanceAuto)
 
-            // Morning-commute auto-join hook
-            if CommuteStore.enabled {
+            // Morning-commute auto-join hook (fetch sensors if either feature is enabled)
+            if CommuteStore.enabled || CommuteStore.checkBeforeLeaveEnabled {
                 await checkCommute(runtime: runtime, now: now)
             }
 
@@ -47,7 +47,8 @@ enum CpLiveSnapshot {
 
         // Decide action
         let action = commuteDecide(
-            enabled: true,
+            autojoinEnabled: CommuteStore.enabled,
+            checkBeforeLeaveEnabled: CommuteStore.checkBeforeLeaveEnabled,
             chargeNow: result.chargeNow,
             signinNeeded: result.signinNeeded,
             alreadyArmed: alreadyArmed,
