@@ -51,4 +51,16 @@ struct HearthColorTests {
         #expect(HearthColor.redLight == 0xFFB3261E)
         #expect(HearthColor.redDark == 0xFFF2B8B5)
     }
+
+    @Test("widgetPreviewBg ARGB matches spec")
+    func widgetPreviewBgTokenMatchesSpec() {
+        #expect(HearthColor.widgetPreviewBgLight == 0xFFFFD4B3)
+        #expect(HearthColor.widgetPreviewBgDark == 0xFF3D2F28)
+    }
+
+    @Test("placeholderBg ARGB matches spec")
+    func placeholderBgTokenMatchesSpec() {
+        #expect(HearthColor.placeholderBgLight == 0xFF2A2D2E)
+        #expect(HearthColor.placeholderBgDark == 0xFF2A2D2E)
+    }
 }

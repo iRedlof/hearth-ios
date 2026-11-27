@@ -9,13 +9,20 @@ struct HearthFontRampTests {
     func rampSizesMatchSpec() {
         let specs: [(token: HearthFont, expectedSize: CGFloat, expectedWeight: Double)] = [
             (.largeTitle, 34, 450),
-            (.cardHeading, 19, 450),
+            (.heroLarge, 52, 450),
+            (.iconHero, 48, 450),
+            (.title3, 24, 450),
             (.pageTitle, 22, 450),
+            (.cardHeading, 19, 450),
             (.rowTitle, 15, 400),
+            (.callout, 14, 400),
             (.groupLabel, 13, 550),
             (.subtitle, 12.5, 400),
+            (.pill, 12.5, 550),
+            (.footnote, 12, 400),
+            (.caption, 11, 400),
             (.button, 14.5, 550),
-            (.pill, 12.5, 550)
+            (.iconMedium, 20, 400)
         ]
 
         for (token, expectedSize, expectedWeight) in specs {
