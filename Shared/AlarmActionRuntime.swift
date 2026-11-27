@@ -8,7 +8,13 @@ enum AlarmActionRuntime {
         await MainActor.run { RefreshSignal.shared.bump() }
     }
 
-    static func perform(scope: String, revision: String, entityID: String, action: String) async throws {
+    static func perform(
+        scope: String,
+        revision: String,
+        entityID: String,
+        action: String,
+        injectedRecord: (@Sendable (ActionHistoryRecord) -> Void)? = nil
+    ) async throws {
         guard !scope.isEmpty, !revision.isEmpty, !entityID.isEmpty, let store = HaConfigStore.store else { return }
         _ = try store.expireAlarmOperation()
         guard let started = try store.beginAlarmOperation(expectedScope: scope, expectedRevision: revision,
@@ -57,9 +63,29 @@ enum AlarmActionRuntime {
             switch outcome {
             case .confirmed:
                 _ = try store.finishAlarmOperation(expectedScope: scope, operationID: operation.id, error: nil)
+                await notify()
+
+                // Record action history (Routines learning hook).
+                // This runs AFTER the operation is confirmed and finished, and must NEVER delay or throw.
+                // Capture entityID and action before the closure (Sendable compliance).
+                let entityIDCaptured = entityID
+                let actionCaptured = action
+                let now = Date()
+                let sourceKey = "alarm.\(actionCaptured)"  // e.g., "alarm.armNight", "alarm.disarm"
+                let entry = ActionHistoryRecord(timestamp: now, entityIDs: [entityIDCaptured], sourceKey: sourceKey)
+
+                if let record = injectedRecord {
+                    // Test path: call injected spy
+                    record(entry)
+                } else {
+                    // Production path: record to ActionHistoryStore.
+                    // Swallow any recording failure (best-effort local UserDefaults).
+                    ActionHistoryStore.record(entry, now: now)
+                }
             case .obsolete:
                 _ = try store.finishAlarmOperation(expectedScope: scope, operationID: operation.id,
                     error: "Update interrupted · Refresh to check")
+                await notify()
             case .rejected:
                 // Safety monitoring: retry in background if enabled
                 if HouseFeaturesStore.safetyEnabled {
@@ -77,7 +103,6 @@ enum AlarmActionRuntime {
                 }
                 throw HaError("Couldn't confirm · Refresh to check")
             }
-            await notify()
         } catch {
             let message = error is CancellationError ? "Update interrupted · Refresh to check" : friendlyError(error)
             _ = try store.finishAlarmOperation(expectedScope: scope, operationID: operation.id, error: message)

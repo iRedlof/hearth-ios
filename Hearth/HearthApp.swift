@@ -455,6 +455,19 @@ struct ContentView: View {
                         }
                 }
                 .id(sheet.id)
+            case .routines(_):
+                NavigationStack {
+                    RoutinesPage()
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") {
+                                    guard presentedSheet?.id == sheet.id else { return }
+                                    presentedSheet = nil
+                                }
+                            }
+                        }
+                }
+                .id(sheet.id)
             case .houseConfirm(_):
                 houseConfirmSheetView(for: sheet)
             }
@@ -590,6 +603,11 @@ struct ContentView: View {
             settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .goodnight(UUID())
+        case .routines:
+            // Present Routines page
+            settingsCarReturn = nil
+            retireThermostat()
+            presentedSheet = .routines(UUID())
         }
     }
 
@@ -706,6 +724,8 @@ struct ContentView: View {
             presentedSheet = .safetyAlerts(UUID())
         } else if args.contains("-goodnight") {
             presentedSheet = .goodnight(UUID())
+        } else if args.contains("-routines") {
+            presentedSheet = .routines(UUID())
         } else if args.contains("-houseConfirm") {
             presentedSheet = .houseConfirm(UUID())
         }
@@ -729,6 +749,7 @@ private enum HearthSheet: Identifiable {
     case addWidgetGallery(UUID)
     case cardStylePage(HomeWidgetKind?, UUID)
     case morningCommute(UUID)
+    case routines(UUID)
     case leaveBy(UUID)
     case travelDays(UUID)
     case safetyAlerts(UUID)
@@ -747,6 +768,7 @@ private enum HearthSheet: Identifiable {
         case .addWidgetGallery(let id): "addWidgetGallery:\(id)"
         case .cardStylePage(let kind, let id): "cardStylePage:\(kind?.rawValue ?? "global"):\(id)"
         case .morningCommute(let id): "morningCommute:\(id)"
+        case .routines(let id): "routines:\(id)"
         case .leaveBy(let id): "leaveBy:\(id)"
         case .travelDays(let id): "travelDays:\(id)"
         case .safetyAlerts(let id): "safetyAlerts:\(id)"

@@ -13,13 +13,13 @@ struct EveryDaySection: View {
     var body: some View {
         HearthGroup("Every day") {
             Button {
-                onTap(.settings)
+                onTap(.routines)
             } label: {
                 HearthRow(
                     icon: "arrow.triangle.2.circlepath",
                     hue: .purple,
                     title: "Routines",
-                    subtitle: "Automate your day"
+                    subtitle: routinesSubtitle
                 ) {
                     HomeChevron()
                 }
@@ -97,6 +97,18 @@ struct EveryDaySection: View {
     private var safetyAlertsSubtitle: String {
         guard HouseFeaturesStore.safetyEnabled else { return "Off" }
         return "When a close, lock or arm fails"
+    }
+
+    private var routinesSubtitle: String {
+        let enabled = HouseFeaturesStore.routinesEnabled
+        guard enabled else { return "Off" }
+
+        // Count suggested routines
+        let history = ActionHistoryStore.load()
+        let goodnightActionSet = GoodnightStore.load().actionSet()
+        let routines = RoutinesSuggester.suggestedRoutines(from: history, now: Date(), goodnightActionSet: goodnightActionSet)
+
+        return RoutinesViewLogic.routinesRowSubtitle(enabled: enabled, routineCount: routines.count)
     }
 }
 

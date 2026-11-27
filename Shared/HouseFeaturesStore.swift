@@ -45,4 +45,26 @@ public enum HouseFeaturesStore {
         get { defaults.bool(forKey: safetyEnabledKey) } // absent → false
         set { defaults.set(newValue, forKey: safetyEnabledKey) }
     }
+
+    // MARK: - Routines
+
+    private static let routinesEnabledKey = "houseFeatures.routinesEnabled"
+
+    /// Whether the routines feature is enabled
+    public static var routinesEnabled: Bool {
+        get { routinesEnabled(defaults: nil) }
+        set { setRoutinesEnabled(newValue, defaults: nil) }
+    }
+
+    /// Injectable getter for testing. Returns false if the key is absent.
+    public static func routinesEnabled(defaults: UserDefaults?) -> Bool {
+        let store = defaults ?? self.defaults
+        return store.bool(forKey: routinesEnabledKey) // absent → false
+    }
+
+    /// Injectable setter for testing.
+    public static func setRoutinesEnabled(_ value: Bool, defaults: UserDefaults?) {
+        let store = defaults ?? self.defaults
+        store.set(value, forKey: routinesEnabledKey)
+    }
 }
