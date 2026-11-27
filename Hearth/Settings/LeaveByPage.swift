@@ -22,64 +22,73 @@ struct LeaveByPage: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Enable toggle
-                HearthGroup("Leave-by") {
-                    HearthRow(
-                        icon: "figure.walk",
-                        hue: .neutral,
-                        title: "Leave-by",
-                        subtitle: enabled ? "On" : "Off"
-                    ) {
-                        HearthSwitch(isOn: Binding(
-                            get: { enabled },
-                            set: { newValue in
-                                enabled = newValue
-                                HouseFeaturesStore.leaveByEnabled = newValue
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Leave-by")
+                    .font(HearthFont.pageTitle.font)
+                    .foregroundStyle(HearthColor.ink(scheme))
+                Text("Checks the house before you go")
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, HearthMetrics.groupInset + 12)
+            .padding(.top, 24)
+            .padding(.bottom, 20)
 
-                                // Request notification permission when enabling (if not determined)
-                                if newValue && notificationStatus == .notDetermined {
-                                    Task {
-                                        let granted = await HouseNotify.requestPermission()
-                                        notificationStatus = granted ? .authorized : .denied
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Enable toggle
+                    HearthGroup {
+                        HearthRow(
+                            icon: "figure.walk",
+                            hue: .neutral,
+                            title: "Leave-by",
+                            subtitle: enabled ? "On" : "Off"
+                        ) {
+                            HearthSwitch(isOn: Binding(
+                                get: { enabled },
+                                set: { newValue in
+                                    enabled = newValue
+                                    HouseFeaturesStore.leaveByEnabled = newValue
+
+                                    // Request notification permission when enabling (if not determined)
+                                    if newValue && notificationStatus == .notDetermined {
+                                        Task {
+                                            let granted = await HouseNotify.requestPermission()
+                                            notificationStatus = granted ? .authorized : .denied
+                                        }
                                     }
                                 }
-                            }
-                        ))
+                            ))
+                        }
                     }
+
+                    // Description
+                    HStack(spacing: 12) {
+                        Image(systemName: "figure.walk")
+                            .font(.system(size: HearthMetrics.iconMedium))
+                            .foregroundStyle(HearthColor.sub(scheme))
+
+                        Text("Checks Home alarm, Front door and Hallway thermostat. Asks before it arms, locks or sets Eco; nothing runs until you confirm.")
+                            .font(HearthFont.subtitle.font)
+                            .foregroundStyle(HearthColor.ink(scheme))
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .padding(.horizontal, HearthMetrics.groupInset + 12)
+
+                    // Minutes before chips (only when enabled)
+                    if enabled {
+                        minutesBeforeSection
+                    }
+
+                    // Privacy note (always show)
+                    privacySection
                 }
-                .padding(.top, 20)
-
-                // Calendar permission banners (only when enabled)
-                let bannerState = calendarBannerState(enabled: enabled, calendarStatus: calendarStatus.rawValue)
-                if bannerState == .needsPermission {
-                    calendarDeniedBanner
-                } else if bannerState == .restricted {
-                    calendarRestrictedBanner
-                }
-
-                // Notifications denied banner (only when enabled)
-                if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
-                    notificationsDeniedBanner
-                }
-
-                // Description (always show)
-                descriptionSection
-
-                // Minutes before chips (only when enabled)
-                if enabled {
-                    minutesBeforeSection
-                }
-
-                // Privacy note (always show)
-                privacySection
+                .padding(.bottom, 20)
             }
-            .padding(.bottom, 20)
         }
         .background(HearthColor.page(scheme))
-        .navigationTitle("Leave-by")
-        .navigationBarTitleDisplayMode(.inline)
         .task {
             calendarStatus = CalendarAccess().authorizationStatus()
             notificationStatus = await HouseNotify.authorizationStatus()
