@@ -94,11 +94,11 @@ struct RoutinesPage: View {
                     .font(HearthFont.cardHeading.font)
                     .foregroundStyle(HearthColor.ink(scheme))
 
-                Text("A suggestion appears after Hearth sees you do the same steps several times.")
+                Text("A suggestion appears once you've done two or more of the same things together, at about the same time, on 4 of the last 7 weekdays (or 4 of the last 7 weekend days).")
                     .font(HearthFont.subtitle.font)
                     .foregroundStyle(HearthColor.sub(scheme))
                     .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, HearthMetrics.groupInset)
                     .padding(.bottom, 8)
             }
             .frame(maxWidth: .infinity)
@@ -120,12 +120,14 @@ struct RoutinesPage: View {
     }
 
     private func routineCard(_ routine: RoutineEntry) -> some View {
-        HearthGroup {
-            VStack(alignment: .leading, spacing: 12) {
+        let (surfaceName, surfaceIcon) = surfaceForRoutine(routine)
+
+        return HearthGroup {
+            VStack(alignment: .leading, spacing: HearthMetrics.groupInset * 0.75) {
                 // Header: big time + X button
                 HStack {
                     Text(formatTime(routine.medianTime))
-                        .font(.system(size: 48, weight: .regular, design: .default))
+                        .font(.system(size: HearthMetrics.iconHero, weight: .regular, design: .default))
                         .foregroundStyle(HearthColor.ink(scheme))
 
                     Spacer()
@@ -134,7 +136,7 @@ struct RoutinesPage: View {
                         removeRoutine(routine)
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: HearthMetrics.iconSmall))
                             .foregroundStyle(HearthColor.sub(scheme))
                             .frame(width: 28, height: 28)
                     }
@@ -153,10 +155,10 @@ struct RoutinesPage: View {
 
                 // Appears on row
                 HStack(spacing: 8) {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 14))
+                    Image(systemName: surfaceIcon)
+                        .font(.system(size: HearthMetrics.iconSmall))
                         .foregroundStyle(HearthColor.sub(scheme))
-                    Text("Appears on Home alarm around \(formatTime(routine.medianTime))")
+                    Text("Appears on \(surfaceName) around \(formatTime(routine.medianTime))")
                         .font(HearthFont.subtitle.font)
                         .foregroundStyle(HearthColor.sub(scheme))
                 }
@@ -166,7 +168,7 @@ struct RoutinesPage: View {
                 if routine.matchesGoodnightKey {
                     HStack(spacing: 8) {
                         Image(systemName: "moon.stars")
-                            .font(.system(size: 14))
+                            .font(.system(size: HearthMetrics.iconSmall))
                             .foregroundStyle(HearthColor.sub(scheme))
                         Text("Same as Goodnight key")
                             .font(HearthFont.subtitle.font)
@@ -174,7 +176,7 @@ struct RoutinesPage: View {
                     }
                 }
             }
-            .padding(16)
+            .padding(HearthMetrics.groupInset)
         }
     }
 
@@ -192,7 +194,7 @@ struct RoutinesPage: View {
         return Text(initial)
             .font(HearthFont.pill.font)
             .foregroundStyle(isActive ? HearthColor.ink(scheme) : HearthColor.sub(scheme))
-            .frame(width: 32, height: 32)
+            .frame(width: HearthMetrics.buttonHSmall, height: HearthMetrics.buttonHSmall)
             .background(isActive ? HearthColor.tint(scheme) : Color.clear)
             .clipShape(Circle())
     }
@@ -213,7 +215,7 @@ struct RoutinesPage: View {
                 .font(HearthFont.pill.font)
         }
         .foregroundStyle(HearthColor.ink(scheme))
-        .padding(.horizontal, 12)
+        .padding(.horizontal, HearthMetrics.groupInset * 0.75)
         .padding(.vertical, 6)
         .background(HearthColor.tint(scheme))
         .clipShape(Capsule())
@@ -222,10 +224,31 @@ struct RoutinesPage: View {
     private func iconForAction(_ name: String) -> some View {
         let iconName = iconNameForAction(name)
         return Image(systemName: iconName)
-            .font(.system(size: 14))
+            .font(.system(size: HearthMetrics.iconSmall))
     }
 
     // MARK: - Helpers
+
+    /// Derives the surface name and icon from the routine's actions (I3 fix).
+    /// Returns (surfaceName, iconName) based on the dominant entity domain.
+    private func surfaceForRoutine(_ routine: RoutineEntry) -> (String, String) {
+        let domains = routine.entityIDs.compactMap { entityID -> String? in
+            entityID.split(separator: ".").first.map(String.init)
+        }
+
+        // Priority: lights > alarm > lock > garage
+        if domains.contains("light") {
+            return ("Lights", "lightbulb")
+        } else if domains.contains("alarm_control_panel") {
+            return ("Home alarm", "shield")
+        } else if domains.contains("lock") {
+            return ("Locks", "lock")
+        } else if domains.contains("cover") {
+            return ("Garage", "garage.closed")
+        } else {
+            return ("Home", "house")
+        }
+    }
 
     private func loadRoutines() {
         let history = ActionHistoryStore.load()
@@ -251,37 +274,41 @@ struct RoutinesPage: View {
     }
 
     private func entityName(from entityID: String) -> String {
-        // Simple name extraction: "light.kitchen" → "Kitchen off"
+        // Simple name extraction: "light.kitchen" → "Kitchen off", "cover.garage_1" → "Close Garage"
         let parts = entityID.split(separator: ".")
         guard parts.count >= 2 else { return entityID }
 
         let domain = String(parts[0])
-        let name = String(parts[1]).replacingOccurrences(of: "_", with: " ").capitalized
+        let rawName = String(parts[1])
+        // Strip numeric suffix for cleaner names (garage_1 → Garage)
+        let cleanName = rawName.replacingOccurrences(of: "_\\d+$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
 
         switch domain {
         case "light":
-            return "\(name) off"
+            return "\(cleanName) off"
         case "cover":
-            return "Close \(name)"
+            return "Close \(cleanName)"
         case "lock":
-            return "Lock \(name)"
+            return "Lock \(cleanName)"
         case "alarm_control_panel":
             return "Arm night"
         default:
-            return name
+            return cleanName
         }
     }
 
     private func iconNameForAction(_ name: String) -> String {
         let lower = name.lowercased()
         if lower.contains("off") {
-            return "light.beacon.max.fill"
+            return "lightbulb.fill"  // Mock shows lightbulb for off
         } else if lower.contains("close") {
             return "garage.closed"
         } else if lower.contains("lock") {
             return "lock.fill"
         } else if lower.contains("arm") {
-            return "shield.checkered"
+            return "shield.fill"  // Mock shows filled shield for arm
         } else {
             return "square.fill"
         }
@@ -418,26 +445,7 @@ private struct RoutinesPagePreview: View {
                                 .padding(.horizontal, HearthMetrics.groupInset + 12)
 
                             ForEach(routines) { routine in
-                                HearthGroup {
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        HStack {
-                                            Text(formatTime(routine.medianTime))
-                                                .font(.system(size: 48, weight: .regular, design: .default))
-                                                .foregroundStyle(HearthColor.ink(scheme))
-                                            Spacer()
-                                            Image(systemName: "xmark")
-                                                .font(.system(size: 16, weight: .medium))
-                                                .foregroundStyle(HearthColor.sub(scheme))
-                                        }
-                                        Text(RoutinesViewLogic.dayPatternSubtitle(pattern: routine.dayPattern, occurrenceCount: routine.occurrences.count))
-                                            .font(HearthFont.subtitle.font)
-                                            .foregroundStyle(HearthColor.sub(scheme))
-                                        Text("Day pills and action pills would go here")
-                                            .font(HearthFont.subtitle.font)
-                                            .foregroundStyle(HearthColor.sub(scheme))
-                                    }
-                                    .padding(16)
-                                }
+                                routineCardPreview(routine)
                             }
                         }
                     }
@@ -452,5 +460,163 @@ private struct RoutinesPagePreview: View {
     private func formatTime(_ date: Date) -> String {
         let formatter = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
         return date.formatted(formatter)
+    }
+
+    /// Preview-compatible routine card rendering (N4 fix: reuses real card structure).
+    private func routineCardPreview(_ routine: RoutineEntry) -> some View {
+        let (surfaceName, surfaceIcon) = surfaceForRoutinePreview(routine)
+
+        return HearthGroup {
+            VStack(alignment: .leading, spacing: HearthMetrics.groupInset * 0.75) {
+                // Header: big time + X button
+                HStack {
+                    Text(formatTime(routine.medianTime))
+                        .font(.system(size: HearthMetrics.iconHero, weight: .regular, design: .default))
+                        .foregroundStyle(HearthColor.ink(scheme))
+                    Spacer()
+                    Image(systemName: "xmark")
+                        .font(.system(size: HearthMetrics.iconSmall))
+                        .foregroundStyle(HearthColor.sub(scheme))
+                }
+
+                Text(RoutinesViewLogic.dayPatternSubtitle(pattern: routine.dayPattern, occurrenceCount: routine.occurrences.count))
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+
+                // Day pills
+                dayPillsRowPreview(routine.dayPattern)
+
+                // Action pills
+                actionPillsRowPreview(routine.entityIDs)
+
+                // Appears on row
+                HStack(spacing: 8) {
+                    Image(systemName: surfaceIcon)
+                        .font(.system(size: HearthMetrics.iconSmall))
+                        .foregroundStyle(HearthColor.sub(scheme))
+                    Text("Appears on \(surfaceName) around \(formatTime(routine.medianTime))")
+                        .font(HearthFont.subtitle.font)
+                        .foregroundStyle(HearthColor.sub(scheme))
+                }
+                .padding(.top, 4)
+
+                // Same as Goodnight key row
+                if routine.matchesGoodnightKey {
+                    HStack(spacing: 8) {
+                        Image(systemName: "moon.stars")
+                            .font(.system(size: HearthMetrics.iconSmall))
+                            .foregroundStyle(HearthColor.sub(scheme))
+                        Text("Same as Goodnight key")
+                            .font(HearthFont.subtitle.font)
+                            .foregroundStyle(HearthColor.sub(scheme))
+                    }
+                }
+            }
+            .padding(HearthMetrics.groupInset)
+        }
+    }
+
+    private func surfaceForRoutinePreview(_ routine: RoutineEntry) -> (String, String) {
+        let domains = routine.entityIDs.compactMap { entityID -> String? in
+            entityID.split(separator: ".").first.map(String.init)
+        }
+
+        if domains.contains("light") {
+            return ("Lights", "lightbulb")
+        } else if domains.contains("alarm_control_panel") {
+            return ("Home alarm", "shield")
+        } else if domains.contains("lock") {
+            return ("Locks", "lock")
+        } else if domains.contains("cover") {
+            return ("Garage", "garage.closed")
+        } else {
+            return ("Home", "house")
+        }
+    }
+
+    private func dayPillsRowPreview(_ pattern: RoutineEntry.DayPattern) -> some View {
+        let activeIndices = RoutinesViewLogic.activeDayIndices(for: pattern)
+        return HStack(spacing: 8) {
+            ForEach(0..<7, id: \.self) { dayIndex in
+                dayPillPreview(dayIndex: dayIndex, isActive: activeIndices.contains(dayIndex))
+            }
+        }
+    }
+
+    private func dayPillPreview(dayIndex: Int, isActive: Bool) -> some View {
+        let initial = ["S", "M", "T", "W", "T", "F", "S"][dayIndex]
+        return Text(initial)
+            .font(HearthFont.pill.font)
+            .foregroundStyle(isActive ? HearthColor.ink(scheme) : HearthColor.sub(scheme))
+            .frame(width: HearthMetrics.buttonHSmall, height: HearthMetrics.buttonHSmall)
+            .background(isActive ? HearthColor.tint(scheme) : Color.clear)
+            .clipShape(Circle())
+    }
+
+    private func actionPillsRowPreview(_ entityIDs: [String]) -> some View {
+        let names = entityIDs.map { entityNamePreview(from: $0) }
+        return HStack(spacing: 8) {
+            ForEach(Array(names.enumerated()), id: \.offset) { _, name in
+                actionPillPreview(name)
+            }
+        }
+    }
+
+    private func actionPillPreview(_ name: String) -> some View {
+        HStack(spacing: 6) {
+            iconForActionPreview(name)
+            Text(name)
+                .font(HearthFont.pill.font)
+        }
+        .foregroundStyle(HearthColor.ink(scheme))
+        .padding(.horizontal, HearthMetrics.groupInset * 0.75)
+        .padding(.vertical, 6)
+        .background(HearthColor.tint(scheme))
+        .clipShape(Capsule())
+    }
+
+    private func iconForActionPreview(_ name: String) -> some View {
+        let iconName = iconNameForActionPreview(name)
+        return Image(systemName: iconName)
+            .font(.system(size: HearthMetrics.iconSmall))
+    }
+
+    private func entityNamePreview(from entityID: String) -> String {
+        let parts = entityID.split(separator: ".")
+        guard parts.count >= 2 else { return entityID }
+
+        let domain = String(parts[0])
+        let rawName = String(parts[1])
+        let cleanName = rawName.replacingOccurrences(of: "_\\d+$", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "_", with: " ")
+            .capitalized
+
+        switch domain {
+        case "light":
+            return "\(cleanName) off"
+        case "cover":
+            return "Close \(cleanName)"
+        case "lock":
+            return "Lock \(cleanName)"
+        case "alarm_control_panel":
+            return "Arm night"
+        default:
+            return cleanName
+        }
+    }
+
+    private func iconNameForActionPreview(_ name: String) -> String {
+        let lower = name.lowercased()
+        if lower.contains("off") {
+            return "lightbulb.fill"
+        } else if lower.contains("close") {
+            return "garage.closed"
+        } else if lower.contains("lock") {
+            return "lock.fill"
+        } else if lower.contains("arm") {
+            return "shield.fill"
+        } else {
+            return "square.fill"
+        }
     }
 }

@@ -67,10 +67,12 @@ enum AlarmActionRuntime {
 
                 // Record action history (Routines learning hook).
                 // This runs AFTER the operation is confirmed and finished, and must NEVER delay or throw.
-                // Capture entityID before the closure (Sendable compliance).
+                // Capture entityID and action before the closure (Sendable compliance).
                 let entityIDCaptured = entityID
+                let actionCaptured = action
                 let now = Date()
-                let entry = ActionHistoryRecord(timestamp: now, entityIDs: [entityIDCaptured])
+                let sourceKey = "alarm.\(actionCaptured)"  // e.g., "alarm.armNight", "alarm.disarm"
+                let entry = ActionHistoryRecord(timestamp: now, entityIDs: [entityIDCaptured], sourceKey: sourceKey)
 
                 if let record = injectedRecord {
                     // Test path: call injected spy

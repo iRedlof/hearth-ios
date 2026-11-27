@@ -145,7 +145,7 @@ public enum GoodnightRuntime {
                 alarmID: alarmIdCaptured
             )
 
-            let entry = ActionHistoryRecord(timestamp: now, entityIDs: actionSet)
+            let entry = ActionHistoryRecord(timestamp: now, entityIDs: actionSet, sourceKey: "goodnight")
 
             if let record = injectedRecord {
                 // Test path: call injected spy

@@ -11,6 +11,7 @@ public struct RoutineEntry: Sendable, Equatable, Identifiable {
 
     public enum DayPattern: Sendable, Equatable {
         case weeknights  // Mon-Fri
+        case weekend     // Sat-Sun
         case everyDay
         case specific([Int])  // 0=Sun, 1=Mon, ..., 6=Sat
     }

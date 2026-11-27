@@ -23,8 +23,8 @@ public enum RoutinesSuggester {
     }
 
     /// Returns suggested routines based on frequency analysis of the last 7 days (Android's ROUTINE_LOOKBACK_DAYS).
-    /// A routine is suggested when the same action-set (normalized/sorted) appears ≥4 times in the last 7 days
-    /// within ±45 minutes of a median time-of-day.
+    /// A routine is suggested when the same action-set (normalized/sorted) appears ≥4 DISTINCT DAYS in the last 7 days
+    /// within ±45 minutes of a median time-of-day. Multiple same-day executions count as ONE day.
     public static func suggestedRoutines(
         from history: [ActionHistoryRecord],
         now: Date,
@@ -44,11 +44,14 @@ public enum RoutinesSuggester {
 
         var suggestions: [RoutineEntry] = []
         for (signature, records) in grouped {
-            // Check threshold: need at least 4 occurrences
-            guard records.count >= minOccurrences else { continue }
+            // Dedup to distinct days: keep one record per calendar day
+            let distinctDayRecords = dedupToDistinctDays(records, calendar: calendar)
+
+            // Check threshold: need at least 4 DISTINCT DAYS
+            guard distinctDayRecords.count >= minOccurrences else { continue }
 
             // Extract time-of-day for each occurrence (minutes since midnight)
-            let timesByDate = records.map { record -> (date: Date, minutes: Int) in
+            let timesByDate = distinctDayRecords.map { record -> (date: Date, minutes: Int) in
                 let components = calendar.dateComponents([.hour, .minute], from: record.timestamp)
                 let minutes = (components.hour ?? 0) * 60 + (components.minute ?? 0)
                 return (record.timestamp, minutes)
@@ -77,14 +80,10 @@ public enum RoutinesSuggester {
             let occurrenceDates = clustered.map { $0.date }
             let dayPattern = detectDayPattern(dates: occurrenceDates, calendar: calendar)
 
-            // Check if matches Goodnight key (compare sorted arrays)
+            // Check if matches Goodnight key: use sourceKey if present, otherwise fall back to empty-set comparison
+            // Safe: grouped keys are non-empty (derived from recentHistory), so records.first always exists
             let entityIDs = records.first!.entityIDs.sorted()
-            let matchesGoodnight: Bool
-            if let goodnightSet = goodnightActionSet {
-                matchesGoodnight = entityIDs == goodnightSet.sorted()
-            } else {
-                matchesGoodnight = false
-            }
+            let matchesGoodnight = records.first!.sourceKey == "goodnight"
 
             let entry = RoutineEntry(
                 id: signature,
@@ -109,6 +108,23 @@ public enum RoutinesSuggester {
 
     // MARK: - Private Helpers
 
+    /// Deduplicates records to one per calendar day (keeps the first occurrence of each day).
+    /// Multiple same-day executions are collapsed to a single day for threshold counting.
+    private static func dedupToDistinctDays(_ records: [ActionHistoryRecord], calendar: Calendar) -> [ActionHistoryRecord] {
+        var seenDays = Set<DateComponents>()
+        var distinctRecords: [ActionHistoryRecord] = []
+
+        for record in records.sorted(by: { $0.timestamp < $1.timestamp }) {
+            let dayComponents = calendar.dateComponents([.year, .month, .day], from: record.timestamp)
+            if !seenDays.contains(dayComponents) {
+                seenDays.insert(dayComponents)
+                distinctRecords.append(record)
+            }
+        }
+
+        return distinctRecords
+    }
+
     private static func detectDayPattern(dates: [Date], calendar: Calendar) -> RoutineEntry.DayPattern {
         let weekdays = dates.map { calendar.component(.weekday, from: $0) }
         let uniqueDays = Set(weekdays)
@@ -123,6 +139,8 @@ public enum RoutinesSuggester {
 
         if isAllWeeknights {
             return .weeknights
+        } else if isAllWeekend {
+            return .weekend
         }
 
         // Every day: has BOTH weekend and weekday occurrences
