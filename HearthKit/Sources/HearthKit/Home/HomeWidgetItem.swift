@@ -9,6 +9,7 @@ public enum HomeRoute: Sendable, Equatable {
     /// Card-style editor. `nil` = the global (all-widgets) style; a kind = that widget's override.
     case cardStyle(HomeWidgetKind?)
     case settings
+    case routines
     case leaveBy
     case travelDays
     case safetyAlerts
