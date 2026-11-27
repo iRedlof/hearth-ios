@@ -37,9 +37,12 @@ public enum RoutinesSuggester {
         let sevenDaysAgo = calendar.date(byAdding: .day, value: -lookbackDays, to: now) ?? now
         let recentHistory = prunedHistory.filter { $0.timestamp >= sevenDaysAgo }
 
-        // Group by normalized action-set (sorted entity IDs)
+        // Group by normalized action-set (sorted entity IDs) + sourceKey
+        // This ensures records with different sourceKey (e.g., alarm.armNight vs alarm.disarm) form SEPARATE routines
         let grouped = Dictionary(grouping: recentHistory) { record in
-            record.entityIDs.sorted().joined(separator: "|")
+            let entitySignature = record.entityIDs.sorted().joined(separator: "|")
+            let sourceKeyPart = record.sourceKey ?? ""
+            return entitySignature + "#" + sourceKeyPart
         }
 
         var suggestions: [RoutineEntry] = []

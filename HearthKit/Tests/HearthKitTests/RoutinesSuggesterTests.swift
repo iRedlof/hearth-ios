@@ -218,6 +218,74 @@ struct RoutinesSuggesterTests {
         #expect(suggestions.isEmpty)
     }
 
+    // MARK: - Test: Alarm actions form separate routines (I6 fix)
+
+    @Test("Arm and disarm on same panel form TWO separate routines")
+    func testAlarmActionsFormSeparateRoutines() {
+        let calendar = Calendar.current
+        let now = Date()
+
+        var history: [ActionHistoryRecord] = []
+        // 4 distinct days of armNight
+        for dayOffset in 0..<4 {
+            var dayDate = calendar.date(byAdding: .day, value: -dayOffset, to: now)!
+            dayDate = calendar.date(bySettingHour: 22, minute: 0, second: 0, of: dayDate)!
+            history.append(ActionHistoryRecord(
+                timestamp: dayDate,
+                entityIDs: ["alarm_control_panel.panel"],
+                sourceKey: "alarm.armNight"
+            ))
+        }
+
+        // 4 distinct days of disarm on the SAME panel
+        for dayOffset in 0..<4 {
+            var dayDate = calendar.date(byAdding: .day, value: -dayOffset, to: now)!
+            dayDate = calendar.date(bySettingHour: 7, minute: 0, second: 0, of: dayDate)!
+            history.append(ActionHistoryRecord(
+                timestamp: dayDate,
+                entityIDs: ["alarm_control_panel.panel"],
+                sourceKey: "alarm.disarm"
+            ))
+        }
+
+        let suggestions = RoutinesSuggester.suggestedRoutines(from: history, now: now, goodnightActionSet: nil)
+
+        // Should yield TWO separate routines (not conflated into one)
+        #expect(suggestions.count == 2)
+
+        // The two routines should have different median times (one at ~22:00, one at ~7:00)
+        let medianHours = suggestions.map { calendar.component(.hour, from: $0.medianTime) }.sorted()
+        #expect(medianHours.count == 2)
+        #expect(medianHours[0] == 7 || medianHours[0] == 6)   // Morning disarm (around 7 AM)
+        #expect(medianHours[1] == 22 || medianHours[1] == 21) // Evening arm (around 10 PM)
+    }
+
+    @Test("Goodnight multi-entity records stay ONE group with matchesGoodnightKey=true")
+    func testGoodnightStaysOneGroup() {
+        let calendar = Calendar.current
+        let now = Date()
+
+        var history: [ActionHistoryRecord] = []
+        let goodnightEntities = ["cover.garage", "light.kitchen", "light.den", "lock.front", "alarm_control_panel.panel"]
+
+        // 4 distinct days of Goodnight (all with sourceKey="goodnight")
+        for dayOffset in 0..<4 {
+            var dayDate = calendar.date(byAdding: .day, value: -dayOffset, to: now)!
+            dayDate = calendar.date(bySettingHour: 22, minute: 30, second: 0, of: dayDate)!
+            history.append(ActionHistoryRecord(
+                timestamp: dayDate,
+                entityIDs: goodnightEntities,
+                sourceKey: "goodnight"
+            ))
+        }
+
+        let suggestions = RoutinesSuggester.suggestedRoutines(from: history, now: now, goodnightActionSet: nil)
+
+        // Should yield ONE routine (all Goodnight records share sourceKey="goodnight")
+        #expect(suggestions.count == 1)
+        #expect(suggestions.first?.matchesGoodnightKey == true)
+    }
+
     // MARK: - Test: History cap at 500 entries (Android uses 500, not 100)
 
     @Test("History caps at 500 entries")
