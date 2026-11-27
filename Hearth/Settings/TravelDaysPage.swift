@@ -94,7 +94,7 @@ struct TravelDaysPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "bell.slash.fill")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -134,7 +134,7 @@ struct TravelDaysPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "calendar.badge.exclamationmark")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -174,7 +174,7 @@ struct TravelDaysPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.lock")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -201,7 +201,7 @@ struct TravelDaysPage: View {
     private var tripDefinitionSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "calendar")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("A trip is an all-day event, or one 24 h or longer, in the next 7 days.")
@@ -216,7 +216,7 @@ struct TravelDaysPage: View {
     private var notificationTimeSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "clock")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("At 8 PM the night before, Hearth offers: arm Away, thermostat low.")
@@ -231,7 +231,7 @@ struct TravelDaysPage: View {
     private var confirmationSection: some View {
         HStack(spacing: 12) {
             Image(systemName: "hand.tap")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Nothing runs until you confirm.")
@@ -246,7 +246,7 @@ struct TravelDaysPage: View {
     private var privacySection: some View {
         HStack(spacing: 12) {
             Image(systemName: "lock.shield")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Reads your calendar on this phone only. Nothing leaves the device.")

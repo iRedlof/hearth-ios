@@ -16,6 +16,10 @@ public enum HearthFont {
     case iconHero
     /// Title3: 24pt, weight 450
     case title3
+    /// Icon large: 24pt, regular weight (SF Symbols)
+    case iconLarge
+    /// Icon small: 14pt, regular weight (SF Symbols)
+    case iconSmall
     /// Page title: 22pt, weight 450
     case pageTitle
     /// Card heading: 19pt, weight 450
@@ -63,6 +67,10 @@ public enum HearthFont {
             return (48, 450)
         case .title3:
             return (24, 450)
+        case .iconLarge:
+            return (24, 400)
+        case .iconSmall:
+            return (14, 400)
         case .pageTitle:
             return (22, 450)
         case .cardHeading:
@@ -99,6 +107,10 @@ public enum HearthFont {
             return .largeTitle
         case .title3:
             return .title3
+        case .iconLarge:
+            return .title3
+        case .iconSmall:
+            return .callout
         case .pageTitle:
             return .title2
         case .cardHeading:

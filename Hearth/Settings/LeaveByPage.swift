@@ -67,7 +67,7 @@ struct LeaveByPage: View {
                     // Description
                     HStack(spacing: 12) {
                         Image(systemName: "figure.walk")
-                            .font(.system(size: HearthMetrics.iconMedium))
+                            .font(HearthFont.iconMedium.font)
                             .foregroundStyle(HearthColor.sub(scheme))
 
                         Text("Checks Home alarm, Front door and Hallway thermostat. Asks before it arms, locks or sets Eco; nothing runs until you confirm.")
@@ -102,7 +102,7 @@ struct LeaveByPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "bell.slash.fill")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -142,7 +142,7 @@ struct LeaveByPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "calendar.badge.exclamationmark")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -182,7 +182,7 @@ struct LeaveByPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.lock")
-                    .font(.system(size: HearthMetrics.iconLarge))
+                    .font(HearthFont.iconLarge.font)
                     .foregroundStyle(HearthColor.amber(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -210,7 +210,7 @@ struct LeaveByPage: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Image(systemName: "figure.walk")
-                    .font(.system(size: HearthMetrics.iconMedium))
+                    .font(HearthFont.iconMedium.font)
                     .foregroundStyle(HearthColor.sub(scheme))
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -268,7 +268,7 @@ struct LeaveByPage: View {
     private var privacySection: some View {
         HStack(spacing: 12) {
             Image(systemName: "lock.shield")
-                .font(.system(size: HearthMetrics.iconMedium))
+                .font(HearthFont.iconMedium.font)
                 .foregroundStyle(HearthColor.sub(scheme))
 
             Text("Reads your calendar on this phone only. Nothing leaves the device.")

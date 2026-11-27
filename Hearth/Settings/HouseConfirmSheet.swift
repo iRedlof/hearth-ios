@@ -20,7 +20,7 @@ struct HouseConfirmSheet: View {
                     // Header
                     VStack(spacing: 12) {
                         Image(systemName: "figure.walk")
-                            .font(.system(size: HearthMetrics.iconHero))
+                            .font(HearthFont.iconHero.font)
                             .foregroundStyle(HearthColor.ink(scheme))
 
                         Text(title)
