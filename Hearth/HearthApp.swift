@@ -415,6 +415,8 @@ struct ContentView: View {
                             }
                         }
                 }
+                .presentationDetents([.height(480), .medium])
+                .presentationDragIndicator(.visible)
                 .id(sheet.id)
             case .travelDays(_):
                 NavigationStack {
@@ -428,6 +430,8 @@ struct ContentView: View {
                             }
                         }
                 }
+                .presentationDetents([.height(520), .medium])
+                .presentationDragIndicator(.visible)
                 .id(sheet.id)
             case .safetyAlerts(_):
                 NavigationStack {
