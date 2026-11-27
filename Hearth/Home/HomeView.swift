@@ -2,6 +2,13 @@ import SwiftUI
 import WidgetKit
 import HearthKit
 
+/// Auth state tracking for sign-in toast detection
+private enum AuthState: Equatable {
+    case signedOut
+    case signedIn
+    case expired
+}
+
 /// The iOS Home dashboard: assembles all Phase-2 components (header, widgets strip, connections, every day, look, footer).
 /// Fetches live snapshots (car, alarm, CP, thermostat) and maps them to WidgetHealth + stateLine for the widgets strip.
 struct HomeView: View {
@@ -15,59 +22,78 @@ struct HomeView: View {
     @State private var cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
     @State private var loading = true
     @State private var loadID = UUID()
+    @State private var toastMessage: String?
+    @State private var previousAuthState: AuthState?
+    @State private var previousWidgetHealth: [HomeWidgetKind: WidgetHealth] = [:]
     @ObservedObject private var refreshSignal = RefreshSignal.shared
 
     @Environment(\.colorScheme) private var scheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HomeHeader()
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    HomeHeader()
 
-            // First-run Get-started OR Sign-in banner
-            let ha = haConnectionStatus(config)
-            let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
-            let cpSession = try? CpSessionStore.context().session
-            let cpHasAccount = (cpSession?.userId ?? 0) != 0 || !(cpSession?.email ?? "").isEmpty
+                // First-run Get-started OR Sign-in banner
+                let ha = haConnectionStatus(config)
+                let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
+                let cpSession = try? CpSessionStore.context().session
+                let cpHasAccount = (cpSession?.userId ?? 0) != 0 || !(cpSession?.email ?? "").isEmpty
 
-            if ha == .needsSignIn {
-                signInBanner()
-            } else if showGetStarted(haConnected: ha == .connected, widgetCount: kinds.count) {
-                GetStartedCard(
-                    haConnected: ha == .connected,
-                    hasWidget: !kinds.isEmpty,
-                    onConnect: { onRoute(.homeAssistant) },
-                    onAddWidget: { onRoute(.addWidget) }
+                if ha == .needsSignIn {
+                    signInBanner()
+                } else if showGetStarted(haConnected: ha == .connected, widgetCount: kinds.count) {
+                    GetStartedCard(
+                        haConnected: ha == .connected,
+                        hasWidget: !kinds.isEmpty,
+                        onConnect: { onRoute(.homeAssistant) },
+                        onAddWidget: { onRoute(.addWidget) }
+                    )
+                }
+
+                // Your widgets header + strip
+                YourWidgetsHeader(onAdd: { onRoute(.addWidget) })
+                YourWidgetsStrip(items: builtItems(), onTap: onRoute)
+
+                // Connections section
+                ConnectionsSection(
+                    ha: ha,
+                    cp: cpConnectionStatus(signedIn: cpSignedIn, hasAccount: cpHasAccount),
+                    onTap: onRoute
                 )
+
+                // Every day section
+                EveryDaySection(onTap: onRoute)
+
+                // Look section
+                LookSection(onTap: onRoute)
+
+                    HomeFooter()
+                }
             }
+            .background(HearthColor.page(scheme).ignoresSafeArea())
 
-            // Your widgets header + strip
-            YourWidgetsHeader(onAdd: { onRoute(.addWidget) })
-            YourWidgetsStrip(items: builtItems(), onTap: onRoute)
-
-            // Connections section
-            ConnectionsSection(
-                ha: ha,
-                cp: cpConnectionStatus(signedIn: cpSignedIn, hasAccount: cpHasAccount),
-                onTap: onRoute
-            )
-
-            // Every day section
-            EveryDaySection(onTap: onRoute)
-
-            // Look section
-            LookSection(onTap: onRoute)
-
-                HomeFooter()
+            if let message = toastMessage {
+                ToastOverlay(message: message) {
+                    toastMessage = nil
+                }
+                .transition(reduceMotion ? .identity : .move(edge: .bottom).combined(with: .opacity))
+                .hearthContentAnimation(value: toastMessage, reduceMotion: reduceMotion)
             }
         }
-        .background(HearthColor.page(scheme).ignoresSafeArea())
         .task(id: config) { await load() }
         .onDisappear { thermostat.close() }
         .onChange(of: refreshSignal.tick) { Task { await load() } }
         .onChange(of: refreshSignal.thermostatRefresh) {
-            if let request = refreshSignal.thermostatRefresh { thermostat.refresh(request, source: .glyphRefresh) }
+            if let request = refreshSignal.thermostatRefresh {
+                thermostat.refresh(request, source: .dashboardRefresh)
+                RefreshSignal.shared.thermostatRefresh = nil
+            }
+        }
+        .onChange(of: config) { _, newConfig in
+            detectSignInTransition(newConfig: newConfig)
         }
     }
 
@@ -170,7 +196,55 @@ struct HomeView: View {
                 }
             }
         }
-        if loadID == requestID { loading = false }
+        if loadID == requestID {
+            loading = false
+            // Snapshot widget health when signed out/expired for future comparison
+            let currentState = authState(from: config)
+            if currentState == .signedOut || currentState == .expired {
+                previousWidgetHealth = currentWidgetHealth()
+            }
+        }
+    }
+
+    private func detectSignInTransition(newConfig: HaConfig) {
+        let newAuthState = authState(from: newConfig)
+        defer { previousAuthState = newAuthState }
+
+        // Only fire toast on signed-out/expired → signed-in transition
+        guard let previous = previousAuthState,
+              (previous == .signedOut || previous == .expired),
+              newAuthState == .signedIn else { return }
+
+        // Snapshot current widget health after sign-in
+        let currentHealth = currentWidgetHealth()
+        let recoveredCount = countRecoveredWidgets(previousHealth: previousWidgetHealth, currentHealth: currentHealth)
+
+        if let message = signedInToastMessage(recoveredCount: recoveredCount) {
+            toastMessage = message
+            Task {
+                try? await Task.sleep(for: .seconds(4))
+                if toastMessage == message { toastMessage = nil }
+            }
+        }
+    }
+
+    private func authState(from config: HaConfig) -> AuthState {
+        if config.isSignedIn {
+            return .signedIn
+        } else if config.hasAuth {
+            return .expired
+        } else {
+            return .signedOut
+        }
+    }
+
+    private func currentWidgetHealth() -> [HomeWidgetKind: WidgetHealth] {
+        let items = builtItems()
+        var health: [HomeWidgetKind: WidgetHealth] = [:]
+        for item in items {
+            health[item.kind] = item.health
+        }
+        return health
     }
 
     private enum CardResult: Sendable {
