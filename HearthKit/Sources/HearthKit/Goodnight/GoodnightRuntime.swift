@@ -31,6 +31,7 @@ public enum GoodnightRuntime {
     ///   - injectedTurnOffLights: Optional injected closure for turning off lights (for testing).
     ///   - injectedLock: Optional injected closure for locking (for testing).
     ///   - injectedArm: Optional injected closure for arming (for testing).
+    ///   - injectedRecord: Optional injected closure for recording action history (for testing). Defaults to ActionHistoryStore.record.
     /// - Returns: Per-step success flags.
     public static func run(
         config: GoodnightConfig,
@@ -40,7 +41,8 @@ public enum GoodnightRuntime {
         injectedCloseCover: (@Sendable (String) async throws -> Void)? = nil,
         injectedTurnOffLights: (@Sendable ([String]) async throws -> Void)? = nil,
         injectedLock: (@Sendable () async -> Bool)? = nil,
-        injectedArm: (@Sendable (String) async -> Bool)? = nil
+        injectedArm: (@Sendable (String) async -> Bool)? = nil,
+        injectedRecord: (@Sendable (ActionHistoryRecord) -> Void)? = nil
     ) async -> GoodnightResult {
         // Fetch all lights and alarm state to build the plan
         let (allLights, panelSupportsNight) = if let injected = injectedFetchState {
@@ -123,7 +125,40 @@ public enum GoodnightRuntime {
             armed = true  // No alarm configured = not applicable = success
         }
 
-        return GoodnightResult(garagesClosed: garagesClosed, lightsOff: lightsOff, locked: locked, armed: armed)
+        let result = GoodnightResult(garagesClosed: garagesClosed, lightsOff: lightsOff, locked: locked, armed: armed)
+
+        // Record action history if all safety-critical steps succeeded (Routines learning hook)
+        // This runs AFTER the outcome is decided and must NEVER delay or throw into the execution path.
+        // If all 4 steps succeeded, record the action-set for routine learning.
+        if result.garagesClosed && result.lightsOff && result.locked && result.armed {
+            // Capture specific values before the recording closure (Sendable compliance)
+            let allLightsCaptured = allLights
+            let coverIdsCaptured = plan.covers
+            let lockIdCaptured = plan.lockId
+            let alarmIdCaptured = haConfig.entityId
+
+            // Build the action-set in execution order
+            let actionSet = config.actionSet(
+                allLights: allLightsCaptured,
+                garageIDs: coverIdsCaptured,
+                lockID: lockIdCaptured,
+                alarmID: alarmIdCaptured
+            )
+
+            let entry = ActionHistoryRecord(timestamp: now, entityIDs: actionSet)
+
+            if let record = injectedRecord {
+                // Test path: call injected spy
+                record(entry)
+            } else {
+                // Production path: record to ActionHistoryStore
+                // Swallow any recording failure (it's local UserDefaults, best-effort only).
+                // We already succeeded at the safety-critical operations; recording failure must not affect that outcome.
+                ActionHistoryStore.record(entry, now: now)
+            }
+        }
+
+        return result
     }
 
     /// Fetches HA state for planning: all lights and panel Night support.
