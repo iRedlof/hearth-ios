@@ -16,49 +16,61 @@ struct SafetyAlertsPage: View {
     }
 
     var body: some View {
-        ScrollView {
-            VStack(spacing: 20) {
-                // Enable toggle
-                HearthGroup("Safety alerts") {
-                    HearthRow(
-                        icon: "shield",
-                        hue: .neutral,
-                        title: "Safety alerts",
-                        subtitle: enabled ? "On" : "Off"
-                    ) {
-                        HearthSwitch(isOn: Binding(
-                            get: { enabled },
-                            set: { newValue in
-                                enabled = newValue
-                                HouseFeaturesStore.safetyEnabled = newValue
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Safety alerts")
+                    .font(HearthFont.pageTitle.font)
+                    .foregroundStyle(HearthColor.ink(scheme))
+                Text("If a close, lock or arm fails")
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, HearthMetrics.groupInset + 12)
+            .padding(.top, 24)
+            .padding(.bottom, 20)
 
-                                // Request notification permission when enabling (if not determined)
-                                if newValue && notificationStatus == .notDetermined {
-                                    Task {
-                                        let granted = await HouseNotify.requestPermission()
-                                        notificationStatus = granted ? .authorized : .denied
+            ScrollView {
+                VStack(spacing: 20) {
+                    // Enable toggle
+                    HearthGroup {
+                        HearthRow(
+                            icon: "shield",
+                            hue: .neutral,
+                            title: "Safety alerts",
+                            subtitle: enabled ? "On" : "Off"
+                        ) {
+                            HearthSwitch(isOn: Binding(
+                                get: { enabled },
+                                set: { newValue in
+                                    enabled = newValue
+                                    HouseFeaturesStore.safetyEnabled = newValue
+
+                                    // Request notification permission when enabling (if not determined)
+                                    if newValue && notificationStatus == .notDetermined {
+                                        Task {
+                                            let granted = await HouseNotify.requestPermission()
+                                            notificationStatus = granted ? .authorized : .denied
+                                        }
                                     }
                                 }
-                            }
-                        ))
+                            ))
+                        }
                     }
-                }
-                .padding(.top, 20)
 
-                // Notifications denied banner (only when enabled)
-                if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
-                    notificationsDeniedBanner
-                }
+                    // Notifications denied banner (only when enabled)
+                    if notificationBannerState(enabled: enabled, hasNotificationAccess: notificationStatus == .authorized) == .needsPermission {
+                        notificationsDeniedBanner
+                    }
 
-                // Description sections (always show)
-                failureDescriptionSection
-                retryDescriptionSection
+                    // Description sections (always show)
+                    failureDescriptionSection
+                    retryDescriptionSection
+                }
+                .padding(.bottom, 20)
             }
-            .padding(.bottom, 20)
         }
         .background(HearthColor.page(scheme))
-        .navigationTitle("Safety alerts")
-        .navigationBarTitleDisplayMode(.inline)
         .task {
             notificationStatus = await HouseNotify.authorizationStatus()
         }
