@@ -99,23 +99,19 @@ struct HearthApp: App {
     }
 }
 
-/// Two tabs: **Live** reads the signed-in `HaConfig` (shared with the widget via the App Group) and
-/// shows the real car — or the Home Assistant sign-in when not yet connected. **Preview** is the
-/// original verification gallery that renders every Beacon at the medium-widget size.
+/// Single-page Home dashboard: reads the signed-in `HaConfig` (shared with the widget via the App Group)
+/// and shows the real Home dashboard — or the Home Assistant sign-in when not yet connected.
 struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var config: HaConfig?
-    @State private var selection = ContentView.initialTab()
     @ObservedObject private var climateGate = ClimateGate.shared
     @ObservedObject private var garageGate = GarageGate.shared
     @ObservedObject private var cpSetup = CpSetupGate.shared
     @ObservedObject private var haSetup = HaSetupGate.shared
     @ObservedObject private var carReadings = CarReadingsGate.shared
     @State private var presentedSheet: HearthSheet?
-    @State private var settingsCarReturn: CarReadingsRequest?
     @State private var thermostatAdmission = ThermostatRouteAdmission()
     @State private var thermostatModel: ThermostatControlsModel?
-    @State private var settingsThermostatReturn: ThermostatRecoveryReturn?
     @State private var signOutError: String?
     private let carReadingsRuntime: CarReadingsRuntime
     private let inertTabs: Bool
@@ -128,17 +124,7 @@ struct ContentView: View {
     }
 
     var body: some View {
-        TabView(selection: $selection) {
-            liveTab
-                .tabItem { Label("Live", systemImage: "car.fill") }
-                .tag(0)
-            settingsTab
-                .tabItem { Label("Settings", systemImage: "gearshape.fill") }
-                .tag(1)
-            previewTab
-                .tabItem { Label("Preview", systemImage: "square.grid.2x2.fill") }
-                .tag(2)
-        }
+        rootView
         .alert("Couldn't sign out", isPresented: Binding(
             get: { signOutError != nil }, set: { if !$0 { signOutError = nil } }
         )) { Button("OK", role: .cancel) {} } message: { Text(signOutError ?? "") }
@@ -166,7 +152,6 @@ struct ContentView: View {
         .onChange(of: cpSetup.route, initial: true) {
             guard let route = cpSetup.route else { return }
             cpSetup.route = nil
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .chargePointPage(route, UUID())
         }
@@ -178,7 +163,6 @@ struct ContentView: View {
         .onOpenURL { url in
             if let destination = alarmReadingsDestination(from: url) {
                 guard destination != .inert else { return }
-                settingsCarReturn = nil
                 retireThermostat()
                 presentedSheet = .alarm(destination, UUID())
                 return
@@ -202,7 +186,6 @@ struct ContentView: View {
         .onChange(of: haSetup.request, initial: true) {
             guard haSetup.request != nil else { return }
             haSetup.request = nil
-            settingsCarReturn = nil
             retireThermostat()
             if !inertTabs { config = HaConfigStore.load() }
             presentedSheet = .homeAssistantPage(UUID())
@@ -212,9 +195,8 @@ struct ContentView: View {
             thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
         }
         .onChange(of: scenePhase) { _, newPhase in
-            if !inertTabs && newPhase == .active {
-                HouseScheduler.refreshScheduleIfNeeded()
-            }
+            guard !inertTabs, newPhase == .active else { return }
+            HouseScheduler.refreshScheduleIfNeeded()
         }
         #if DEBUG
         .onAppear { handleDebugLaunchArgs() }
@@ -253,15 +235,12 @@ struct ContentView: View {
                             retireThermostat(); presentedSheet = nil
                         }, onSettings: {
                             guard presentedSheet?.id == sheet.id else { return }
-                            let returning = ThermostatRecoveryReturn(original: request)
                             thermostatModel?.close(); thermostatAdmission.close()
-                            settingsCarReturn = nil; settingsThermostatReturn = returning
-                            selection = 1; presentedSheet = nil
+                            presentedSheet = nil
                         }, onReconnect: {
                             guard presentedSheet?.id == sheet.id else { return }
                             let returning = ThermostatRecoveryReturn(original: request)
-                            thermostatModel?.close(); thermostatAdmission.close(); settingsCarReturn = nil
-                            settingsThermostatReturn = nil
+                            thermostatModel?.close(); thermostatAdmission.close()
                             presentedSheet = .thermostatReconnect(returning)
                         })
                         .id(request.eventID)
@@ -281,7 +260,7 @@ struct ContentView: View {
                 }.id(returning.transitionID).interactiveDismissDisabled()
             case .alarm(let destination, _):
                 AlarmReadingsScreen(destination: destination, inert: inertTabs,
-                    onSettings: { presentedSheet = nil; selection = 1 },
+                    onSettings: { presentedSheet = nil },
                     onReconnect: { presentedSheet = .reconnect(UUID(), returningTo: nil) })
             case .car(let request):
                 CarReadingsScreen(request: request, runtime: carReadingsRuntime,
@@ -295,8 +274,6 @@ struct ContentView: View {
                         #if DEBUG
                         recordCarTransition("settingsStarted", original: request, transitionID: sheet.id)
                         #endif
-                        settingsCarReturn = request
-                        selection = 1
                         presentedSheet = nil
                     },
                     onReconnect: {
@@ -306,7 +283,6 @@ struct ContentView: View {
                         #if DEBUG
                         recordCarTransition("reconnectStarted", original: request, transitionID: reconnect.id)
                         #endif
-                        settingsCarReturn = nil
                         presentedSheet = reconnect
                     })
                 .id(request.id)
@@ -481,19 +457,16 @@ struct ContentView: View {
     /// URL delivery remains local to this scene; compatible intent delivery shares this sink.
     private func presentCarReadings(_ request: CarReadingsRequest) {
         guard request.destination != .inert else { return }
-        settingsCarReturn = nil
         retireThermostat()
         presentedSheet = .car(request)
     }
 
     private func retireThermostat() {
         thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
-        settingsThermostatReturn = nil
         if !inertTabs { ClimateGate.shared.retire() }
     }
     private func presentThermostat(_ destination: ThermostatDestination) {
         guard let request = thermostatAdmission.admit(destination) else { return }
-        settingsCarReturn = nil; settingsThermostatReturn = nil
         if thermostatModel?.request.eventID == request.eventID {
             thermostatModel?.revalidate()
             return
@@ -524,7 +497,6 @@ struct ContentView: View {
             #endif
             presentCarReadings(reopened)
         } else {
-            if completed { selection = 0 }
             presentedSheet = nil
         }
     }
@@ -540,18 +512,11 @@ struct ContentView: View {
     }
     #endif
 
-    /// Initial tab from a launch arg (`-tab live|settings|preview`), for screenshots and testing.
-    private static func initialTab() -> Int {
-        let args = ProcessInfo.processInfo.arguments
-        guard let i = args.firstIndex(of: "-tab"), i + 1 < args.count else { return 0 }
-        switch args[i + 1] { case "settings": return 1; case "preview": return 2; default: return 0 }
-    }
-
-    @ViewBuilder private var liveTab: some View {
+    @ViewBuilder private var rootView: some View {
         if inertTabs {
-            Text("Controlled Car route fixture · Live tab")
+            Text("Controlled Car route fixture · Single-page root")
         } else if let config, config.carReady {
-            HomeView(config: config, onRoute: handleHomeRoute)
+            HomeView(config: config, onRoute: handleHomeRoute, onRefresh: refreshFromHome, onSignOut: signOut)
         } else {
             SignInView(onSignedIn: { config = HaConfigStore.load() })
         }
@@ -560,56 +525,36 @@ struct ContentView: View {
     private func handleHomeRoute(_ route: HomeRoute) {
         switch route {
         case .homeAssistant:
-            // Present Home Assistant page
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .homeAssistantPage(UUID())
         case .chargePoint:
-            // Present ChargePoint page
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .chargePointPage(nil, UUID())
         case .widget(let kind):
-            // Present per-widget config page
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .widgetPage(kind, UUID())
         case .addWidget:
-            // Present widget gallery
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .addWidgetGallery(UUID())
         case .cardStyle(let kind):
-            // Present the card-style page (global when kind is nil, per-widget override otherwise)
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .cardStylePage(kind, UUID())
         case .settings:
-            // Go to Settings tab
-            selection = 1
+            // No-op: Settings tab removed in single-page refactor
+            break
         case .leaveBy:
-            // Present Leave-by page
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .leaveBy(UUID())
         case .travelDays:
-            // Present Travel days page
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .travelDays(UUID())
         case .safetyAlerts:
-            // Present Safety alerts page
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .safetyAlerts(UUID())
         case .goodnight:
-            // Present Goodnight page
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .goodnight(UUID())
         case .routines:
-            // Present Routines page
-            settingsCarReturn = nil
             retireThermostat()
             presentedSheet = .routines(UUID())
         }
@@ -634,74 +579,7 @@ struct ContentView: View {
         .id(sheet.id)
     }
 
-    @ViewBuilder private var settingsTab: some View {
-        Group {
-            if inertTabs { Text("Controlled Car route fixture · Settings tab") }
-            else {
-                SettingsView(
-                    config: config,
-                    onChange: { config = $0 },
-                    onOpenGallery: {
-                        presentedSheet = .addWidgetGallery(UUID())
-                    },
-                    onRefresh: refreshFromSettings,
-                    onSignOut: signOut
-                )
-                .id(HaConfigStore.requestScope())
-            }
-        }
-        .safeAreaInset(edge: .top) {
-            if let returning = settingsThermostatReturn {
-                Button {
-                    guard settingsThermostatReturn?.transitionID == returning.transitionID,
-                          presentedSheet?.id == nil, thermostatAdmission.active == nil else { return }
-                    presentThermostat(returning.original.destination)
-                } label: {
-                    Label("Back to thermostat readings", systemImage: "thermometer.medium")
-                        .font(.body.weight(.semibold)).fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                }.padding(.horizontal).background(.regularMaterial)
-            } else if let original = settingsCarReturn {
-                Button {
-                    guard settingsCarReturn?.id == original.id else { return }
-                    let reopened = original.reopened()
-                    #if DEBUG
-                    recordCarTransition("settingsReturned", original: original, reopened: reopened,
-                        transitionID: "car:\(original.id.uuidString)")
-                    #endif
-                    presentCarReadings(reopened)
-                } label: {
-                    Label("Back to car readings", systemImage: "car")
-                        .font(.body.weight(.semibold))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                }
-                .padding(.horizontal)
-                .background(.regularMaterial)
-            }
-        }
-    }
-
-    @ViewBuilder private var previewTab: some View {
-        if inertTabs {
-            Text("Controlled Car route fixture · Preview tab")
-        } else {
-            NavigationStack {
-                AddWidgetGallery(
-                    config: config,
-                    cpSignedIn: (try? CpSessionStore.context().session.isSignedIn) == true,
-                    onPick: { kind in
-                        presentedSheet = .widgetPage(kind, UUID())
-                    },
-                    onConnectHA: {
-                        presentedSheet = .homeAssistantPage(UUID())
-                    }
-                )
-            }
-        }
-    }
-
-    private func refreshFromSettings() {
+    private func refreshFromHome() {
         RefreshSignal.shared.bump()
         if let context = HaConfigStore.context(), let selection = ThermostatSelectionOrigin(context) {
             RefreshSignal.shared.requestThermostatRefresh(ThermostatRefreshRequest(selection: selection))
