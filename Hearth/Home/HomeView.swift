@@ -42,7 +42,8 @@ struct HomeView: View {
                     )
                 }
 
-                // Your widgets strip
+                // Your widgets header + strip
+                YourWidgetsHeader(onAdd: { onRoute(.addWidget) })
                 YourWidgetsStrip(items: builtItems(), onTap: onRoute)
 
                 // Connections section
@@ -131,11 +132,32 @@ struct HomeView: View {
     private func signInBanner() -> some View {
         let haStatus = haConnectionStatus(config)
         if haStatus == .needsSignIn {
-            SignInBanner(message: "Home Assistant needs sign-in to sync your devices") {
+            let affectedWidgets = affectedWidgetNames()
+            let detail = affectedWidgets.isEmpty ? nil : "\(affectedWidgets) are paused"
+            SignInBanner(
+                title: "Home Assistant needs sign-in",
+                detail: detail
+            ) {
                 onRoute(.homeAssistant)
             }
         }
         // CP banner would go here if needed
+    }
+
+    private func affectedWidgetNames() -> String {
+        let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
+        let names = kinds.compactMap { kind -> String? in
+            switch kind {
+            case .thermostat: return "Hallway thermostat"
+            case .alarm: return "Home alarm"
+            case .lights: return "Lights"
+            case .car: return "Stargate"
+            case .chargePoint: return nil
+            case .glance, .doors, .quick, .favourites, .activity, .battery:
+                return kind.displayName
+            }
+        }
+        return names.isEmpty ? "" : names.joined(separator: ", ")
     }
 
     private var footerControls: some View {
