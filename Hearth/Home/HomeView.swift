@@ -16,14 +16,16 @@ struct HomeView: View {
     @State private var cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
     @State private var loading = true
     @State private var loadID = UUID()
+    @State private var toastMessage: String?
     @ObservedObject private var refreshSignal = RefreshSignal.shared
 
     @Environment(\.colorScheme) private var scheme
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                HomeHeader()
+        ZStack(alignment: .bottom) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    HomeHeader()
 
                 // First-run Get-started OR Sign-in banner
                 let ha = haConnectionStatus(config)
@@ -59,14 +61,17 @@ struct HomeView: View {
                 // Look section
                 LookSection(onTap: onRoute)
 
-                // Footer with refresh + sign out
-                footerControls
-                    .padding(.horizontal, 20)
+                    HomeFooter()
+                }
+            }
+            .background(HearthColor.page(scheme).ignoresSafeArea())
 
-                HomeFooter()
+            if let message = toastMessage {
+                ToastOverlay(message: message) {
+                    toastMessage = nil
+                }
             }
         }
-        .background(HearthColor.page(scheme).ignoresSafeArea())
         .task(id: config) { await load() }
         .onDisappear { thermostat.close() }
         .onChange(of: refreshSignal.tick) { Task { await load() } }
@@ -160,26 +165,6 @@ struct HomeView: View {
         return names.isEmpty ? "" : names.joined(separator: ", ")
     }
 
-    private var footerControls: some View {
-        HStack(spacing: 12) {
-            Button {
-                if let context = HaConfigStore.context(), let selection = ThermostatSelectionOrigin(context) {
-                    thermostat.refresh(ThermostatRefreshRequest(selection: selection), source: .dashboardRefresh)
-                }
-                Task { await load() }
-            } label: {
-                Label("Refresh", systemImage: "arrow.clockwise").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-            .disabled(loading)
-
-            Button(role: .destructive, action: onSignOut) {
-                Label("Sign out", systemImage: "rectangle.portrait.and.arrow.right").frame(maxWidth: .infinity)
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(.top, 4)
-    }
 
     private func load() async {
         thermostat.loadCache()

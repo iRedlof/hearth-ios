@@ -634,9 +634,15 @@ struct ContentView: View {
         Group {
             if inertTabs { Text("Controlled Car route fixture · Settings tab") }
             else {
-                SettingsView(config: config, onChange: { config = $0 }, onOpenGallery: {
-                    presentedSheet = .addWidgetGallery(UUID())
-                })
+                SettingsView(
+                    config: config,
+                    onChange: { config = $0 },
+                    onOpenGallery: {
+                        presentedSheet = .addWidgetGallery(UUID())
+                    },
+                    onRefresh: refreshFromSettings,
+                    onSignOut: signOut
+                )
                 .id(HaConfigStore.requestScope())
             }
         }
@@ -689,6 +695,10 @@ struct ContentView: View {
                 )
             }
         }
+    }
+
+    private func refreshFromSettings() {
+        RefreshSignal.shared.bump()
     }
 
     private func signOut() {
