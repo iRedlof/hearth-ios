@@ -6,6 +6,7 @@ import HearthKit
 public enum CommuteStore {
     private static let appGroup = "group.com.rohit.hearth"
     private static let enabledKey = "commute.enabled"
+    private static let checkBeforeLeaveEnabledKey = "commute.checkBeforeLeaveEnabled"
     private static let lastArmDayKey = "commute.lastArmDay"
     private static let lastNotifyDayKey = "commute.lastNotifyDay"
     private static let lastHeardKey = "commute.lastHeard"
@@ -18,6 +19,12 @@ public enum CommuteStore {
     public static var enabled: Bool {
         get { defaults.bool(forKey: enabledKey) } // absent → false (UserDefaults default)
         set { defaults.set(newValue, forKey: enabledKey) }
+    }
+
+    /// Whether the check-before-leave reminder feature is enabled.
+    public static var checkBeforeLeaveEnabled: Bool {
+        get { defaults.bool(forKey: checkBeforeLeaveEnabledKey) } // absent → false (UserDefaults default)
+        set { defaults.set(newValue, forKey: checkBeforeLeaveEnabledKey) }
     }
 
     /// The day stamp (yyyymmdd) of the last `.armAuto` action, for once-per-morning debounce.
