@@ -40,7 +40,7 @@ struct ConnectionsSection: View {
             } label: {
                 HearthRow(
                     icon: "bolt.car.fill",
-                    hue: .green,
+                    hue: .orange,
                     title: "ChargePoint",
                     subtitle: cp.label,
                     subtitleWarn: cp == .needsSignIn
