@@ -132,7 +132,7 @@ struct WidgetPage: View {
             }
             Spacer()
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
         .padding(.top, 20)
     }
 
@@ -164,14 +164,14 @@ struct WidgetPage: View {
                 .font(HearthFont.rowTitle.font)
                 .foregroundStyle(HearthColor.sub(scheme))
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     private var statusSection: some View {
         Text(statusLine)
             .font(HearthFont.rowTitle.font)
             .foregroundStyle(isSetUp && health != .ok ? HearthColor.amber(scheme) : HearthColor.sub(scheme))
-            .padding(.horizontal, 20)
+            .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     @ViewBuilder
@@ -203,8 +203,8 @@ struct WidgetPage: View {
                     Text("Your Tesla is auto-discovered from Home Assistant.")
                         .font(HearthFont.rowTitle.font)
                         .foregroundStyle(HearthColor.sub(scheme))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, HearthMetrics.mediumPadding)
+                        .padding(.vertical, HearthMetrics.mediumPadding)
                 }
             }
 
@@ -251,8 +251,8 @@ struct WidgetPage: View {
                     Text("Your ChargePoint account is used for all charging stations.")
                         .font(HearthFont.rowTitle.font)
                         .foregroundStyle(HearthColor.sub(scheme))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 12)
+                        .padding(.horizontal, HearthMetrics.mediumPadding)
+                        .padding(.vertical, HearthMetrics.mediumPadding)
                 }
             }
 
@@ -280,7 +280,7 @@ struct WidgetPage: View {
                     Spacer()
                     HearthSwitch(isOn: $confirmWithBiometric)
                 }
-                .padding(12)
+                .padding(HearthMetrics.mediumPadding)
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
@@ -314,7 +314,7 @@ struct WidgetPage: View {
                     .font(HearthFont.subtitle.font)
                     .foregroundStyle(HearthColor.sub(scheme))
             }
-            .padding(12)
+            .padding(HearthMetrics.mediumPadding)
         }
     }
 
@@ -342,7 +342,7 @@ struct WidgetPage: View {
                     icon: "paintbrush.fill",
                     hue: .neutral,
                     title: "Card style",
-                    subtitle: "Customize appearance"
+                    subtitle: cardStyleSubtitle
                 )
             }
             .buttonStyle(.plain)
@@ -365,7 +365,7 @@ struct WidgetPage: View {
         .padding(16)
         .background(HearthColor.card(scheme))
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     private var removeSection: some View {
@@ -378,7 +378,7 @@ struct WidgetPage: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     // MARK: - Sheets
@@ -449,7 +449,7 @@ struct WidgetPage: View {
                     showRemove = false
                 }
                 .hearthInk()
-                .padding(.horizontal, 20)
+                .padding(.horizontal, HearthMetrics.pagePadding)
                 .padding(.bottom, 20)
             }
             .navigationTitle("Remove from home screen")
@@ -774,6 +774,29 @@ struct WidgetPage: View {
         guard let data = try? JSONSerialization.data(withJSONObject: ids),
               let s = String(data: data, encoding: .utf8) else { return "[]" }
         return s
+    }
+
+    /// Returns the subtitle for the Card style row: "Same as all widgets · <style>" or "Its own · <style>".
+    private var cardStyleSubtitle: String {
+        let globalStyle = CardStyleStore.global()
+        let override = CardStyleStore.override(for: kind)
+        let effectiveStyle = override ?? globalStyle
+
+        let styleName: String
+        switch effectiveStyle.background {
+        case .byState:
+            styleName = "By state"
+        case .colour(let color):
+            styleName = color.rawValue.capitalized
+        case .black:
+            styleName = "Black"
+        }
+
+        if override != nil {
+            return "Its own · \(styleName)"
+        } else {
+            return "Same as all widgets · \(styleName)"
+        }
     }
 }
 

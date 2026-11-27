@@ -10,7 +10,7 @@ struct HomeHeader: View {
             .font(HearthFont.largeTitle.font)
             .foregroundStyle(HearthColor.ink(colorScheme))
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, HearthMetrics.pagePadding)
             .padding(.top, 20)
     }
 }

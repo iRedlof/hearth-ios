@@ -106,7 +106,7 @@ struct AddWidgetGallery: View {
                 Spacer(minLength: 0)
             }
             .padding(.horizontal, HearthMetrics.rowSidePadding)
-            .padding(.vertical, 12)
+            .padding(.vertical, HearthMetrics.mediumPadding)
             .frame(minHeight: HearthMetrics.rowMinHeight)
             .contentShape(Rectangle())
         }

@@ -73,7 +73,7 @@ struct CardStylePage: View {
                 .foregroundStyle(HearthColor.ink(scheme))
             Spacer()
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
         .padding(.top, 20)
     }
 
@@ -98,7 +98,7 @@ struct CardStylePage: View {
             .background(HearthColor.widgetPreviewBg(scheme))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     private var captionSection: some View {
@@ -106,7 +106,7 @@ struct CardStylePage: View {
             .font(HearthFont.subtitle.font)
             .foregroundStyle(HearthColor.sub(scheme))
             .multilineTextAlignment(.leading)
-            .padding(.horizontal, 20)
+            .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     private var overrideSection: some View {
@@ -136,7 +136,7 @@ struct CardStylePage: View {
                 .padding(.top, 4)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     private var backgroundGroup: some View {
@@ -169,7 +169,7 @@ struct CardStylePage: View {
                 colorPicker
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     private var colorPicker: some View {
@@ -205,7 +205,7 @@ struct CardStylePage: View {
             }
             .pickerStyle(.segmented)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     private var smallPrintGroup: some View {
@@ -220,7 +220,7 @@ struct CardStylePage: View {
                 HearthSwitch(isOn: $style.smallPrint)
             }
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
     // MARK: - Preview Widget

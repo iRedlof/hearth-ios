@@ -82,7 +82,7 @@ public struct StatusPill: View {
                 .minimumScaleFactor(0.8)
                 .lineLimit(2)
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, HearthMetrics.mediumPadding)
         .frame(minHeight: HearthMetrics.chipH)
         .background(
             Capsule()

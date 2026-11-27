@@ -307,7 +307,7 @@ private struct SettingsFixtureEffectsPanel: View {
                 .accessibilityIdentifier("settings.fixture.effects")
                 .accessibilityValue(effects.report + "\n" + runtime.persistedReport)
         }
-        .padding(8)
+        .padding(HearthMetrics.smallPadding)
         .background(.bar)
         .sheet(isPresented: $showingLedger) {
             NavigationStack {

@@ -33,7 +33,7 @@ struct ToastOverlay: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
         .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: HearthMetrics.groupRadius, style: .continuous)

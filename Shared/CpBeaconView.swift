@@ -73,7 +73,7 @@ public struct CpBeaconView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 13).padding(.vertical, 12)
+        .padding(.horizontal, 13).padding(.vertical, HearthMetrics.mediumPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [fill, fill.opacity(0.85)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }

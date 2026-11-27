@@ -79,7 +79,7 @@ public struct CarBeaconView: View {
             statusRow("Tires", snap.tires, snap.tiresWarn, height: rowHeight)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12).padding(.vertical, compact ? 7 : 10)
+        .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, compact ? 7 : 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
@@ -448,7 +448,7 @@ private struct CarReadableSummary: View {
                     }
                 }
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
+            .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
         .foregroundStyle(Color(argb: BeaconSurfaceColors.inkARGB))

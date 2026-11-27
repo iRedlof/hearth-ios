@@ -78,7 +78,7 @@ public struct GlanceView: View {
                     }
                 }
             }
-            .padding(12)
+            .padding(HearthMetrics.mediumPadding)
         }
     }
 
@@ -88,10 +88,10 @@ public struct GlanceView: View {
                 Text(key.label)
                     .font(HearthFont.button.font)
                     .foregroundColor(HearthColor.accent(colorScheme))
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, HearthMetrics.mediumPadding)
                     .padding(.vertical, 6)
                     .background(HearthColor.card(colorScheme))
-                    .cornerRadius(8)
+                    .cornerRadius(HearthMetrics.chipRadius)
             }
         }
     }

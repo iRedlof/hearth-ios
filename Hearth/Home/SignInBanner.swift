@@ -53,7 +53,7 @@ struct SignInBanner: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, HearthMetrics.pagePadding)
         .padding(.vertical, 16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(HearthColor.amberBg(scheme))

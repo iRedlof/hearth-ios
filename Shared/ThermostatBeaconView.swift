@@ -108,7 +108,7 @@ public struct ThermostatBeaconView: View {
             }
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 12).padding(.vertical, compact ? 7 : 10)
+        .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, compact ? 7 : 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
     }
@@ -503,7 +503,7 @@ private struct ThermostatFocusedCard: View {
                         .accessibilityLabel("Example \(payload.snapshot.name). Open readings and controls inactive")
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, HearthMetrics.mediumPadding)
             .frame(width: size.width, height: size.height * 0.54)
             .foregroundStyle(ink)
             .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),
@@ -529,7 +529,7 @@ private struct ThermostatFocusedCard: View {
                         .accessibilityLabel("No context selected")
                 }
             }
-            .padding(.horizontal, 12)
+            .padding(.horizontal, HearthMetrics.mediumPadding)
             .frame(width: size.width, height: size.height * 0.46)
             .foregroundStyle(surfaceInk)
             .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
@@ -606,7 +606,7 @@ private struct ThermostatFocusedCard: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
+        .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .foregroundStyle(ink)
         .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),

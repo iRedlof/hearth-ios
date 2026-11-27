@@ -53,7 +53,7 @@ struct HouseConfirmSheet: View {
                             .font(HearthFont.button.font)
                             .foregroundStyle(HearthColor.onAccent(scheme))
                             .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
+                            .padding(.vertical, HearthMetrics.mediumPadding)
                             .background(HearthColor.ink(scheme))
                             .clipShape(Capsule())
                     }

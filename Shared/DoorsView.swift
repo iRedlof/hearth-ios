@@ -171,7 +171,7 @@ public struct DoorsView: View {
         Button(intent: DoorActionIntent(scope: snap.actionScope ?? "", revision: snap.actionRevision ?? "", id: id, action: action,
             replacingOperation: action == .stop && snap.operation?.pending == true ? snap.operation?.id ?? "" : "")) {
             Text(action.label).font(.system(size: nameSize, weight: .semibold)).foregroundStyle(ink)
-                .padding(.horizontal, 12).frame(height: 34 * fontScale)
+                .padding(.horizontal, HearthMetrics.mediumPadding).frame(height: 34 * fontScale)
                 .background(ink.opacity(0.14), in: Capsule())
         }.buttonStyle(.plain).disabled((snap.actionScope ?? "").isEmpty || (snap.actionRevision ?? "").isEmpty)
     }
