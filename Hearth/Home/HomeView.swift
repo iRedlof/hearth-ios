@@ -67,7 +67,10 @@ struct HomeView: View {
         .onDisappear { thermostat.close() }
         .onChange(of: refreshSignal.tick) { Task { await load() } }
         .onChange(of: refreshSignal.thermostatRefresh) {
-            if let request = refreshSignal.thermostatRefresh { thermostat.refresh(request, source: .glyphRefresh) }
+            if let request = refreshSignal.thermostatRefresh {
+                thermostat.refresh(request, source: .dashboardRefresh)
+                RefreshSignal.shared.thermostatRefresh = nil
+            }
         }
     }
 

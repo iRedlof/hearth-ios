@@ -703,6 +703,9 @@ struct ContentView: View {
 
     private func refreshFromSettings() {
         RefreshSignal.shared.bump()
+        if let context = HaConfigStore.context(), let selection = ThermostatSelectionOrigin(context) {
+            RefreshSignal.shared.requestThermostatRefresh(ThermostatRefreshRequest(selection: selection))
+        }
     }
 
     private func signOut() {
