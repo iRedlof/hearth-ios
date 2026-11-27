@@ -147,7 +147,7 @@ struct WidgetPage: View {
                 Spacer()
             }
             .padding(.vertical, 24)
-            .background(Color(argb: scheme == .dark ? 0xFF3D2F28 : 0xFFFFD4B3))
+            .background(HearthColor.widgetPreviewBg(scheme))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
             // Size picker (only if widget supports multiple sizes)
@@ -426,7 +426,7 @@ struct WidgetPage: View {
         NavigationStack {
             VStack(spacing: 24) {
                 Image(systemName: "hand.tap.fill")
-                    .font(.system(size: 60))
+                    .font(HearthFont.heroLarge.font)
                     .foregroundStyle(HearthColor.sub(scheme))
                     .padding(.top, 40)
 

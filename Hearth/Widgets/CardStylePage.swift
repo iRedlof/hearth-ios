@@ -95,7 +95,7 @@ struct CardStylePage: View {
                 Spacer()
             }
             .padding(.vertical, 24)
-            .background(Color(argb: scheme == .dark ? 0xFF3D2F28 : 0xFFFFD4B3))
+            .background(HearthColor.widgetPreviewBg(scheme))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .padding(.horizontal, 20)
@@ -241,7 +241,7 @@ struct CardStylePage: View {
                 .font(HearthFont.cardHeading.font)
                 .foregroundStyle(HearthColor.ink(scheme))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(argb: 0xFF2A2D2E))
+                .background(HearthColor.placeholderBg(scheme))
         }
     }
 
