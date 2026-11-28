@@ -1,3 +1,4 @@
+import HearthKit
 import SwiftUI
 import WebKit
 
@@ -36,6 +37,41 @@ struct CookieCaptureWebView: UIViewRepresentable {
             self.cookieName = cookieName
             self.allowedDomain = allowedDomain
             self.onCapture = onCapture
+        }
+
+        /// The URL this coordinator last re-issued, so its own load is not intercepted again.
+        private var reissuedURL: URL?
+
+        /// Keeps the login inside this web view. Without this, iOS hands a cross-host navigation
+        /// to the native ChargePoint app when it is installed (its hosts claim universal links),
+        /// the session cookie is never set here, and sign-in cannot complete. The rule lives in
+        /// `webLoginNavigationDecision` (HearthKit), where it is tested.
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
+        ) {
+            let request = navigationAction.request
+            let isReissue = request.url != nil && request.url == reissuedURL
+            if isReissue { reissuedURL = nil }
+            let decision = webLoginNavigationDecision(
+                currentHost: webView.url?.host,
+                target: request.url,
+                isMainFrame: navigationAction.targetFrame?.isMainFrame ?? true,
+                method: request.httpMethod,
+                isReissue: isReissue
+            )
+            switch decision {
+            case .allow:
+                decisionHandler(.allow)
+            case .block:
+                decisionHandler(.cancel)
+            case .reloadInPlace:
+                decisionHandler(.cancel)
+                guard let url = request.url else { return }
+                reissuedURL = url
+                webView.load(URLRequest(url: url))
+            }
         }
 
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
