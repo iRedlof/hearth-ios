@@ -33,4 +33,11 @@ struct HearthFontRampTests {
             #expect(spec.weight == expectedWeight, "Token \(token) weight should be \(expectedWeight), got \(spec.weight)")
         }
     }
+
+    @Test("A card's text size multiplies every token's size")
+    func cardTextScaleMultipliesSize() {
+        #expect(HearthFont.scaledSize(.caption, scale: 1) == 11)
+        #expect(HearthFont.scaledSize(.callout, scale: 0.9) == 14 * 0.9)
+        #expect(HearthFont.scaledSize(.cardHeading, scale: 1.12) == 19 * 1.12)
+    }
 }

@@ -1,360 +1,214 @@
 import SwiftUI
-import WidgetKit
 import HearthKit
 
-/// Card Style settings page: global or per-widget style with live preview.
-/// Allows choosing background (By state / Colour / Black), text size (Smaller / Normal / Larger),
-/// and small-print visibility. Per-widget variant allows override with Undo.
+/// Card style: how the cards look. `kind` nil: "All cards" (a ‹ › stepper walks the preview through
+/// the added widgets); a kind: just that widget, which follows All cards or has its own style.
+/// Every change is saved at once and redraws the widgets. Ported from Android's `CardStylePage.kt`;
+/// Glass, Wallpaper and Corners are left out (see docs/CARD-STYLE-IOS.md).
 @MainActor
 struct CardStylePage: View {
-    let kind: HomeWidgetKind?  // nil = global/all-widgets
+    let kind: HomeWidgetKind?
+    private let config: HaConfig?
+    private let added: [HomeWidgetKind]
+
+    @State private var follows: Bool
     @State private var style: CardStyle
-    @State private var hasOverride: Bool = false
-    @State private var previousOverride: CardStyle?
-    @State private var showUndo: Bool = false
+    @State private var previewIndex = 0
+    @State private var saveError: String?
+    @StateObject private var preview = CardStylePreviewModel()
+    @StateObject private var thermostat = ThermostatLiveModel()
     @Environment(\.colorScheme) private var scheme
 
-    init(kind: HomeWidgetKind? = nil) {
+    init(kind: HomeWidgetKind? = nil, config: HaConfig? = nil, cpSignedIn: Bool = false) {
         self.kind = kind
-        if let kind {
-            // Per-widget: load effective style and check for override
-            let effective = CardStyleStore.effectiveStyle(for: kind)
-            let override = CardStyleStore.override(for: kind)
-            _style = State(initialValue: effective)
-            _hasOverride = State(initialValue: override != nil)
-        } else {
-            // Global: load global style
-            _style = State(initialValue: CardStyleStore.global())
-        }
+        self.config = config
+        self.added = config.map { configuredWidgets(config: $0, chargePointSignedIn: cpSignedIn) } ?? []
+        let follows = cardStyleFollowsAll(forKind: kind)
+        _follows = State(initialValue: follows)
+        _style = State(initialValue: follows ? CardStyleStore.global() : CardStyleStore.effectiveStyle(for: kind))
     }
 
     var body: some View {
         ScrollView {
-            VStack(spacing: 20) {
-                // Title
+            VStack(alignment: .leading, spacing: 20) {
                 titleSection
-
-                // Live preview mat
-                previewMat
-
-                // Caption
-                captionSection
-
-                // Per-widget override toggle (only when kind != nil)
-                if kind != nil {
-                    overrideSection
-                }
-
-                // Background group
-                backgroundGroup
-
-                // Text group
-                textGroup
-
-                // Small print group
-                smallPrintGroup
+                previewSection
+                if let kind { scopeSection(kind) }
+                backgroundSection
+                textSizeSection
+                smallPrintSection
             }
             .padding(.bottom, 20)
         }
         .background(HearthColor.page(scheme))
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
-        .onChange(of: style) { _, newStyle in
-            saveStyle(newStyle)
+        .task(id: shown) { await loadPreview() }
+        .onDisappear { thermostat.close() }
+        .alert("Couldn't save card style", isPresented: Binding(
+            get: { saveError != nil },
+            set: { if !$0 { saveError = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(saveError ?? "")
         }
     }
 
     // MARK: - Sections
 
     private var titleSection: some View {
-        HStack {
-            Text(kind == nil ? "Card style" : "\(kind!.displayName) style")
-                .font(HearthFont.largeTitle.font)
-                .foregroundStyle(HearthColor.ink(scheme))
-            Spacer()
-        }
-        .padding(.horizontal, HearthMetrics.pagePadding)
-        .padding(.top, 20)
+        Text("Card style")
+            .font(HearthFont.largeTitle.font)
+            .foregroundStyle(HearthColor.ink(scheme))
+            .padding(.horizontal, HearthMetrics.pagePadding)
+            .padding(.top, 20)
     }
 
-    private var previewMat: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Live preview widget
-            HStack {
-                Spacer()
-                if let kind {
-                    sampleWidget(for: kind)
-                        .frame(width: 348, height: 155)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+    /// The real widget, as it looks now, over a wallpaper-like backdrop.
+    private var previewSection: some View {
+        VStack(spacing: HearthMetrics.mediumPadding) {
+            WallpaperBackdrop {
+                if let shown {
+                    CardStylePreviewCard(kind: shown, data: preview.data[shown],
+                                         thermostat: thermostat.entry, style: style)
                 } else {
-                    // Global preview: show Alarm as representative
-                    sampleWidget(for: .alarm)
-                        .frame(width: 348, height: 155)
-                        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    Text("Add a widget to see it here")
+                        .font(HearthFont.callout.font)
+                        .foregroundStyle(.white)
+                        .padding(24)
                 }
-                Spacer()
             }
-            .padding(.vertical, 24)
-            .background(HearthColor.widgetPreviewBg(scheme))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            if kind == nil, added.count > 1, let shown {
+                CardStylePreviewStepper(name: widgetDisplayName(custom: WidgetNameStore.name(for: shown),
+                                                                kindDefault: shown.displayName)) { step in
+                    previewIndex = cardStylePreviewIndex(previewIndex, step: step, count: added.count)
+                }
+            }
         }
-        .padding(.horizontal, HearthMetrics.pagePadding)
+        .padding(.horizontal, HearthMetrics.groupInset)
     }
 
-    private var captionSection: some View {
-        Text("iOS applies the style to card content. The OS controls the outer frame and corner shape.")
+    /// Whose style this page changes: every card's (All cards), or just this one's.
+    private func scopeSection(_ kind: HomeWidgetKind) -> some View {
+        VStack(alignment: .leading, spacing: HearthMetrics.smallPadding) {
+            HearthGroup("This card uses") {
+                Picker("This card uses", selection: Binding(get: { follows }, set: { choose(follows: $0, for: kind) })) {
+                    Text("Same as all cards").tag(true)
+                    Text("Just this card").tag(false)
+                }
+                .pickerStyle(.segmented)
+                .padding(HearthMetrics.mediumPadding)
+            }
+            helper(cardStyleScopeHelper(follows: follows, name: displayName(kind)))
+        }
+    }
+
+    private var backgroundSection: some View {
+        VStack(alignment: .leading, spacing: HearthMetrics.smallPadding) {
+            HearthGroup("Background") {
+                CardBackgroundTiles(current: style.background) { save(style.with(background: $0)) }
+                if case .colour(let colour) = style.background {
+                    CardColourSwatches(current: colour) { save(style.with(background: .colour($0))) }
+                }
+            }
+            helper(cardStyleBackgroundHelper)
+        }
+    }
+
+    private var textSizeSection: some View {
+        HearthGroup("Text size") {
+            Picker("Text size", selection: Binding(get: { style.textSize }, set: { save(style.with(textSize: $0)) })) {
+                ForEach(CardTextSize.allCases, id: \.self) { size in
+                    Text(size.label).tag(size)
+                }
+            }
+            .pickerStyle(.segmented)
+            .padding(HearthMetrics.mediumPadding)
+        }
+    }
+
+    private var smallPrintSection: some View {
+        HearthGroup {
+            HearthRow(icon: "textformat.size.smaller", hue: .neutral, title: "Small print",
+                      subtitle: "\"Checked 9:41 AM\" and details") {
+                HearthSwitch(isOn: Binding(get: { style.smallPrint }, set: { save(style.with(smallPrint: $0)) }))
+            }
+        }
+    }
+
+    private func helper(_ text: String) -> some View {
+        Text(text)
             .font(HearthFont.subtitle.font)
             .foregroundStyle(HearthColor.sub(scheme))
-            .multilineTextAlignment(.leading)
-            .padding(.horizontal, HearthMetrics.pagePadding)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.horizontal, HearthMetrics.groupInset + HearthMetrics.mediumPadding)
     }
 
-    private var overrideSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HearthGroupHeader(title: "This card uses")
+    // MARK: - Preview
 
-            Picker("Style source", selection: $hasOverride) {
-                Text("All widgets' style").tag(false)
-                Text("Its own").tag(true)
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: hasOverride) { _, newHasOverride in
-                handleOverrideToggle(newHasOverride)
-            }
-
-            if showUndo {
-                Button {
-                    undoOverride()
-                } label: {
-                    HStack {
-                        Image(systemName: "arrow.uturn.backward")
-                        Text("Undo override")
-                    }
-                    .font(HearthFont.button.font)
-                    .foregroundStyle(HearthColor.accent(scheme))
-                }
-                .padding(.top, 4)
-            }
-        }
-        .padding(.horizontal, HearthMetrics.pagePadding)
+    /// The widget the preview draws: this page's own, else the stepper's pick of the added widgets.
+    private var shown: HomeWidgetKind? {
+        if let kind { return kind }
+        guard !added.isEmpty else { return nil }
+        return added[cardStylePreviewIndex(previewIndex, step: 0, count: added.count)]
     }
 
-    private var backgroundGroup: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HearthGroupHeader(title: "Background")
-
-            Picker("Background", selection: Binding(
-                get: { backgroundSelection },
-                set: { newValue in
-                    switch newValue {
-                    case "byState":
-                        style.background = .byState
-                    case "colour":
-                        style.background = .colour(.ocean)  // default to ocean
-                    case "black":
-                        style.background = .black
-                    default:
-                        break
-                    }
-                }
-            )) {
-                Text("By state").tag("byState")
-                Text("Colour").tag("colour")
-                Text("Black").tag("black")
-            }
-            .pickerStyle(.segmented)
-
-            // Color picker when Colour is selected
-            if case .colour = style.background {
-                colorPicker
-            }
-        }
-        .padding(.horizontal, HearthMetrics.pagePadding)
+    private func loadPreview() async {
+        guard let shown else { return }
+        if shown == .thermostat { thermostat.loadCache() } else { await preview.load(shown, config: config) }
     }
 
-    private var colorPicker: some View {
-        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4), spacing: 12) {
-            ForEach(CardColour.allCases, id: \.self) { colour in
-                Button {
-                    style.background = .colour(colour)
-                } label: {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(argb: colour.fillARGB(scheme)))
-                        .frame(height: 56)
-                        .overlay {
-                            if case .colour(let selected) = style.background, selected == colour {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                    .strokeBorder(.white, lineWidth: 3)
-                            }
-                        }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.top, 8)
+    private func displayName(_ kind: HomeWidgetKind) -> String {
+        widgetDisplayName(custom: WidgetNameStore.name(for: kind), kindDefault: kind.displayName)
     }
 
-    private var textGroup: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HearthGroupHeader(title: "Text")
+    // MARK: - Saving
 
-            Picker("Text size", selection: $style.textSize) {
-                Text("Smaller").tag(CardTextSize.smaller)
-                Text("Normal").tag(CardTextSize.normal)
-                Text("Larger").tag(CardTextSize.larger)
-            }
-            .pickerStyle(.segmented)
-        }
-        .padding(.horizontal, HearthMetrics.pagePadding)
-    }
-
-    private var smallPrintGroup: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HearthGroupHeader(title: "Show 'updated' time")
-
-            HStack {
-                Text("Small print on every card")
-                    .font(HearthFont.rowTitle.font)
-                    .foregroundStyle(HearthColor.ink(scheme))
-                Spacer()
-                HearthSwitch(isOn: $style.smallPrint)
-            }
-        }
-        .padding(.horizontal, HearthMetrics.pagePadding)
-    }
-
-    // MARK: - Preview Widget
-
-    @ViewBuilder
-    private func sampleWidget(for kind: HomeWidgetKind) -> some View {
-        switch kind {
-        case .car:
-            CarBeaconView(.sample, interactionMode: .inert, style: style)
-        case .alarm:
-            AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"), family: .systemMedium,
-                            destination: .inert, style: style)
-        case .thermostat:
-            ThermostatBeaconView(.sample, family: .systemMedium, style: style)
-        default:
-            // Other kinds don't honor CardStyle yet
-            Text("Preview for \(kind.displayName)")
-                .font(HearthFont.cardHeading.font)
-                .foregroundStyle(HearthColor.ink(scheme))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(HearthColor.placeholderBg(scheme))
+    /// Saves `next` where the page is editing now; a failed save puts the controls back.
+    private func save(_ next: CardStyle) {
+        guard next != style else { return }
+        let before = style
+        style = next
+        do {
+            try CardStyleStore.save(next, to: cardStyleSaveTarget(kind: kind, follows: follows))
+        } catch {
+            style = before
+            saveError = error.localizedDescription
         }
     }
 
-    // MARK: - Helpers
-
-    private var backgroundSelection: String {
-        switch style.background {
-        case .byState: return "byState"
-        case .colour: return "colour"
-        case .black: return "black"
+    /// "Same as all cards" drops the card's own style and shows the shared one; "Just this card"
+    /// keeps what the controls show as the card's own.
+    private func choose(follows same: Bool, for kind: HomeWidgetKind) {
+        guard same != follows else { return }
+        let before = (follows: follows, style: style)
+        let next = same ? CardStyleStore.global() : style
+        follows = same
+        style = next
+        do {
+            if same { try CardStyleStore.clearOverride(for: kind) } else { try CardStyleStore.save(next, to: .own(kind)) }
+        } catch {
+            follows = before.follows
+            style = before.style
+            saveError = error.localizedDescription
         }
-    }
-
-    private func saveStyle(_ newStyle: CardStyle) {
-        if let kind, hasOverride {
-            CardStyleStore.setOverride(newStyle, for: kind)
-        } else if kind == nil {
-            CardStyleStore.setGlobal(newStyle)
-        } else {
-            // Following global: save global
-            CardStyleStore.setGlobal(newStyle)
-        }
-    }
-
-    private func handleOverrideToggle(_ newHasOverride: Bool) {
-        guard let kind else { return }
-
-        if newHasOverride {
-            // Switching to override: save current as override
-            previousOverride = CardStyleStore.override(for: kind)
-            CardStyleStore.setOverride(style, for: kind)
-            showUndo = true
-        } else {
-            // Switching to global: clear override
-            previousOverride = CardStyleStore.override(for: kind)
-            CardStyleStore.clearOverride(for: kind)
-            style = CardStyleStore.global()
-            showUndo = true
-        }
-    }
-
-    private func undoOverride() {
-        guard let kind else { return }
-
-        if hasOverride {
-            // Undo override creation: clear and restore global
-            CardStyleStore.clearOverride(for: kind)
-            hasOverride = false
-            style = CardStyleStore.global()
-        } else {
-            // Undo override removal: restore previous override
-            if let previous = previousOverride {
-                CardStyleStore.setOverride(previous, for: kind)
-                hasOverride = true
-                style = previous
-            }
-        }
-        showUndo = false
-    }
-}
-
-// MARK: - Helpers
-
-/// Group header matching the design system.
-private struct HearthGroupHeader: View {
-    let title: String
-    @Environment(\.colorScheme) private var scheme
-
-    var body: some View {
-        Text(title)
-            .font(HearthFont.groupLabel.font)
-            .foregroundStyle(HearthColor.sub(scheme))
-            .textCase(.uppercase)
-            .padding(.top, 8)
-    }
-}
-
-/// Toggle switch matching the design system.
-private struct HearthSwitch: View {
-    @Binding var isOn: Bool
-
-    var body: some View {
-        Toggle("", isOn: $isOn)
-            .labelsHidden()
     }
 }
 
 // MARK: - Previews
 
-#Preview("Global Card Style (Light)") {
-    NavigationStack {
-        CardStylePage(kind: nil)
-    }
-    .preferredColorScheme(.light)
+#Preview("All cards (Light)") {
+    NavigationStack { CardStylePage(kind: nil) }
+        .preferredColorScheme(.light)
 }
 
-#Preview("Global Card Style (Dark)") {
-    NavigationStack {
-        CardStylePage(kind: nil)
-    }
-    .preferredColorScheme(.dark)
+#Preview("All cards (Dark)") {
+    NavigationStack { CardStylePage(kind: nil) }
+        .preferredColorScheme(.dark)
 }
 
-#Preview("Car Card Style (Light)") {
-    NavigationStack {
-        CardStylePage(kind: .car)
-    }
-    .preferredColorScheme(.light)
-}
-
-#Preview("Car Card Style (Dark)") {
-    NavigationStack {
-        CardStylePage(kind: .car)
-    }
-    .preferredColorScheme(.dark)
+#Preview("Car (Light)") {
+    NavigationStack { CardStylePage(kind: .car) }
+        .preferredColorScheme(.light)
 }

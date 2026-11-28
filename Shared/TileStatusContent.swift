@@ -7,7 +7,9 @@ struct TileStatusContent: View {
     let error: String?
     let choice: String
     let empty: String
-    var ink: Color = Color(argb: BeaconSurfaceColors.inkARGB)
+    /// The host card's ink (its own on Status, the Card style's on a chosen background).
+    let ink: Color
+    @Environment(\.cardTextScale) private var textScale
     private var label: String {
         switch state {
         case .setup: "Connect Home Assistant"
@@ -19,11 +21,11 @@ struct TileStatusContent: View {
     }
     var body: some View {
         VStack(spacing: 8) {
-            Text(label).font(HearthFont.cardHeading.font.weight(.semibold)).multilineTextAlignment(.center)
-            if let error { Text(error).font(HearthFont.groupLabel.font).multilineTextAlignment(.center) }
+            Text(label).font(HearthFont.cardHeading.font(scale: textScale).weight(.semibold)).multilineTextAlignment(.center)
+            if let error { Text(error).font(HearthFont.groupLabel.font(scale: textScale)).multilineTextAlignment(.center) }
             if state == .setup || state == .choose || beaconNeedsSettings(error) {
                 Button(intent: HaSetupIntent(reconnect: beaconNeedsSignIn(error))) {
-                    Text(state == .choose ? "Open Settings" : "Connect").font(HearthFont.callout.font.weight(.semibold))
+                    Text(state == .choose ? "Open Settings" : "Connect").font(HearthFont.callout.font(scale: textScale).weight(.semibold))
                         .padding(.horizontal, 16).padding(.vertical, 8)
                         .background(ink.opacity(0.12), in: Capsule())
                 }.buttonStyle(.plain)
@@ -36,10 +38,12 @@ struct TileStatusContent: View {
 
 struct TileMoreContent: View {
     let count: Int
+    let ink: Color
+    @Environment(\.cardTextScale) private var textScale
     var body: some View {
         Button(intent: HaSetupIntent(reconnect: false)) {
-            Text("\(count) more · Settings").font(HearthFont.footnote.font.weight(.semibold))
-                .foregroundStyle(Color(argb: BeaconSurfaceColors.inkARGB).opacity(0.8))
+            Text("\(count) more · Settings").font(HearthFont.footnote.font(scale: textScale).weight(.semibold))
+                .foregroundStyle(ink.opacity(0.8))
         }.buttonStyle(.plain)
     }
 }

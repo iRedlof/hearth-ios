@@ -1,81 +1,73 @@
 import Foundation
 import HearthKit
 import WidgetKit
+import os.log
 
-/// App-Group store for card styling preferences.
-/// Persists a global CardStyle + optional per-kind overrides.
+/// The "All cards" style and each widget kind's own, kept in the App Group so the app and the
+/// widgets read the same values. Android keys a card's own style by placed widget; WidgetKit's
+/// static widgets have no per-placement identity, so iOS keys it by kind.
 public enum CardStyleStore {
     private static let appGroup = "group.com.rohit.hearth"
     private static let globalKey = "cardStyleGlobal"
     private static let overridesKey = "cardStyleOverrides"
+    private static let logger = Logger(subsystem: "com.rohit.hearth", category: "CardStyle")
 
     private static var defaults: UserDefaults {
         UserDefaults(suiteName: appGroup) ?? .standard
     }
 
-    /// Returns the effective style for the given widget kind.
-    /// - Parameter kind: The widget kind to query (nil for global-only lookup).
-    /// - Returns: Override for the kind if present, else global, else `.default`.
+    /// The style a widget of `kind` draws with: its own if it has one, else All cards'.
     public static func effectiveStyle(for kind: HomeWidgetKind?) -> CardStyle {
         guard let kind else { return global() }
         return resolveStyle(global: global(), override: override(for: kind))
     }
 
-    /// Returns the global card style.
+    /// The "All cards" style; `.default` until one is chosen.
     public static func global() -> CardStyle {
-        guard let data = defaults.data(forKey: globalKey),
-              let decoded = try? JSONDecoder().decode(CardStyle.self, from: data) else {
+        guard let data = defaults.data(forKey: globalKey) else { return .default }
+        do {
+            return try JSONDecoder().decode(CardStyle.self, from: data)
+        } catch {
+            logger.error("All-cards style unreadable, using the default: \(error.localizedDescription, privacy: .public)")
             return .default
         }
-        return decoded
     }
 
-    /// Sets the global card style.
-    public static func setGlobal(_ style: CardStyle) {
-        guard let data = try? JSONEncoder().encode(style) else { return }
-        defaults.set(data, forKey: globalKey)
-        // Widget entry views read the effective style at render time; nudge WidgetKit to re-render
-        // so a style change takes effect on the home screen (matches other preference writes).
-        WidgetCenter.shared.reloadAllTimelines()
-    }
-
-    /// Returns the override style for a specific widget kind, if any.
+    /// A widget kind's own style; nil: it follows All cards.
     public static func override(for kind: HomeWidgetKind) -> CardStyle? {
-        guard let data = defaults.data(forKey: overridesKey),
-              let overrides = try? JSONDecoder().decode([String: CardStyle].self, from: data) else {
-            return nil
-        }
-        return overrides[kind.rawValue]
+        loadOverrides()[kind.rawValue]
     }
 
-    /// Sets an override style for a specific widget kind.
-    public static func setOverride(_ style: CardStyle, for kind: HomeWidgetKind) {
-        var overrides = loadOverrides()
-        overrides[kind.rawValue] = style
-        saveOverrides(overrides)
+    /// Saves `style` where the page is editing, then redraws the widgets.
+    public static func save(_ style: CardStyle, to target: CardStyleSaveTarget) throws {
+        switch target {
+        case .allCards:
+            defaults.set(try JSONEncoder().encode(style), forKey: globalKey)
+        case .own(let kind):
+            try saveOverrides(loadOverrides().merging([kind.rawValue: style]) { _, new in new })
+        }
         WidgetCenter.shared.reloadAllTimelines()
     }
 
-    /// Clears the override style for a specific widget kind.
-    public static func clearOverride(for kind: HomeWidgetKind) {
-        var overrides = loadOverrides()
-        overrides.removeValue(forKey: kind.rawValue)
-        saveOverrides(overrides)
+    /// The widget kind follows All cards again.
+    public static func clearOverride(for kind: HomeWidgetKind) throws {
+        try saveOverrides(loadOverrides().filter { $0.key != kind.rawValue })
         WidgetCenter.shared.reloadAllTimelines()
     }
 
     // MARK: - Private Helpers
 
     private static func loadOverrides() -> [String: CardStyle] {
-        guard let data = defaults.data(forKey: overridesKey),
-              let overrides = try? JSONDecoder().decode([String: CardStyle].self, from: data) else {
+        guard let data = defaults.data(forKey: overridesKey) else { return [:] }
+        do {
+            return try JSONDecoder().decode([String: CardStyle].self, from: data)
+        } catch {
+            logger.error("Own card styles unreadable, following All cards: \(error.localizedDescription, privacy: .public)")
             return [:]
         }
-        return overrides
     }
 
-    private static func saveOverrides(_ overrides: [String: CardStyle]) {
-        guard let data = try? JSONEncoder().encode(overrides) else { return }
-        defaults.set(data, forKey: overridesKey)
+    private static func saveOverrides(_ overrides: [String: CardStyle]) throws {
+        defaults.set(try JSONEncoder().encode(overrides), forKey: overridesKey)
     }
 }

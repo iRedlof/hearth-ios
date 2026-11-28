@@ -6,24 +6,47 @@ public struct GlanceView: View {
     private let summary: GlanceSummary
     private let plan: GlanceLayoutPlan
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.cardStyle) private var cardStyle
 
     public init(summary: GlanceSummary, plan: GlanceLayoutPlan) {
         self.summary = summary
         self.plan = plan
     }
 
+    /// Status is the verdict-tinted card; a colour or black shows "needs you" as an accent, and an
+    /// alarm keeps its own colours whatever the style (the way Android's non-Beacon cards do).
+    private var look: CardLook {
+        cardLook(cardStyle, warn: summary.verdict == .needYou, emergency: summary.verdict == .alarm)
+    }
+    private var textScale: CGFloat { look.textScale }
+    private var ink: Color { look.statusColours ? HearthColor.ink(colorScheme) : Color(argb: look.ink) }
+    private var wordInk: Color { look.statusColours ? ink : Color(argb: look.headline) }
+    private var subInk: Color { look.statusColours ? HearthColor.sub(colorScheme) : Color(argb: look.soft) }
+    private var muteInk: Color { look.statusColours ? HearthColor.mute(colorScheme) : Color(argb: look.faint) }
+    private var keyInk: Color { look.statusColours ? HearthColor.accent(colorScheme) : Color(argb: look.ink) }
+    private var keyFill: Color { look.statusColours ? HearthColor.card(colorScheme) : Color(argb: look.key) }
+    /// "Checked …" is small print; a line that tells you what to do is not.
+    private var showsSupport: Bool {
+        plan.showsSupport && glanceShowsSupport(summary.support, smallPrint: look.smallPrint)
+    }
+
     public var body: some View {
         ZStack {
-            // Surface tinted by the verdict tone
-            summary.tone.bg(colorScheme)
-                .ignoresSafeArea()
+            // Surface tinted by the verdict tone, or painted by the Card style
+            if let surface = look.surface {
+                CardSurfaceView(surface).ignoresSafeArea()
+            } else {
+                summary.tone.bg(colorScheme)
+                    .ignoresSafeArea()
+            }
+            CardStatusStrip(look: look)
 
             VStack(alignment: .leading, spacing: plan.compact ? 6 : 8) {
                 // Top row: verdict word (always shown) + optional inline support/key
                 HStack(alignment: .center, spacing: 6) {
                     Text(plan.word)
-                        .font(HearthFont.cardHeading.font)
-                        .foregroundColor(HearthColor.ink(colorScheme))
+                        .font(HearthFont.cardHeading.font(scale: textScale))
+                        .foregroundColor(wordInk)
                         .lineLimit(1)
 
                     Spacer()
@@ -34,10 +57,10 @@ public struct GlanceView: View {
                     }
 
                     // Support inline beside word (compact only, if showsSupport + no key OR no room)
-                    if plan.showsSupport && plan.compact && !plan.showsKey {
+                    if showsSupport && plan.compact && !plan.showsKey {
                         Text(summary.support)
-                            .font(HearthFont.subtitle.font)
-                            .foregroundColor(HearthColor.sub(colorScheme))
+                            .font(HearthFont.subtitle.font(scale: textScale))
+                            .foregroundColor(subInk)
                             .lineLimit(1)
                     }
                 }
@@ -46,25 +69,25 @@ public struct GlanceView: View {
                 if plan.showsLines > 0 {
                     ForEach(summary.lines.prefix(plan.showsLines), id: \.self) { line in
                         Text(line)
-                            .font(HearthFont.subtitle.font)
-                            .foregroundColor(HearthColor.ink(colorScheme))
+                            .font(HearthFont.subtitle.font(scale: textScale))
+                            .foregroundColor(ink)
                             .lineLimit(1)
                     }
                 }
 
                 // Support text (tall only, if showsSupport)
-                if plan.showsSupport && !plan.compact {
+                if showsSupport && !plan.compact {
                     Text(summary.support)
-                        .font(HearthFont.subtitle.font)
-                        .foregroundColor(HearthColor.sub(colorScheme))
+                        .font(HearthFont.subtitle.font(scale: textScale))
+                        .foregroundColor(subInk)
                         .lineLimit(1)
                 }
 
                 // Calm line (tall only, OK state)
                 if plan.showsCalmLine, let calmLine = summary.calmLine {
                     Text(calmLine)
-                        .font(HearthFont.subtitle.font)
-                        .foregroundColor(HearthColor.mute(colorScheme))
+                        .font(HearthFont.subtitle.font(scale: textScale))
+                        .foregroundColor(muteInk)
                         .lineLimit(1)
                 }
 
@@ -86,11 +109,11 @@ public struct GlanceView: View {
         Group {
             if let key = summary.key {
                 Text(key.label)
-                    .font(HearthFont.button.font)
-                    .foregroundColor(HearthColor.accent(colorScheme))
+                    .font(HearthFont.button.font(scale: textScale))
+                    .foregroundColor(keyInk)
                     .padding(.horizontal, HearthMetrics.mediumPadding)
                     .padding(.vertical, 6)
-                    .background(HearthColor.card(colorScheme))
+                    .background(keyFill)
                     .cornerRadius(HearthMetrics.chipRadius)
             }
         }

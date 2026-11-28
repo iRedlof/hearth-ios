@@ -183,10 +183,11 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
   - **Every day** — Goodnight-key route rows (defer to Phase 5, currently route to `.settings`)
   - **Look** — Card style link
   - **Remove** — Remove-from-Home CTA
-- **CardStylePage** — Global card appearance settings (portable axes only)
-  - **Background:** By state / Colour / Black
-  - **Text size:** Standard text / Small print adjusters
-  - **Platform divergence (documented):** iOS omits Corners/Glass/Wallpaper from Android mocks 17/18 because WidgetKit controls the live-widget container shape+background; the page does not present controls that are no-ops on a real widget.
+- **CardStylePage** — All-cards and per-widget card appearance, ported from Android's `CardStylePage.kt` (see `docs/CARD-STYLE-IOS.md`)
+  - **Background:** Status / Colour (8 swatches) / Black
+  - **Text size:** Smaller / Normal / Larger
+  - **Small print:** on / off
+  - **Platform divergence (owner decision 2026-11-27):** iOS leaves out Corners/Glass/Wallpaper because an iPhone widget cannot draw them; the page does not present controls that are no-ops on a real widget.
 
 **Glance honesty ruling:**
 Glance summarises only what placed widgets last read (no new network fetch). Unreadable or stale saved state yields "can't check" or error states, never a false "OK". This prevents showing stale data as current.
@@ -206,13 +207,12 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 
 **Deferred to Phase 6:**
 - 6 Glance provider feeds not yet wired (Car/Alarm/Thermostat/Doors/Battery/ChargePoint — only placeholders in GlanceSnapshot)
-- CardStyle threaded into only 3 widgets so far (Car/Alarm/Thermostat Beacons)
 - Goodnight-key Every-day rows route to `.settings` placeholder until Phase 5 builds real destinations
 
 **Parity vs Android mocks:**
 - Gallery categories and status chips match Android design (mocks 04/11)
 - WidgetPage preview mat with slot-size picker matches Android mock 16
-- CardStylePage portable axes (Background/Text) match Android mock 17 portable subset
+- CardStylePage matches Android top to bottom for the axes iOS can draw (Background/Text size/Small print); every widget kind reads the style
 - **Platform divergence:** iOS intentionally omits Corners/Glass/Wallpaper (Android mock 18) — documented above
 
 ---

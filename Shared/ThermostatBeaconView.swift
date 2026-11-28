@@ -11,44 +11,39 @@ public struct ThermostatBeaconView: View {
     public let snap: ThermostatSnapshot
     private let payload: ThermostatEntryPayload?
     private let family: WidgetFamily
-    private let style: CardStyle
     /// The opened Mode/Fan choices for this exact entry; nil draws the ordinary Mode / Fan / Resume row.
     private let inlineChoices: ThermostatInlineChoices?
     /// Only the Home Screen widget opens choices in its own row; in-app hosts keep the in-app picker.
     private let inlinePicker: Bool
     @Environment(\.dynamicTypeSize) private var dynamicType
-    @Environment(\.colorScheme) private var scheme
+    @Environment(\.cardStyle) private var cardStyle
 
     public init(_ snap: ThermostatSnapshot, family: WidgetFamily = .systemMedium,
-                style: CardStyle = .default, inlineChoices: ThermostatInlineChoices? = nil,
-                inlinePicker: Bool = false) {
+                inlineChoices: ThermostatInlineChoices? = nil, inlinePicker: Bool = false) {
         self.snap = snap
         self.payload = nil
         self.family = family
-        self.style = style
         self.inlineChoices = inlineChoices
         self.inlinePicker = inlinePicker
     }
     public init(_ payload: ThermostatEntryPayload, family: WidgetFamily = .systemMedium,
-                style: CardStyle = .default, inlineChoices: ThermostatInlineChoices? = nil,
-                inlinePicker: Bool = false) {
+                inlineChoices: ThermostatInlineChoices? = nil, inlinePicker: Bool = false) {
         self.snap = payload.snapshot
         self.payload = payload
         self.family = family
-        self.style = style
         self.inlineChoices = inlineChoices
         self.inlinePicker = inlinePicker
     }
 
-    private var fill: Color {
-        Color(argb: cardContentFillARGB(style.background, tone: snap.tone.fillARGB, scheme))
-    }
+    /// The Card style paints the body; the rail keeps the mode's colour and its own ink.
+    private var look: BeaconLook { beaconLook(cardStyle) }
+    private var fill: Color { Color(argb: snap.tone.fillARGB) }
     private var ink: Color { Color(argb: snap.tone.inkARGB) }
-    private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
+    private var surfaceInk: Color { Color(argb: look.ink) }
     private var isSetup: Bool { snap.setup }
     private var isOff: Bool { snap.mode.caseInsensitiveCompare("Off") == .orderedSame }
     private var stale: Bool { snap.stale }
-    private var textScale: CGFloat { style.textSize.scale }
+    private var textScale: CGFloat { look.textScale }
     private var selectionRevision: String { snap.evidence?.origin?.selectionRevision ?? "" }
     private var observedMode: String {
         snap.evidence.flatMap { $0.readings[$0.entityID] }.flatMap { ClimateState.fromJson($0.json)?.mode } ?? ""
@@ -60,7 +55,7 @@ public struct ThermostatBeaconView: View {
                 // Snapshot-only entries are inert gallery/WidgetKit placeholders.
                 ThermostatSmallCard(payload: payload ?? ThermostatParityInputs.payload("auto"))
             } else if let payload, family == .systemMedium, dynamicType >= .xxxLarge {
-                ThermostatFocusedCard(payload: payload, style: style)
+                ThermostatFocusedCard(payload: payload)
             } else {
                 ordinaryBody
             }
@@ -78,6 +73,7 @@ public struct ThermostatBeaconView: View {
                     .frame(width: geo.size.width - s.rail, height: geo.size.height, alignment: .topLeading)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .background(CardSurfaceView(look.body))
         }
     }
 
@@ -92,25 +88,25 @@ public struct ThermostatBeaconView: View {
                 Image(systemName: "thermometer.medium").font(HearthFont.groupLabel.font).foregroundStyle(ink.opacity(0.9))
             }
             .frame(height: 43, alignment: .leading)
-            Text(snap.roomSub).font(HearthFont.footnote.font.weight(.medium)).foregroundStyle(ink)
+            Text(snap.roomSub).font(HearthFont.footnote.font(scale: textScale).weight(.medium)).foregroundStyle(ink)
                 .lineLimit(1).frame(height: 15, alignment: .leading)
             if let h = snap.humidity {
-                Text(h).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+                Text(h).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                     .frame(height: 15, alignment: .leading)
             }
-            Text(snap.commandFeedback ?? snap.status).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+            Text(snap.commandFeedback ?? snap.status).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                 .frame(height: 15, alignment: .leading)
                 .accessibilityLabel(snap.commandError ?? snap.error ?? snap.commandFeedback ?? snap.status)
             Rectangle().fill(ink.opacity(0.26)).frame(height: 1).padding(.vertical, compact ? 1 : 2)
             ForEach(snap.sensors.prefix(3), id: \.id) { s in
                 HStack(spacing: 3) {
-                    Text(s.name).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+                    Text(s.name).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
                     Spacer(minLength: 2)
                     HStack(spacing: 2) {
                         if s.stale {
                             Image(systemName: "clock").font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.85))
                         }
-                        Text(s.value).font(HearthFont.footnote.font.weight(.bold)).foregroundStyle(ink).lineLimit(1)
+                        Text(s.value).font(HearthFont.footnote.font(scale: textScale).weight(.bold)).foregroundStyle(ink).lineLimit(1)
                     }.layoutPriority(1)
                 }.frame(height: compact ? 16 : 17)
                     .accessibilityElement(children: .ignore)
@@ -120,10 +116,10 @@ public struct ThermostatBeaconView: View {
         }
         .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, compact ? 7 : 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .background(BeaconRailBackground(fillARGB: snap.tone.fillARGB, fade: 0.9))
     }
 
-    // MARK: Right — controls
+    // MARK: Right — controls, on the body the Card style paints
     private func right(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
@@ -132,7 +128,7 @@ public struct ThermostatBeaconView: View {
                 // Use the shared freshness cluster (Checked stamp + circular refresh button to its RIGHT),
                 // same as Alarm/Car/ChargePoint and Android — was a bespoke header (bare icon on the left).
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.thermostat", ink: surfaceInk,
-                    thermostatSelection: snap.evidence?.origin, showSmallPrint: style.smallPrint)
+                    thermostatSelection: snap.evidence?.origin)
             }
             .frame(height: 26, alignment: .top)
             BeaconMiddle(maximumHeight: 92) { middleContent }
@@ -144,7 +140,6 @@ public struct ThermostatBeaconView: View {
         }
         .padding(.horizontal, 13).padding(.top, compact ? 8 : 11).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }
 
     @ViewBuilder private var middleContent: some View {
@@ -154,17 +149,17 @@ public struct ThermostatBeaconView: View {
             offCard
         } else if snap.heatSetpoint == nil && snap.coolSetpoint == nil {
             VStack(spacing: 3) {
-                Text(stale ? "Unavailable" : snap.mode).font(HearthFont.callout.font.weight(.semibold))
+                Text(stale ? "Unavailable" : snap.mode).font(HearthFont.callout.font(scale: textScale).weight(.semibold))
                 if !stale {
-                    Text("No temperature target").font(HearthFont.footnote.font)
+                    Text("No temperature target").font(HearthFont.footnote.font(scale: textScale))
                         .foregroundStyle(surfaceInk.opacity(0.7)).multilineTextAlignment(.center)
                 }
             }
             .foregroundStyle(surfaceInk).frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             VStack(alignment: .leading, spacing: 5) {
-                if let heat = snap.heatSetpoint { setpointRow("Heat to", heat, 0xFFF6D58A, side: .heat) }
-                if let cool = snap.coolSetpoint { setpointRow("Cool to", cool, 0xFFA6D5FF, side: .cool) }
+                if let heat = snap.heatSetpoint { setpointRow("Heat to", heat, look.heat, side: .heat) }
+                if let cool = snap.coolSetpoint { setpointRow("Cool to", cool, look.cool, side: .cool) }
             }.disabled(stale)
         }
     }
@@ -232,12 +227,12 @@ public struct ThermostatBeaconView: View {
     }
 
     private func choiceChip(_ option: ThermostatInlineOption, kind: String) -> some View {
-        Text(option.label).font(HearthFont.footnote.font.weight(.semibold))
+        Text(option.label).font(HearthFont.footnote.font(scale: textScale).weight(.semibold))
             .foregroundStyle(option.isCurrent ? ink : surfaceInk)
             .lineLimit(1).minimumScaleFactor(ControlChip.choiceScale)
             .padding(.horizontal, ControlChip.choiceInset)
             .frame(maxWidth: .infinity).frame(height: ControlChip.height)
-            .background(option.isCurrent ? fill : Color.white.opacity(ControlChip.enabledFill),
+            .background(option.isCurrent ? fill : Color(argb: look.chip),
                         in: RoundedRectangle(cornerRadius: ControlChip.radius))
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(thermostatInlineAccessibilityLabel(kind: kind, option: option))
@@ -246,42 +241,42 @@ public struct ThermostatBeaconView: View {
 
     /// Setup middle CTA — a large recessed "Set up thermostat" button filling the mid-region (Android parity).
     private var setupCta: some View {
-        Text("Set up thermostat").font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk)
+        Text("Set up thermostat").font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 13))
+            .background(Color(argb: look.chipFaint), in: RoundedRectangle(cornerRadius: 13))
     }
 
     /// Setup bottom action — a full-width "Connect" in place of the Mode/Fan/Resume row.
     private var connectButton: some View {
         Button(intent: HaSetupIntent(reconnect: snap.needsSignIn)) {
             Text(snap.needsSignIn ? "Sign in" : isSetup ? "Connect" : "Open Settings")
-                .font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk)
+                .font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
                 .frame(maxWidth: .infinity).frame(height: 34)
-                .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+                .background(Color(argb: look.chip), in: RoundedRectangle(cornerRadius: 9))
         }.buttonStyle(.plain)
     }
 
     /// Off middle message — a recessed card "Off / Choose a mode to turn on" (Android parity).
     private var offCard: some View {
         VStack(spacing: 3) {
-            Text("Off").font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(surfaceInk)
-            Text("Choose a mode to turn on").font(HearthFont.footnote.font).foregroundStyle(surfaceInk.opacity(0.7))
+            Text("Off").font(HearthFont.callout.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
+            Text("Choose a mode to turn on").font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(surfaceInk.opacity(0.7))
                 .multilineTextAlignment(.center).lineLimit(2).minimumScaleFactor(0.8)
         }
         .padding(.horizontal, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 13))
+        .background(Color(argb: look.chipFaint), in: RoundedRectangle(cornerRadius: 13))
     }
 
     private func setpointRow(_ label: String, _ value: String, _ valueColor: UInt32, side: ClimateSide) -> some View {
         HStack(spacing: 5) {
-            Text(label).font(HearthFont.footnote.font).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
+            Text(label).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(surfaceInk).lineLimit(1).minimumScaleFactor(0.8)
             Spacer(minLength: 2)
             Button(intent: ClimateSetpointIntent("\(side.rawValue)Down", entityID: snap.entityID,
                 scope: snap.requestScope, revision: snap.climateRevision, selectionRevision: selectionRevision, expectedMode: observedMode)) {
                 Image(systemName: "minus.circle.fill").font(HearthFont.iconMedium.font).foregroundStyle(surfaceInk.opacity(0.85))
             }.buttonStyle(.plain).disabled(!canAdjust(side, up: false)).opacity(canAdjust(side, up: false) ? 1 : 0.4)
-            Text(value).font(HearthFont.cardHeading.font.weight(.semibold))
+            Text(value).font(HearthFont.cardHeading.font(scale: textScale).weight(.semibold))
                 .foregroundStyle(stale ? Color(argb: BeaconTone.offline.fillARGB) : Color(argb: valueColor))
                 .lineLimit(1).frame(minWidth: 36)
             Button(intent: ClimateSetpointIntent("\(side.rawValue)Up", entityID: snap.entityID,
@@ -298,13 +293,13 @@ public struct ThermostatBeaconView: View {
 
     private func chip(_ label: String?, _ value: String, enabled: Bool) -> some View {
         VStack(spacing: 0) {
-            if let label { Text(label).font(HearthFont.caption.font).foregroundStyle(surfaceInk.opacity(0.7)) }
-            Text(value).font(HearthFont.footnote.font.weight(.semibold))
+            if let label { Text(label).font(HearthFont.caption.font(scale: textScale)).foregroundStyle(surfaceInk.opacity(0.7)) }
+            Text(value).font(HearthFont.footnote.font(scale: textScale).weight(.semibold))
                 .foregroundStyle(surfaceInk.opacity(enabled ? 1 : 0.82))
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
         .frame(maxWidth: .infinity).frame(height: ControlChip.height)
-        .background(Color.white.opacity(enabled ? ControlChip.enabledFill : ControlChip.disabledFill),
+        .background(Color(argb: enabled ? look.chip : look.chipFaint),
                     in: RoundedRectangle(cornerRadius: ControlChip.radius))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label.map { $0 + ", " } ?? "")\(value)\(enabled ? "" : ", control unavailable")")
@@ -316,8 +311,6 @@ private enum ControlChip {
     static let spacing: CGFloat = 6
     static let height: CGFloat = 34
     static let radius: CGFloat = 9
-    static let enabledFill = 0.1
-    static let disabledFill = 0.06
     /// Up to seven modes share the row on one line, so their names may shrink further than a value chip's.
     static let choiceScale: CGFloat = 0.6
     static let choiceInset: CGFloat = 3
@@ -492,8 +485,8 @@ private struct ThermostatSmallCard: View {
 /// The complete destination keeps the controls/readings; this card's footer only navigates.
 private struct ThermostatFocusedCard: View {
     let payload: ThermostatEntryPayload
-    let style: CardStyle
     @Environment(\.dynamicTypeSize) private var dynamicType
+    @Environment(\.cardStyle) private var cardStyle
     @ScaledMetric(relativeTo: .largeTitle) private var roomSize: CGFloat = 36
     @ScaledMetric(relativeTo: .body) private var detailSize: CGFloat = 17
     @ScaledMetric(relativeTo: .subheadline) private var captionSize: CGFloat = 15
@@ -503,8 +496,10 @@ private struct ThermostatFocusedCard: View {
         thermostatFocusedContent(payload.presentation, accessibility: dynamicType.isAccessibilitySize,
             destination: payload.destination)
     }
+    private var look: BeaconLook { beaconLook(cardStyle) }
+    private var textScale: CGFloat { look.textScale }
     private var ink: Color { Color(argb: content.tone.inkARGB) }
-    private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
+    private var surfaceInk: Color { Color(argb: look.ink) }
     private var destination: URL? { thermostatReadingsURL(for: payload.destination) }
 
     var body: some View {
@@ -523,11 +518,11 @@ private struct ThermostatFocusedCard: View {
                     }
                     .padding(.horizontal, 13).padding(.top, 8).padding(.bottom, 6)
                     .frame(width: geometry.size.width - split.rail, height: geometry.size.height)
-                    .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
             }
         }
+        .background(CardSurfaceView(look.body))
         .accessibilityIdentifier("thermostat.readable-medium")
     }
 
@@ -543,14 +538,14 @@ private struct ThermostatFocusedCard: View {
                     }
                     if let number = thermostatFocusedNumberText(content.room, summary: true) {
                         Text(number)
-                            .font(.system(size: roomSize, weight: .heavy)).monospacedDigit()
+                            .font(.system(size: roomSize * textScale, weight: .heavy)).monospacedDigit()
                             .fixedSize(horizontal: true, vertical: true)
                         Text(content.room.reportedUnit ?? "?")
-                            .font(.system(size: captionSize, weight: .medium))
+                            .font(.system(size: captionSize * textScale, weight: .medium))
                             .fixedSize(horizontal: true, vertical: true)
                     } else {
                         Text(accessibilityRoomPlaceholder)
-                            .font(.system(size: detailSize, weight: .semibold)).lineLimit(1)
+                            .font(.system(size: detailSize * textScale, weight: .semibold)).lineLimit(1)
                     }
                 }
                 .accessibilityElement(children: .ignore)
@@ -569,12 +564,11 @@ private struct ThermostatFocusedCard: View {
             .padding(.horizontal, HearthMetrics.mediumPadding)
             .frame(width: size.width, height: size.height * 0.54)
             .foregroundStyle(ink)
-            .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),
-                Color(argb: content.tone.fillARGB).opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .background(BeaconRailBackground(fillARGB: content.tone.fillARGB, fade: 0.9))
             Group {
                 if let context = content.context {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(context.name).font(.system(size: captionSize, weight: .medium))
+                        Text(context.name).font(.system(size: captionSize * textScale, weight: .medium))
                             .lineLimit(1).truncationMode(.tail)
                         Spacer(minLength: 0)
                         if let symbol = accessibilityContextStatusSymbol(context) {
@@ -582,20 +576,19 @@ private struct ThermostatFocusedCard: View {
                                 .font(.system(size: captionSize))
                                 .fixedSize(horizontal: true, vertical: true).accessibilityHidden(true)
                         }
-                        Text(accessibilityReadingValue(context)).font(.system(size: detailSize, weight: .semibold))
+                        Text(accessibilityReadingValue(context)).font(.system(size: detailSize * textScale, weight: .semibold))
                             .fixedSize(horizontal: true, vertical: true)
                     }
                     .accessibilityElement(children: .ignore)
                     .accessibilityLabel(thermostatFocusedReadingAccessibility(context))
                 } else {
-                    Text("No context").font(.system(size: captionSize)).lineLimit(1)
+                    Text("No context").font(.system(size: captionSize * textScale)).lineLimit(1)
                         .accessibilityLabel("No context selected")
                 }
             }
             .padding(.horizontal, HearthMetrics.mediumPadding)
             .frame(width: size.width, height: size.height * 0.46)
             .foregroundStyle(surfaceInk)
-            .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
         }
         .frame(width: size.width, height: size.height)
     }
@@ -604,6 +597,7 @@ private struct ThermostatFocusedCard: View {
         Image(systemName: "chevron.right")
             .font(.system(size: captionSize, weight: .semibold))
             .frame(width: 44, height: 44)
+            // On the rail, which no Card style reaches: its own fixed chip.
             .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
     }
 
@@ -644,36 +638,35 @@ private struct ThermostatFocusedCard: View {
         VStack(alignment: .leading, spacing: 6) {
             if let number = thermostatFocusedNumberText(content.room, summary: true) {
                 Text(number)
-                    .font(.system(size: roomSize, weight: .heavy)).monospacedDigit()
+                    .font(.system(size: roomSize * textScale, weight: .heavy)).monospacedDigit()
                     .fixedSize(horizontal: true, vertical: true)
                 Text("\(content.roomAttribution) · \(content.room.reportedUnit ?? "Unit not reported")")
-                    .font(.system(size: captionSize, weight: .medium))
+                    .font(.system(size: captionSize * textScale, weight: .medium))
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text(content.roomAttribution).font(.system(size: detailSize, weight: .semibold))
+                Text(content.roomAttribution).font(.system(size: detailSize * textScale, weight: .semibold))
                     .fixedSize(horizontal: false, vertical: true)
             }
             if let context = content.context {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(context.name).font(.system(size: captionSize, weight: .medium))
-                    Text(readingValue(context)).font(.system(size: detailSize, weight: .semibold))
+                    Text(context.name).font(.system(size: captionSize * textScale, weight: .medium))
+                    Text(readingValue(context)).font(.system(size: detailSize * textScale, weight: .semibold))
                     if context.availability == .lastKnown {
-                        Text("Last known").font(.system(size: captionSize))
+                        Text("Last known").font(.system(size: captionSize * textScale))
                     }
                 }
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(thermostatFocusedReadingAccessibility(context))
             } else {
-                Text("No context selected").font(.system(size: captionSize))
+                Text("No context selected").font(.system(size: captionSize * textScale))
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .foregroundStyle(ink)
-        .background(LinearGradient(colors: [Color(argb: content.tone.fillARGB),
-            Color(argb: content.tone.fillARGB).opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .background(BeaconRailBackground(fillARGB: content.tone.fillARGB, fade: 0.9))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(payload.snapshot.name). "
             + thermostatFocusedReadingAccessibility(content.room, attribution: content.roomAttribution) + ". "
@@ -684,24 +677,24 @@ private struct ThermostatFocusedCard: View {
         VStack(alignment: .leading, spacing: 6) {
             if showHeader {
                 HStack(alignment: .top, spacing: 6) {
-                    Text(payload.snapshot.name).font(.system(size: identitySize, weight: .bold)).lineLimit(1)
+                    Text(payload.snapshot.name).font(.system(size: identitySize * textScale, weight: .bold)).lineLimit(1)
                     Spacer(minLength: 2)
                     BeaconFreshness(checkedAt: payload.snapshot.checkedAt, kind: "com.rohit.hearth.thermostat",
                         ink: surfaceInk, interactionsEnabled: payload.destination != .inert,
-                        thermostatSelection: payload.presentation.origin, showSmallPrint: style.smallPrint)
+                        thermostatSelection: payload.presentation.origin)
                 }
             }
             Spacer(minLength: 0)
             VStack(alignment: .leading, spacing: 4) {
                 Text(content.recoveryTitle ?? content.mode)
-                    .font(.system(size: detailSize, weight: .semibold))
+                    .font(.system(size: detailSize * textScale, weight: .semibold))
                     .fixedSize(horizontal: false, vertical: true)
                 if content.recoveryTitle != nil {
-                    Text(content.mode).font(.system(size: captionSize))
+                    Text(content.mode).font(.system(size: captionSize * textScale))
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if showTarget, let target = content.target {
-                    Text(target).font(.system(size: detailSize))
+                    Text(target).font(.system(size: detailSize * textScale))
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
@@ -719,12 +712,12 @@ private struct ThermostatFocusedCard: View {
 
     private var openLabel: some View {
         HStack(spacing: 5) {
-            Text(content.footerLabel).font(.system(size: detailSize, weight: .semibold))
+            Text(content.footerLabel).font(.system(size: detailSize * textScale, weight: .semibold))
             Image(systemName: "chevron.right").font(.system(size: captionSize)).accessibilityHidden(true)
         }
         .padding(.horizontal, 8).padding(.vertical, 6)
         .frame(maxWidth: .infinity, minHeight: 44)
-        .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
+        .background(Color(argb: look.chip), in: RoundedRectangle(cornerRadius: 9))
     }
 
     private func readingValue(_ reading: ThermostatReadingFacet) -> String {

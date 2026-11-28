@@ -8,34 +8,29 @@ public struct AlarmBeaconView: View {
     public let snap: AlarmSnapshot
     public let family: WidgetFamily
     private let destination: AlarmReadingsDestination
-    private let style: CardStyle
-    @Environment(\.colorScheme) private var scheme
+    @Environment(\.cardStyle) private var cardStyle
 
     public init(_ snap: AlarmSnapshot, family: WidgetFamily = .systemMedium,
-                destination: AlarmReadingsDestination = .inert,
-                style: CardStyle = .default) {
+                destination: AlarmReadingsDestination = .inert) {
         self.snap = snap
         self.family = family
         self.destination = destination
-        self.style = style
     }
-    public init(_ payload: AlarmReadingsEntryPayload, family: WidgetFamily,
-                style: CardStyle = .default) {
-        self.init(payload.snapshot, family: family, destination: payload.destination, style: style)
+    public init(_ payload: AlarmReadingsEntryPayload, family: WidgetFamily) {
+        self.init(payload.snapshot, family: family, destination: payload.destination)
     }
 
-    private var fill: Color {
-        Color(argb: cardContentFillARGB(style.background, tone: snap.tone.fillARGB, scheme))
-    }
-    private var ink: Color { Color(argb: snap.tone.inkARGB) }                 // dark text on the light tone rail
-    private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) } // bright text on graphite
+    /// The Card style paints the body; the rail keeps the alarm's state colour and its own ink.
+    private var look: BeaconLook { beaconLook(cardStyle) }
+    private var ink: Color { Color(argb: snap.tone.inkARGB) }       // the rail's own ink
+    private var surfaceInk: Color { Color(argb: look.ink) }         // the body's ink, for the chosen style
     private var hasOrigin: Bool { !snap.requestScope.isEmpty && !snap.alarmRevision.isEmpty }
-    private var textScale: CGFloat { style.textSize.scale }
+    private var textScale: CGFloat { look.textScale }
     private var doorStatusColor: Color {
         if snap.doorStale || snap.doorError != nil { return surfaceInk.opacity(0.78) }
         switch snap.doorLocked {
-        case .some(true):  return Color(argb: 0xFF8FD6A8)   // green when locked
-        case .some(false): return Color(argb: 0xFFF2A0A4)   // red when unlocked
+        case .some(true):  return Color(argb: look.secure)  // green when locked
+        case .some(false): return Color(argb: look.alert)   // red when unlocked
         case nil:          return surfaceInk.opacity(0.75)  // unknown / in-transit
         }
     }
@@ -52,6 +47,7 @@ public struct AlarmBeaconView: View {
                 rail.frame(width: s.rail)
                 surface.frame(maxWidth: .infinity)
             }
+            .background(CardSurfaceView(look.body))
         }
     }
 
@@ -63,29 +59,28 @@ public struct AlarmBeaconView: View {
             Text(snap.stateWord)
                 .font(.system(size: (snap.stateWord.count > 10 ? 20 : 25) * textScale, weight: .heavy)).tracking(-0.5)
                 .foregroundStyle(ink).lineLimit(2).minimumScaleFactor(0.7).fixedSize(horizontal: false, vertical: true)
-            Text(snap.commandFeedback ?? snap.detail).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.82))
+            Text(snap.commandFeedback ?? snap.detail).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(ink.opacity(0.82))
                 .lineLimit(3).padding(.top, 3)
                 .accessibilityLabel(snap.commandError ?? snap.commandFeedback ?? snap.detail)
         }
         .padding(.horizontal, 13).padding(.vertical, 13)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(LinearGradient(colors: [fill, fill.opacity(0.88)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .background(BeaconRailBackground(fillARGB: snap.tone.fillARGB, fade: 0.88))
     }
 
-    // MARK: Right — dark surface (home, door, actions)
+    // MARK: Right — the body (home, door, actions), painted by the Card style
     private var surface: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
                 Text(alarmTitle).font(.system(size: 16 * textScale, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
-                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk,
-                                showSmallPrint: style.smallPrint)
+                BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk)
             }
             BeaconMiddle(maximumHeight: 72) {
                 if snap.setup {
-                    Text("Set up home alarm").font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(surfaceInk)
+                    Text("Set up home alarm").font(HearthFont.callout.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 13))
+                        .background(Color(argb: look.chipFaint), in: RoundedRectangle(cornerRadius: 13))
                 } else {
                     doorRow
                 }
@@ -93,9 +88,9 @@ public struct AlarmBeaconView: View {
             if snap.setup || snap.error.map(beaconNeedsSettings) == true || snap.error.map(beaconNeedsSignIn) == true {
                 Button(intent: HaSetupIntent(reconnect: snap.needsSignIn)) {
                     Text(snap.needsSignIn ? "Sign in" : snap.setup ? "Connect" : "Open Settings")
-                        .font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(surfaceInk)
+                        .font(HearthFont.callout.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
                         .frame(maxWidth: .infinity).frame(height: 34)
-                        .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                        .background(Color(argb: look.chip), in: RoundedRectangle(cornerRadius: 10))
                 }.buttonStyle(.plain)
             } else {
                 actionsRow
@@ -103,7 +98,6 @@ public struct AlarmBeaconView: View {
         }
         .padding(.horizontal, 13).padding(.top, 11).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }
 
     /// Independent lock freshness; unknown and historical readings never imply a freshly secure door.
@@ -114,12 +108,12 @@ public struct AlarmBeaconView: View {
             Button(intent: HaSetupIntent(reconnect: false)) {
                 VStack(spacing: 4) {
                     Label("No door selected", systemImage: "questionmark.circle")
-                        .font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk)
-                    Text("Choose a door in Settings").font(HearthFont.footnote.font)
+                        .font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
+                    Text("Choose a door in Settings").font(HearthFont.footnote.font(scale: textScale))
                         .foregroundStyle(surfaceInk.opacity(0.8))
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
+                .background(Color(argb: look.chipFaint), in: RoundedRectangle(cornerRadius: 11))
             }.buttonStyle(.plain)
         }
     }
@@ -129,12 +123,12 @@ public struct AlarmBeaconView: View {
             Image(systemName: snap.doorStale ? "clock" : snap.doorLocked.map { $0 ? "lock.fill" : "lock.open.fill" } ?? "questionmark.circle")
                 .font(HearthFont.cardHeading.font).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
-                Text(snap.doorName).font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(surfaceInk).lineLimit(1)
+                Text(snap.doorName).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk).lineLimit(1)
                 // Status green when locked, red when unlocked; "since …" on its own line so neither clips.
-                Text(snap.doorState).font(HearthFont.footnote.font.weight(.semibold)).foregroundStyle(doorStatusColor).lineLimit(1)
+                Text(snap.doorState).font(HearthFont.footnote.font(scale: textScale).weight(.semibold)).foregroundStyle(doorStatusColor).lineLimit(1)
                 if let since = snap.doorSince {
                     Text(snap.doorStale ? since.replacingOccurrences(of: "Last checked ", with: "") : since)
-                        .font(HearthFont.caption.font).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1)
+                        .font(HearthFont.caption.font(scale: textScale)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1)
                         .accessibilityLabel(since)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
@@ -151,15 +145,15 @@ public struct AlarmBeaconView: View {
         }
         .padding(9)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
+        .background(Color(argb: look.chipFaint), in: RoundedRectangle(cornerRadius: 11))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("\(snap.doorName), \(snap.doorStale ? "last known " : "")\(snap.doorState). \(snap.doorError ?? "")")
     }
 
     private func doorLabel(_ text: String) -> some View {
-        Text(text).font(HearthFont.groupLabel.font.weight(.semibold)).lineLimit(1)
+        Text(text).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).lineLimit(1)
             .foregroundStyle(surfaceInk).padding(.horizontal, 8).frame(height: 32)
-            .background(Color.white.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
+            .background(Color(argb: look.chip), in: RoundedRectangle(cornerRadius: 9))
             .fixedSize(horizontal: true, vertical: false)
     }
     @ViewBuilder private func doorButton(_ action: LockAction) -> some View {
@@ -180,7 +174,7 @@ public struct AlarmBeaconView: View {
         HStack(spacing: 7) {
             if snap.actionSlots.isEmpty {
                 Text(snap.commandPending ? "Updating…" : snap.stale || snap.error != nil ? "Refresh to check" : "No supported controls")
-                    .font(HearthFont.footnote.font).foregroundStyle(surfaceInk.opacity(0.75))
+                    .font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(surfaceInk.opacity(0.75))
                     .frame(maxWidth: .infinity).frame(height: 34)
             }
             ForEach(snap.actionSlots, id: \.self) { action in
@@ -202,11 +196,11 @@ public struct AlarmBeaconView: View {
         let primary = (action == .disarm)
         return HStack(spacing: 5) {
             Image(systemName: armIcon(action)).font(HearthFont.caption.font.weight(.semibold))
-            Text(action.label).font(HearthFont.groupLabel.font.weight(.semibold)).lineLimit(1)
+            Text(action.label).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).lineLimit(1)
         }
-        .foregroundStyle(primary ? Color(white: 0.12) : surfaceInk)
+        .foregroundStyle(primary ? Color(argb: look.chipPrimaryInk) : surfaceInk)
         .frame(maxWidth: .infinity).frame(height: 34)
-        .background(primary ? Color(white: 0.94) : Color.white.opacity(0.12),
+        .background(Color(argb: primary ? look.chipPrimary : look.chip),
                     in: RoundedRectangle(cornerRadius: 10))
     }
 

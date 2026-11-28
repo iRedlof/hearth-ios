@@ -59,8 +59,9 @@ struct BatteryProvider: TimelineProvider {
 struct BatteryWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.battery", provider: BatteryProvider()) { entry in
-            ParityWidgetContent(prefix: "battery") { BatteryView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: entry.snap.summary.tone.fillARGB) }
+            CardStyledContent(kind: .battery, statusARGB: entry.snap.summary.tone.fillARGB) {
+                ParityWidgetContent(prefix: "battery") { BatteryView(entry.snap) }
+            }
         }
         .configurationDisplayName("Batteries")
         .description("Every battery you replace, lowest first.")
@@ -99,8 +100,9 @@ struct ActivityProvider: TimelineProvider {
 struct ActivityWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.activity", provider: ActivityProvider()) { entry in
-            ParityWidgetContent(prefix: "activity") { ActivityView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: DoorsTone.unknown.fillARGB) }
+            CardStyledContent(kind: .activity, statusARGB: DoorsTone.unknown.fillARGB) {
+                ParityWidgetContent(prefix: "activity") { ActivityView(entry.snap) }
+            }
         }
         .configurationDisplayName("Activity")
         .description("Recent home events — doors, locks, alarm.")
@@ -139,8 +141,9 @@ struct LightsProvider: TimelineProvider {
 struct LightsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.lights", provider: LightsProvider()) { entry in
-            ParityWidgetContent(prefix: "lights") { LightTileView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+            CardStyledContent(kind: .lights, statusARGB: BeaconSurfaceColors.graphiteARGB) {
+                ParityWidgetContent(prefix: "lights") { LightTileView(entry.snap) }
+            }
         }
         .configurationDisplayName("Lights")
         .description("Lights that are on, plus your always-show favourites.")
@@ -179,8 +182,9 @@ struct QuickProvider: TimelineProvider {
 struct QuickWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.quick", provider: QuickProvider()) { entry in
-            ParityWidgetContent(prefix: "quick") { QuickView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+            CardStyledContent(kind: .quick, statusARGB: BeaconSurfaceColors.graphiteARGB) {
+                ParityWidgetContent(prefix: "quick") { QuickView(entry.snap) }
+            }
         }
         .configurationDisplayName("Quick")
         .description("Run your scripts and scenes.")
@@ -219,8 +223,9 @@ struct FavouritesProvider: TimelineProvider {
 struct FavouritesWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.favourites", provider: FavouritesProvider()) { entry in
-            ParityWidgetContent(prefix: "favourites") { FavouritesView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+            CardStyledContent(kind: .favourites, statusARGB: BeaconSurfaceColors.graphiteARGB) {
+                ParityWidgetContent(prefix: "favourites") { FavouritesView(entry.snap) }
+            }
         }
         .configurationDisplayName("Favourites")
         .description("Your pinned switches, lights, fans and scripts.")
@@ -263,8 +268,9 @@ struct DoorsProvider: TimelineProvider {
 struct DoorsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.doors", provider: DoorsProvider()) { entry in
-            ParityWidgetContent(prefix: "doors") { DoorsView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: entry.snap.summary.tone.fillARGB) }
+            CardStyledContent(kind: .doors, statusARGB: entry.snap.summary.tone.fillARGB) {
+                ParityWidgetContent(prefix: "doors") { DoorsView(entry.snap) }
+            }
         }
         .configurationDisplayName("Doors")
         .description("Doors, garages and the front-door lock.")
@@ -390,30 +396,22 @@ struct CarProvider: TimelineProvider, Sendable {
 
 private struct CarWidgetEntryView: View {
     let entry: CarEntry
-    // Resolve the card style at construction time, OUTSIDE the view-builder body: an inline
-    // store lookup inside the body expression pushes WidgetKit's already-complex configuration
-    // bodies past the Swift type-checker's limit (it then crashes instead of diagnosing).
-    private let style: CardStyle
     @Environment(\.widgetFamily) private var family
 
-    init(entry: CarEntry) {
-        self.entry = entry
-        self.style = CardStyleStore.effectiveStyle(for: .car)
-    }
-
     var body: some View {
-        CarWidgetPresentation(payload: entry.payload, family: family, style: style)
+        CarWidgetPresentation(payload: entry.payload, family: family)
     }
 }
 
 struct CarWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.car", provider: CarProvider()) { originalEntry in
-            ParityWidgetContent(prefix: "car") {
-                let entry = originalEntry.currentInteractionEntry
-                CarWidgetEntryView(entry: entry)
+            CardStyledContent(beacon: .car) {
+                ParityWidgetContent(prefix: "car") {
+                    let entry = originalEntry.currentInteractionEntry
+                    CarWidgetEntryView(entry: entry)
+                }
             }
-                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
         }
         .configurationDisplayName("Car")
         .description("Your car's battery, doors, and charge at a glance.")
@@ -472,21 +470,15 @@ struct AlarmWidget: Widget {
 
 private struct AlarmWidgetEntryView: View {
     let entry: AlarmEntry
-    private let style: CardStyle  // Resolved in init, not in body — see CarWidgetEntryView.
     @Environment(\.widgetFamily) private var family
-    init(entry: AlarmEntry) {
-        self.entry = entry
-        self.style = CardStyleStore.effectiveStyle(for: .alarm)
-    }
     var body: some View {
-        ParityWidgetContent(prefix: "alarm") { beacon }
+        CardStyledContent(beacon: .alarm) { ParityWidgetContent(prefix: "alarm") { beacon } }
             .widgetURL(family == .systemSmall ? alarmReadingsURL(for: entry.payload?.destination ?? .inert) : nil)
-            .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
     }
     // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
     @ViewBuilder private var beacon: some View {
-        if let payload = entry.payload { AlarmBeaconView(payload, family: family, style: style) }
-        else { AlarmBeaconView(entry.snap, family: family, style: style) }
+        if let payload = entry.payload { AlarmBeaconView(payload, family: family) }
+        else { AlarmBeaconView(entry.snap, family: family) }
     }
 }
 
@@ -553,23 +545,17 @@ struct ThermostatWidget: Widget {
 
 private struct ThermostatWidgetEntryView: View {
     let entry: ThermostatEntry
-    private let style: CardStyle  // Resolved in init, not in body — see CarWidgetEntryView.
     @Environment(\.widgetFamily) private var family
-    init(entry: ThermostatEntry) {
-        self.entry = entry
-        self.style = CardStyleStore.effectiveStyle(for: .thermostat)
-    }
     var body: some View {
-        ParityWidgetContent(prefix: "thermostat") { beacon }
+        CardStyledContent(beacon: .thermostat) { ParityWidgetContent(prefix: "thermostat") { beacon } }
             .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
-            .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
     }
     // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
     @ViewBuilder private var beacon: some View {
         if let payload = entry.payload {
-            ThermostatBeaconView(payload, family: family, style: style,
+            ThermostatBeaconView(payload, family: family,
                                  inlineChoices: entry.inlineChoices, inlinePicker: true)
-        } else { ThermostatBeaconView(entry.snap, family: family, style: style, inlinePicker: true) }
+        } else { ThermostatBeaconView(entry.snap, family: family, inlinePicker: true) }
     }
 }
 
@@ -614,8 +600,9 @@ struct CpProvider: TimelineProvider {
 struct ChargePointWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.chargepoint", provider: CpProvider()) { entry in
-            ParityWidgetContent(prefix: "chargepoint") { CpBeaconView(entry.snap) }
-                .containerBackground(for: .widget) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
+            CardStyledContent(beacon: .chargePoint) {
+                ParityWidgetContent(prefix: "chargepoint") { CpBeaconView(entry.snap) }
+            }
         }
         .configurationDisplayName("ChargePoint")
         .description("Your ChargePoint site, waitlist, and charging at a glance.")

@@ -76,11 +76,10 @@ private struct GlanceWidgetContainer: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ParityWidgetContent(prefix: "glance") {
-            GlanceWidgetEntryView(entry: entry)
-        }
-        .containerBackground(for: .widget) {
-            Color(argb: entry.summary.tone.bgARGB(colorScheme))
+        CardStyledContent(kind: .glance, statusARGB: entry.summary.tone.bgARGB(colorScheme)) {
+            ParityWidgetContent(prefix: "glance") {
+                GlanceWidgetEntryView(entry: entry)
+            }
         }
     }
 }

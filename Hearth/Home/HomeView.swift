@@ -70,7 +70,7 @@ struct HomeView: View {
                 EveryDaySection(onTap: onRoute)
 
                 // Look section
-                LookSection(onTap: onRoute)
+                LookSection(summary: CardStyleStore.global().summary, onTap: onRoute)
 
                     HomeFooter()
                 }
