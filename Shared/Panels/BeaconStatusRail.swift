@@ -11,8 +11,10 @@ import HearthKit
 struct BeaconStatusRail: View {
     let icon: String
     let word: String
-    /// 2: a long answer may wrap ("3 not reporting"); 1: it shrinks to stay on its line.
+    /// 2: the answer may wrap ("3 not reporting", "Armed home"); 1: it shrinks to stay on its line.
     let wordLines: Int
+    /// A long answer is set in the smaller of the two answer sizes.
+    let longWord: Bool
     /// Lines separated by "\n" are drawn as separate lines.
     let detail: String
     let fillARGB: UInt32
@@ -48,21 +50,22 @@ struct BeaconStatusRail: View {
 
     private func answer(_ fit: PanelRailFit) -> some View {
         Text(word)
-            .font(.system(size: (wordLines > 1 ? fit.longWordSize : fit.wordSize) * textScale, weight: .heavy))
+            .font(.system(size: (longWord ? fit.longWordSize : fit.wordSize) * textScale, weight: .heavy))
             .tracking(PanelMetrics.railWordTracking)
             .foregroundStyle(ink)
             .lineLimit(wordLines).minimumScaleFactor(PanelMetrics.railWordShrink)
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// As many detail lines as `lines` allows. Every line but the last gets one line; the last
-    /// may wrap into what is left.
+    /// As many of the detail's lines as `lines` allows. Each may wrap into the lines the others
+    /// leave when they keep to one; if more than one wraps the column is taller, and a rail that
+    /// then does not fit falls to the next `PanelRailFit`.
     @ViewBuilder private func details(lines: Int) -> some View {
         let shown = Array(detailLines.prefix(lines))
         if !shown.isEmpty {
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(Array(shown.enumerated()), id: \.offset) { index, line in
-                    detailLine(line, wrapLines: index == shown.count - 1 ? lines - shown.count + 1 : 1)
+                ForEach(Array(shown.enumerated()), id: \.offset) { _, line in
+                    detailLine(line, wrapLines: lines - shown.count + 1)
                 }
             }
             .padding(.top, PanelMetrics.railDetailGap)
@@ -91,7 +94,7 @@ struct BeaconStatusRail: View {
 extension BeaconStatusRail {
     /// A two-panel widget's rail, as HearthKit decided it.
     init(_ rail: PanelRail) {
-        self.init(icon: rail.icon, word: rail.word, wordLines: rail.wordLines, detail: rail.detail,
-                  fillARGB: rail.tone.fillARGB, inkARGB: rail.tone.inkARGB)
+        self.init(icon: rail.icon, word: rail.word, wordLines: rail.wordLines, longWord: rail.wordLines > 1,
+                  detail: rail.detail, fillARGB: rail.tone.fillARGB, inkARGB: rail.tone.inkARGB)
     }
 }

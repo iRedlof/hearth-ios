@@ -113,11 +113,15 @@ public struct CarBeaconView: View {
         .accessibilityHint(hasSavedReadings ? "Open saved Car readings." : "")
     }
 
+    private static let titleShrink: CGFloat = 0.8
+
     // MARK: Right — the body, painted by the Card style
     private func right(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
+                // The "Checked" stamp keeps its width; the name takes the rest and shrinks before it is cut.
                 Text(snap.name).font(.system(size: 18 * textScale, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
+                    .minimumScaleFactor(Self.titleShrink).layoutPriority(1)
                 Spacer(minLength: 2)
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.car",
                     ink: surfaceInk, interactionsEnabled: interactionMode == .live)

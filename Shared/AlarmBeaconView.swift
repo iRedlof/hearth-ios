@@ -29,38 +29,33 @@ public struct AlarmBeaconView: View {
     }
 
     public var body: some View {
-        GeometryReader { geo in
-            let s = beaconSplit(width: geo.size.width)   // Android rail is ~37%, not 50%
-            HStack(spacing: 0) {
-                rail.frame(width: s.rail)
-                surface.frame(maxWidth: .infinity)
-            }
-            .background(CardSurfaceView(look.body))
-        }
+        // Both halves pinned to the widget's height (`BeaconTwoPanel`), so a tall rail or body
+        // gives way inside its own half instead of growing the card.
+        BeaconTwoPanel { rail } surface: { surface }
     }
 
     // MARK: Left — tone rail (the security state)
+    /// The shared rail. At a large text size the glyph and the state shrink before the line under
+    /// them is given up; that line stays whole ("Armed at 8:36 AM" a little smaller, or wrapped)
+    /// and the unreachable line is said in fewer words ("Can't reach home").
     private var rail: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Image(systemName: glyphSymbol).font(.system(size: 34 * textScale, weight: .semibold)).foregroundStyle(ink)
-            Spacer(minLength: 4)
-            Text(snap.stateWord)
-                .font(.system(size: (snap.stateWord.count > 10 ? 20 : 25) * textScale, weight: .heavy)).tracking(-0.5)
-                .foregroundStyle(ink).lineLimit(2).minimumScaleFactor(0.7).fixedSize(horizontal: false, vertical: true)
-            Text(snap.commandFeedback ?? snap.detail).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(ink.opacity(0.82))
-                .lineLimit(3).padding(.top, 3)
-                .accessibilityLabel(snap.commandError ?? snap.commandFeedback ?? snap.detail)
-        }
-        .padding(.horizontal, 13).padding(.vertical, 13)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-        .background(BeaconRailBackground(fillARGB: snap.tone.fillARGB, fade: 0.88))
+        BeaconStatusRail(icon: glyphSymbol, word: snap.stateWord, wordLines: Self.stateWordLines,
+                         longWord: snap.stateWord.count > Self.longStateWord,
+                         detail: beaconRailDetail(snap.commandFeedback ?? snap.detail),
+                         fillARGB: snap.tone.fillARGB, inkARGB: snap.tone.inkARGB,
+                         detailAccessibilityLabel: snap.commandError ?? snap.commandFeedback ?? snap.detail)
     }
+
+    /// "Armed home" may take two lines; a state longer than this is set in the smaller size.
+    private static let stateWordLines = 2
+    private static let longStateWord = 10
 
     // MARK: Right — the body (home, door, actions), painted by the Card style
     private var surface: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
                 Text(alarmTitle).font(.system(size: 16 * textScale, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
+                    .minimumScaleFactor(Self.titleShrink).layoutPriority(1)
                 Spacer(minLength: 2)
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk)
             }
@@ -135,11 +130,13 @@ public struct AlarmBeaconView: View {
                 .font(HearthFont.cardHeading.font).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(snap.doorName).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk).lineLimit(1)
+                    .minimumScaleFactor(Self.doorTextShrink)
                 // Status green when locked, red when unlocked; "since …" on its own line so neither clips.
                 Text(snap.doorState).font(HearthFont.footnote.font(scale: textScale).weight(.semibold)).foregroundStyle(doorStatusColor).lineLimit(1)
                 if let since = snap.doorSince {
                     Text(snap.doorStale ? since.replacingOccurrences(of: "Last checked ", with: "") : since)
                         .font(HearthFont.caption.font(scale: textScale)).foregroundStyle(surfaceInk.opacity(0.75)).lineLimit(1)
+                        .minimumScaleFactor(Self.doorTextShrink)
                         .accessibilityLabel(since)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
@@ -219,17 +216,33 @@ public struct AlarmBeaconView: View {
     }
 
     /// A pill styled like the Android action button (now with an icon); Disarm is the bright "primary" pill.
+    /// Two pills side by side at a large text size have no room for icon and label: the label
+    /// keeps its full size and the icon goes first, then the label shrinks; it is never cut
+    /// ("Arm ho…").
     private func actionLabel(_ action: AlarmAction) -> some View {
         let primary = (action == .disarm)
-        return HStack(spacing: 5) {
-            Image(systemName: armIcon(action)).font(HearthFont.caption.font.weight(.semibold))
-            Text(action.label).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).lineLimit(1)
+        let title = Text(action.label).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).lineLimit(1)
+        return ViewThatFits(in: .horizontal) {
+            // The first two test their natural width: a truncating Text would always "fit".
+            HStack(spacing: 5) {
+                Image(systemName: armIcon(action)).font(HearthFont.caption.font.weight(.semibold))
+                title.fixedSize()
+            }
+            title.fixedSize()
+            title.minimumScaleFactor(Self.actionLabelShrink)
         }
+        .padding(.horizontal, Self.actionLabelPadding)
         .foregroundStyle(primary ? Color(argb: look.chipPrimaryInk) : surfaceInk)
         .frame(maxWidth: .infinity).frame(height: AlarmCardMetrics.actionHeight)
         .background(Color(argb: primary ? look.chipPrimary : look.chip),
                     in: RoundedRectangle(cornerRadius: 10))
     }
+
+    private static let titleShrink: CGFloat = 0.8
+    private static let actionLabelShrink: CGFloat = 0.7
+    private static let actionLabelPadding: CGFloat = 3
+    /// The single door row's name and "since" line shrink this far before they are cut.
+    private static let doorTextShrink: CGFloat = 0.8
 
     private func armIcon(_ action: AlarmAction) -> String {
         switch action {

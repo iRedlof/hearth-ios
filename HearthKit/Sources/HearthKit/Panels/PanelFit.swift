@@ -42,10 +42,11 @@ public struct PanelRailFit: Sendable, Equatable, Hashable {
         PanelRailFit(iconSize: 34, wordSize: 25, longWordSize: 20, detailLines: 3),
         PanelRailFit(iconSize: 34, wordSize: 21, longWordSize: 17, detailLines: 3),
         PanelRailFit(iconSize: 26, wordSize: 21, longWordSize: 17, detailLines: 3),
-        PanelRailFit(iconSize: 26, wordSize: 21, longWordSize: 17, detailLines: 2),
-        PanelRailFit(iconSize: 22, wordSize: 18, longWordSize: 15, detailLines: 2),
-        PanelRailFit(iconSize: 22, wordSize: 18, longWordSize: 15, detailLines: 1),
-        PanelRailFit(iconSize: 22, wordSize: 18, longWordSize: 15, detailLines: 0),
+        PanelRailFit(iconSize: 22, wordSize: 18, longWordSize: 15, detailLines: 3),
+        PanelRailFit(iconSize: 20, wordSize: 16, longWordSize: 14, detailLines: 3),
+        PanelRailFit(iconSize: 20, wordSize: 16, longWordSize: 14, detailLines: 2),
+        PanelRailFit(iconSize: 20, wordSize: 16, longWordSize: 14, detailLines: 1),
+        PanelRailFit(iconSize: 20, wordSize: 16, longWordSize: 14, detailLines: 0),
     ]
 }
 

@@ -33,6 +33,9 @@ struct PanelFitTests {
         }
         #expect(choices.allSatisfy { $0.longWordSize < $0.wordSize })
         #expect(choices.last?.detailLines == 0)
+        // Every size is tried with all three lines of detail before a line is given up.
+        let smallest = choices.map(\.wordSize).min()
+        #expect(choices.first { $0.detailLines < 3 }?.wordSize == smallest)
     }
 
     @Test("Tiles are laid out in rows of two; an odd one sits alone")
