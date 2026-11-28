@@ -7,6 +7,10 @@ import HearthKit
 struct AlarmGatedIntent: AppIntent {
     static var title: LocalizedStringResource { "Alarm protected action" }
     static var isDiscoverable: Bool { false }
+    /// Never from a locked phone. A widget can be reachable while the device is locked (Today View);
+    /// the default policy would let this run there. Requiring authentication makes iOS ask for the
+    /// device to be unlocked first; on an unlocked phone the tap runs as before.
+    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Action") var action: String
     @Parameter(title: "Account scope") var scope: String

@@ -5,97 +5,17 @@ import HearthKit
 enum CollectionParityInputs {
     static let commonStates = ["setup", "loading", "empty", "ready", "unavailable", "failed",
                                "partial_failure", "overflow", "long_names", "history"]
-    static let doorsStates = commonStates + ["moving", "failed_history", "opening_pending",
-                                            "opening_pending_unavailable", "stop_pending", "lock_pending", "command_failed"]
     static let activityStates = commonStates + ["boundary", "legacy_bypass"]
     static let batteryStates = commonStates + ["binary_low", "invalid_numeric"]
     static let now = ISO8601DateFormatter().date(from: "2026-10-30T17:00:00Z")!
     private static let old = now.addingTimeInterval(-7_200)
     private static let unreachable = "Can't reach Home Assistant"
-    private static let commandFailure = "Couldn't confirm · Refresh to check"
-    private static let commandOperation = "00000000-0000-4000-8000-000000000041"
-    private static let commandStarted = now.addingTimeInterval(-10)
-    private static let actionScope = "fixture"
-    private static let actionRevision = "fixture"
     private static let base = HaConfig(baseUrl: "https://example.com", token: "inert", entityId: "")
 
     private static func json(_ value: Any) -> String {
         String(data: try! JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]), encoding: .utf8)!
     }
     private static func iso(_ date: Date) -> String { ISO8601DateFormatter().string(from: date) }
-
-    private static func doorIDs(_ state: String) -> [String] {
-        if state == "overflow" { return (1...14).map { "binary_sensor.fixture_door_\($0)" } }
-        return ["cover.garage", "lock.front", "binary_sensor.back", "cover.side_gate"]
-    }
-    private static func doorReplies(_ ids: [String], state: String, observed: Date) -> [String: HaStateReading] {
-        Dictionary(uniqueKeysWithValues: ids.enumerated().map { index, id in
-            let name = state == "long_names" ? "Upstairs primary bedroom balcony entrance" :
-                ["Garage", "Front Door", "Back Door", "Side Gate"][index % 4]
-            let value: String
-            if state == "unavailable" { value = "unavailable" }
-            else if state == "opening_pending_unavailable" && id == "cover.garage" { value = "unavailable" }
-            else if state == "stop_pending" && id == "cover.garage" { value = "opening" }
-            else if state == "lock_pending" && id == "lock.front" { value = "unlocked" }
-            else if state == "moving" && index == 0 { value = "opening" }
-            else if state == "moving" && index == 3 { value = "closing" }
-            else if id.hasPrefix("lock.") { value = "locked" }
-            else if id.hasPrefix("cover.") { value = "closed" }
-            else if state == "overflow" && index % 4 == 0 { value = "on" }
-            else if state == "overflow" && index % 4 == 1 { value = "unavailable" }
-            else { value = "off" }
-            var attributes: [String: Any] = ["friendly_name": name]
-            if id.hasPrefix("cover.") { attributes["device_class"] = "garage" }
-            if id.hasPrefix("binary_sensor.") { attributes["device_class"] = "door" }
-            let raw = json(["entity_id": id, "state": value,
-                            "last_changed": iso(observed.addingTimeInterval(-600 * Double(index + 1))),
-                            "attributes": attributes])
-            return (id, HaStateReading(entityID: id, json: raw, checkedAt: observed))
-        })
-    }
-
-    static func doors(_ state: String) -> DoorsSnapshot {
-        precondition(doorsStates.contains(state))
-        if state == "loading" { return .loading }
-        var config = base
-        let ids = doorIDs(state) + (state == "partial_failure" ? ["binary_sensor.missing_door"] : [])
-        config.doorsChosen = true
-        config.doorIdsJson = json(state == "empty" ? [] : ids)
-        if state == "setup" { return mapDoorsSnapshot(config: nil, readings: [:], errors: [:], now: now) }
-        if state == "empty" { return mapDoorsSnapshot(config: config, readings: [:], errors: [:], now: now) }
-        let failed = ["failed", "failed_history"].contains(state)
-        let observed = ["history", "command_failed"].contains(state) ? old : now
-        let readings = failed ? doorReplies(ids, state: state == "failed_history" ? "moving" : "ready", observed: old) :
-            doorReplies(ids.filter { $0 != "binary_sensor.missing_door" }, state: state, observed: observed)
-        let errors = failed ? Dictionary(uniqueKeysWithValues: ids.map { ($0, unreachable) }) :
-            state == "command_failed" ? ["cover.garage": commandFailure] :
-            state == "partial_failure" ? ["binary_sensor.missing_door": "Entity not found"] : [:]
-        var snapshot = mapDoorsSnapshot(config: config, readings: readings, errors: errors, now: now)
-        // Presentation only: the current account scope/revision can never match this origin.
-        snapshot.actionScope = actionScope
-        snapshot.actionRevision = actionRevision
-        snapshot.operation = doorCommandOperation(state)
-        return snapshot
-    }
-
-    private static func doorCommandOperation(_ state: String) -> DoorOperation? {
-        let id: String
-        let action: String
-        switch state {
-        case "opening_pending":
-            id = "cover.side_gate"; action = "open"
-        case "opening_pending_unavailable", "command_failed":
-            id = "cover.garage"; action = "open"
-        case "stop_pending":
-            id = "cover.garage"; action = "stop"
-        case "lock_pending":
-            id = "lock.front"; action = "lock"
-        default: return nil
-        }
-        return DoorOperation(id: commandOperation, entityID: id, action: action, startedAt: commandStarted,
-            endedAt: state == "command_failed" ? now.addingTimeInterval(-5) : nil,
-            error: state == "command_failed" ? commandFailure : nil, delivered: true)
-    }
 
     private static let activityNames = ["cover.garage": "Garage", "alarm_control_panel.home": "Home Alarm",
         "lock.front": "Front Door", "binary_sensor.back": "Back Door", "binary_sensor.tesla_charge_cable": "Tesla"]

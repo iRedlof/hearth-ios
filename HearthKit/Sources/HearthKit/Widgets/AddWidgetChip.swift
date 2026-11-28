@@ -47,7 +47,7 @@ public func addWidgetCategory(_ kind: HomeWidgetKind) -> AddCategory {
     switch kind {
     case .alarm, .thermostat, .lights, .favourites, .quick:
         return .control
-    case .doors, .activity, .battery:
+    case .activity, .battery:
         return .check
     case .car, .chargePoint:
         return .carCharging

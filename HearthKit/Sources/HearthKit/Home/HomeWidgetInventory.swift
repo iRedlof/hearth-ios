@@ -5,7 +5,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable {
     case car
     case alarm
     case thermostat
-    case doors
     case quick
     case lights
     case favourites
@@ -19,7 +18,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable {
         case .car: return "Car"
         case .alarm: return "Alarm"
         case .thermostat: return "Thermostat"
-        case .doors: return "Doors"
         case .quick: return "Quick actions"
         case .lights: return "Lights"
         case .favourites: return "Favourites"
@@ -35,7 +33,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable {
         case .car: return "car.fill"
         case .alarm: return "shield.fill"
         case .thermostat: return "thermometer"
-        case .doors: return "door.garage.closed"
         case .quick: return "bolt.fill"
         case .lights: return "lightbulb.fill"
         case .favourites: return "star.fill"
@@ -51,7 +48,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable {
         case .car: return .green
         case .alarm: return .red
         case .thermostat: return .orange
-        case .doors: return .blue
         case .quick: return .amber
         case .lights: return .amber
         case .favourites: return .purple
@@ -67,7 +63,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable {
         case .car: return .car
         case .alarm: return .alarm
         case .thermostat: return .thermostat
-        case .doors: return .doors
         case .quick: return .quick
         case .lights: return .lights
         case .favourites: return .favourites
@@ -94,8 +89,6 @@ public func configuredWidgets(config: HaConfig, chargePointSignedIn: Bool) -> [H
             return config.isComplete
         case .thermostat:
             return config.hasClimate
-        case .doors:
-            return config.doorsChosen
         case .quick:
             return !config.scriptIds.isEmpty
         case .lights:

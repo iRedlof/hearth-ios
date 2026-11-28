@@ -135,9 +135,7 @@ struct ParityWidgetSelection: Sendable {
         ] }
     }
     private static func collections() -> [(String, AnyView)] {
-        CollectionParityInputs.doorsStates.map {
-            ("doors-" + $0, AnyView(DoorsView(CollectionParityInputs.doors($0))))
-        } + CollectionParityInputs.activityStates.map {
+        CollectionParityInputs.activityStates.map {
             ("activity-" + $0, AnyView(ActivityView(CollectionParityInputs.activity($0), now: CollectionParityInputs.now)))
         } + CollectionParityInputs.batteryStates.map {
             ("battery-" + $0, AnyView(BatteryView(CollectionParityInputs.batteries($0))))

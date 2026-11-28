@@ -18,7 +18,6 @@ struct HearthWidgetBundle: WidgetBundle {
         LightsWidget()
         QuickWidget()
         FavouritesWidget()
-        DoorsWidget()
         #if DEBUG
         ReadableConceptWidget()
         CarReadingsRouteProbeWidget(slot: .a)
@@ -232,47 +231,6 @@ struct FavouritesWidget: Widget {
     }
 }
 
-// MARK: - Doors
-
-struct DoorsEntry: TimelineEntry { let date: Date; let snap: DoorsSnapshot }
-
-struct DoorsProvider: TimelineProvider {
-    func placeholder(in context: Context) -> DoorsEntry { DoorsEntry(date: .now, snap: .sample) }
-    func getSnapshot(in context: Context, completion: @escaping (DoorsEntry) -> Void) {
-        if context.isPreview { completion(DoorsEntry(date: .now, snap: .sample)); return }
-        nonisolated(unsafe) let completion = completion
-        Task { completion(DoorsEntry(date: .now, snap: await Self.fetch())) }
-    }
-    func getTimeline(in context: Context, completion: @escaping (Timeline<DoorsEntry>) -> Void) {
-        nonisolated(unsafe) let completion = completion
-        Task {
-            let snap = await DoorsProvider.fetch()
-            completion(Timeline(entries: [DoorsEntry(date: .now, snap: snap)],
-                                policy: .after(Date().addingTimeInterval(10 * 60))))
-        }
-    }
-    private static func fetch() async -> DoorsSnapshot {
-        #if DEBUG
-        if ParityCatalog.activeWidgetID(prefix: "doors") != nil { return .loading }
-        #endif
-        return await CollectionLiveSnapshots.doors()
-    }
-}
-
-struct DoorsWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "com.rohit.hearth.doors", provider: DoorsProvider()) { entry in
-            CardStyledContent(kind: .doors, statusARGB: entry.snap.summary.tone.fillARGB) {
-                ParityWidgetContent(prefix: "doors") { DoorsView(entry.snap) }
-            }
-        }
-        .configurationDisplayName("Doors")
-        .description("Doors, garages and the front-door lock.")
-        .supportedFamilies([WidgetPreviewKind.doors.widgetKitFamily])
-        .contentMarginsDisabled()
-    }
-}
-
 // MARK: - Car
 
 struct CarEntry: TimelineEntry {
@@ -403,6 +361,10 @@ struct CarWidget: Widget {
 struct AlarmEntry: TimelineEntry { let date: Date; let snap: AlarmSnapshot }
 
 struct AlarmProvider: TimelineProvider {
+    private static let refreshInterval: TimeInterval = 15 * 60
+    /// A garage command is expired 90 s after it began. Reload just after that, so "Opening…" and
+    /// its Stop cannot stay on screen until the next ordinary refresh if the command was interrupted.
+    private static let pendingGarageRefreshInterval: TimeInterval = 100
     func placeholder(in context: Context) -> AlarmEntry { AlarmEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (AlarmEntry) -> Void) {
         if context.isPreview { completion(AlarmEntry(date: .now, snap: .sample)); return }
@@ -413,7 +375,8 @@ struct AlarmProvider: TimelineProvider {
         nonisolated(unsafe) let completion = completion
         Task {
             let entry = await Self.fetch()
-            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
+            let interval = entry.snap.garage?.pending == true ? Self.pendingGarageRefreshInterval : Self.refreshInterval
+            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(interval))))
         }
     }
     private static func fetch() async -> AlarmEntry {
@@ -432,7 +395,7 @@ struct AlarmWidget: Widget {
             }
         }
         .configurationDisplayName("Home Alarm")
-        .description("Your alarm state and front door at a glance.")
+        .description("Your alarm state, front door and garage at a glance.")
         .supportedFamilies([WidgetPreviewKind.alarm.widgetKitFamily])
         .contentMarginsDisabled()
     }

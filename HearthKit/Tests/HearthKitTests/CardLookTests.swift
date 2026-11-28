@@ -101,7 +101,7 @@ struct BeaconLookTests {
     }
 }
 
-@Suite("Card look (Doors, Lights, Quick actions, Favourites, Activity, Batteries)")
+@Suite("Card look (Lights, Quick actions, Favourites, Activity, Batteries)")
 struct CardLookTests {
     @Test("Status keeps the card's own state colours")
     func status() {

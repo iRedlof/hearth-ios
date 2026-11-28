@@ -22,7 +22,7 @@ struct AddWidgetChipTests {
     @Test("Home Assistant connected but the widget not set up yet is ready, not 'Needs Home Assistant'")
     func readyWhenConnectedButNotSetUp() {
         let config = HaConfig(baseUrl: "https://ha.example.com", token: "token", entityId: "", refreshToken: "refresh")
-        for kind in [HomeWidgetKind.alarm, .thermostat, .quick, .lights, .favourites, .doors] {
+        for kind in [HomeWidgetKind.alarm, .thermostat, .quick, .lights, .favourites] {
             #expect(addWidgetChip(kind: kind, config: config, cpSignedIn: false) == .ready, "\(kind)")
         }
         // ChargePoint depends on its own sign-in, not on Home Assistant.
@@ -184,9 +184,8 @@ struct AddWidgetChipTests {
         #expect(addWidgetCategory(.quick) == .control)
     }
 
-    @Test("Check category includes doors, activity, battery")
+    @Test("Check category includes activity, battery")
     func checkCategory() {
-        #expect(addWidgetCategory(.doors) == .check)
         #expect(addWidgetCategory(.activity) == .check)
         #expect(addWidgetCategory(.battery) == .check)
     }

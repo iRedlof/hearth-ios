@@ -10,7 +10,7 @@ final class WidgetPreviewCatalogTests: XCTestCase {
     }
 
     func testCollectionsExposeOnlyTheirDesignedLargeFamily() {
-        let collections: [WidgetPreviewKind] = [.doors, .activity, .lights, .favourites]
+        let collections: [WidgetPreviewKind] = [.activity, .lights, .favourites]
         for kind in collections {
             XCTAssertEqual(kind.family, .large, "\(kind) must remain large only")
         }
@@ -24,7 +24,7 @@ final class WidgetPreviewCatalogTests: XCTestCase {
     func testCatalogCoversEveryShippedWidget() {
         let shipped: Set<WidgetPreviewKind> = [
             .alarm, .thermostat, .car, .chargepoint, .quick, .battery,
-            .doors, .activity, .lights, .favourites
+            .activity, .lights, .favourites
         ]
         XCTAssertEqual(Set(WidgetPreviewKind.allCases), shipped)
     }

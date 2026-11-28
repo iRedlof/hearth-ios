@@ -3,10 +3,15 @@ import Foundation
 import WidgetKit
 import HearthKit
 
-/// Every direct door control uses the account and selection captured by its rendered card.
+/// The Alarm card's garage button (Open / Close / Stop). Every direct door control uses the
+/// account and door-command origin captured by its rendered card.
 struct DoorActionIntent: AppIntent {
     static var title: LocalizedStringResource { "Door action" }
     static var isDiscoverable: Bool { false }
+    /// Never from a locked phone. A widget can be reachable while the device is locked (Today View);
+    /// the default policy would let this run there. Requiring authentication makes iOS ask for the
+    /// device to be unlocked first; on an unlocked phone the tap runs as before.
+    static var authenticationPolicy: IntentAuthenticationPolicy { .requiresAuthentication }
 
     @Parameter(title: "Entity") var id: String
     @Parameter(title: "Action") var action: String
@@ -29,7 +34,8 @@ struct DoorActionIntent: AppIntent {
 
 enum DoorActionRuntime {
     private static func notify() async {
-        WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.doors")
+        // The garage row lives on the Alarm card.
+        WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.alarm")
         await MainActor.run { RefreshSignal.shared.bump() }
     }
 
@@ -37,6 +43,10 @@ enum DoorActionRuntime {
                         replacingOperation: String = "") async throws {
         guard !scope.isEmpty, !revision.isEmpty, !entityID.isEmpty,
               let store = HaConfigStore.store else { return }
+        // The Alarm card's garage is the only door a widget shows a control for. The store's own
+        // selection, revision and pending checks still follow; a selection change between this
+        // read and theirs rotates the revision this tap carries.
+        guard garageCommandTarget(HaConfigStore.context()?.config, entityID: entityID) else { return }
         _ = try store.expireDoorOperation()
         guard let started = try store.beginDoorOperation(expectedScope: scope, expectedRevision: revision,
                 entityID: entityID, action: action,
@@ -47,7 +57,7 @@ enum DoorActionRuntime {
         let isCurrent: @Sendable () -> Bool = {
             guard let current = HaConfigStore.context(), current.scope == scope,
                   current.doorActionRevision == operation.actionRevision, haSameConnection(current.config, config),
-                  current.config.map({ doorsSelectedIDs($0).contains(entityID) }) == true,
+                  garageCommandTarget(current.config, entityID: entityID),
                   let active = current.doorOperation, active.id == operation.id, active.pending else { return false }
             let age = Date().timeIntervalSince(active.startedAt)
             return age >= 0 && age <= 90

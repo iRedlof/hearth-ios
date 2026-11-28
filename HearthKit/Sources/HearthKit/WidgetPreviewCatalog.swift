@@ -22,7 +22,6 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
     case lights
     case quick
     case favourites
-    case doors
 
     public var id: String { rawValue }
 
@@ -37,7 +36,6 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
         case .lights: "Lights"
         case .quick: "Quick"
         case .favourites: "Favourites"
-        case .doors: "Doors"
         }
     }
 
@@ -53,14 +51,13 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
         case .lights: "lightbulb"
         case .quick: "bolt"
         case .favourites: "star"
-        case .doors: "door.left.hand.closed"
         }
     }
 
     public var family: WidgetPreviewFamily {
         switch self {
         case .car, .alarm, .thermostat, .chargepoint, .battery, .quick: .medium
-        case .activity, .lights, .favourites, .doors: .large
+        case .activity, .lights, .favourites: .large
         }
     }
 }

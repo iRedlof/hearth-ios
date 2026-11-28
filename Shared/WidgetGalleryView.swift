@@ -159,7 +159,6 @@ struct WidgetGalleryView: View {
         case .lights: LightTileView(.sample)
         case .quick: QuickView(.sample)
         case .favourites: FavouritesView(.sample)
-        case .doors: DoorsView(.sample)
         }
     }
 

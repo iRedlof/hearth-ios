@@ -162,6 +162,10 @@ struct WidgetPage: View {
                 entityRow("Front door", domain: "lock", allowNone: true, selection: config?.lockId ?? "") { e in
                     try apply { $0.lockId = e.id; $0.lockName = e.id.isEmpty ? "" : e.name }
                 }
+                entityRow("Garage door", domain: "cover", allowNone: true,
+                          selection: config.flatMap(garageSelectedID) ?? "", garagesOnly: true) { e in
+                    try apply { $0.garageId = e.id }
+                }
             }
 
         case .thermostat:
@@ -202,14 +206,6 @@ struct WidgetPage: View {
                 multiEntityRow("Tiles", domains: ["switch", "light", "fan", "input_boolean", "script"],
                                selected: config?.favouriteIds ?? [], limit: 12) { ids in
                     try apply { $0.favouriteIdsJson = encodeIds(ids) }
-                }
-            }
-
-        case .doors:
-            HearthGroup("Uses") {
-                multiEntityRow("Doors", domains: ["cover", "binary_sensor", "lock"], selected: config?.doorIds ?? [],
-                               doorsOnly: true) { ids in
-                    try apply { $0.doorIdsJson = encodeIds(ids); $0.doorsChosen = true }
                 }
             }
 
@@ -439,6 +435,7 @@ struct WidgetPage: View {
         domain: String,
         allowNone: Bool = false,
         selection: String,
+        garagesOnly: Bool = false,
         onPick: @escaping (HaEntity) throws -> Void
     ) -> some View {
         let (icon, hue) = iconAndHue(for: domain)
@@ -450,6 +447,7 @@ struct WidgetPage: View {
                 title: title,
                 allowNone: allowNone,
                 selected: selection,
+                garagesOnly: garagesOnly,
                 runtime: runtime,
                 onPick: onPick
             )
@@ -470,7 +468,6 @@ struct WidgetPage: View {
         _ title: String,
         domains: [String],
         selected: [String],
-        doorsOnly: Bool = false,
         limit: Int? = nil,
         onPick: @escaping ([String]) throws -> Void
     ) -> some View {
@@ -481,7 +478,6 @@ struct WidgetPage: View {
                 domains: domains,
                 title: title,
                 selected: selected,
-                doorsOnly: doorsOnly,
                 limit: limit,
                 runtime: runtime,
                 onChange: onPick
@@ -554,7 +550,6 @@ struct WidgetPage: View {
         case .lights: return !config.lightPins.isEmpty
         case .quick: return !config.scriptIds.isEmpty
         case .favourites: return !config.favouriteIds.isEmpty
-        case .doors: return config.doorsChosen
         case .activity, .battery: return !config.sensorIds.isEmpty
         case .chargePoint: return (try? CpSessionStore.context().session.isSignedIn) == true
         }
@@ -630,13 +625,12 @@ struct WidgetPage: View {
 
     private var requiredSteps: Int {
         switch kind {
-        case .alarm: 2  // Alarm panel + Front door
+        case .alarm: 2  // Alarm panel + Front door (the garage is optional)
         case .thermostat: 1  // Thermostat
         case .car: 0  // Auto-discovered from Home Assistant — no manual step
         case .lights: 1  // Always show
         case .quick: 1  // Scripts
         case .favourites: 1  // Tiles
-        case .doors: 1  // Doors
         case .activity, .battery: 1  // Sensors
         case .chargePoint: 1  // Sign in
         }
@@ -660,7 +654,6 @@ struct WidgetPage: View {
         case .lights: "Choose which lights to always show."
         case .quick: "Choose up to 6 scripts for quick actions."
         case .favourites: "Choose up to 12 tiles for favourites."
-        case .doors: "Choose which doors to monitor."
         case .activity, .battery: "Choose which sensors to monitor."
         case .chargePoint: "Sign in to ChargePoint to get started."
         }

@@ -151,9 +151,6 @@ struct AddWidgetGallery: View {
         case .favourites:
             FavouritesView(.sample)
                 .widgetThumbnail()
-        case .doors:
-            DoorsView(.sample)
-                .widgetThumbnail()
         }
     }
 
@@ -185,11 +182,9 @@ struct AddWidgetGallery: View {
         case .car:
             return "Car status and readings"
         case .alarm:
-            return "Arm and disarm your home alarm"
+            return "Arm and disarm, front door and garage"
         case .thermostat:
             return "Control your thermostat"
-        case .doors:
-            return "Monitor and control doors"
         case .quick:
             return "Quick actions and scripts"
         case .lights:
@@ -210,7 +205,6 @@ struct AddWidgetGallery: View {
         case .car: return .car
         case .alarm: return .alarm
         case .thermostat: return .thermostat
-        case .doors: return .doors
         case .quick: return .quick
         case .lights: return .lights
         case .favourites: return .favourites

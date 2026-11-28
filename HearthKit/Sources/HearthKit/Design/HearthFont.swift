@@ -50,12 +50,20 @@ public enum HearthFont {
     /// Dynamic Type.
     public func font(scale: CGFloat) -> Font {
         Font.custom(
-            "Roboto Flex",
+            Self.family,
             size: Self.scaledSize(self, scale: scale),
             relativeTo: textStyle
         )
         .weight(approximateWeight)
     }
+
+    /// This token's family and weight at an exact point size that does not follow Dynamic Type:
+    /// for rows whose height is planned in points (the Alarm card's compact door rows).
+    public func font(fixedSize: CGFloat) -> Font {
+        Font.custom(Self.family, fixedSize: fixedSize).weight(approximateWeight)
+    }
+
+    private static let family = "Roboto Flex"
 
     /// The declared size of `token` times `scale`.
     static func scaledSize(_ token: HearthFont, scale: CGFloat) -> CGFloat {

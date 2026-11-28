@@ -22,23 +22,28 @@ public struct HaConfig: Sendable, Equatable, Codable {
     public var lightPinsJson: String
     public var favouriteIdsJson: String
     public var doorsChosen: Bool
+    /// The Alarm card's garage (`cover.*`). nil: never chosen, so the old Doors selection may
+    /// supply it (`garageSelectedID`); empty: None was chosen.
+    public var garageId: String?
 
     public init(baseUrl: String, token: String, entityId: String, refreshToken: String = "",
                 lockId: String = "", lockName: String = "", confirmWith: String = CONFIRM_BIOMETRIC,
                 climateId: String = "", comfortId: String = "", resumeId: String = "",
                 sensorsJson: String = "[]", doorIdsJson: String = "[]", scriptIdsJson: String = "[]",
-                lightPinsJson: String = "[]", favouriteIdsJson: String = "[]", doorsChosen: Bool = false) {
+                lightPinsJson: String = "[]", favouriteIdsJson: String = "[]", doorsChosen: Bool = false,
+                garageId: String? = nil) {
         self.baseUrl = baseUrl; self.token = token; self.entityId = entityId; self.refreshToken = refreshToken
         self.lockId = lockId; self.lockName = lockName; self.confirmWith = confirmWith
         self.climateId = climateId; self.comfortId = comfortId; self.resumeId = resumeId
         self.sensorsJson = sensorsJson; self.doorIdsJson = doorIdsJson; self.scriptIdsJson = scriptIdsJson
         self.lightPinsJson = lightPinsJson; self.favouriteIdsJson = favouriteIdsJson
         self.doorsChosen = doorsChosen
+        self.garageId = garageId
     }
 
     private enum CodingKeys: String, CodingKey {
         case baseUrl, token, entityId, refreshToken, lockId, lockName, confirmWith, climateId, comfortId, resumeId
-        case sensorsJson, doorIdsJson, scriptIdsJson, lightPinsJson, favouriteIdsJson, doorsChosen
+        case sensorsJson, doorIdsJson, scriptIdsJson, lightPinsJson, favouriteIdsJson, doorsChosen, garageId
     }
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -57,7 +62,8 @@ public struct HaConfig: Sendable, Equatable, Codable {
             scriptIdsJson: try values.decodeIfPresent(String.self, forKey: .scriptIdsJson) ?? "[]",
             lightPinsJson: try values.decodeIfPresent(String.self, forKey: .lightPinsJson) ?? "[]",
             favouriteIdsJson: try values.decodeIfPresent(String.self, forKey: .favouriteIdsJson) ?? "[]",
-            doorsChosen: try values.decodeIfPresent(Bool.self, forKey: .doorsChosen) ?? false)
+            doorsChosen: try values.decodeIfPresent(Bool.self, forKey: .doorsChosen) ?? false,
+            garageId: try values.decodeIfPresent(String.self, forKey: .garageId))
     }
 
     public var isSignedIn: Bool { !refreshToken.isEmpty }
@@ -87,7 +93,8 @@ public struct HaConfig: Sendable, Equatable, Codable {
 public func haCollectionSelectionChanged(_ before: HaConfig?, _ after: HaConfig?) -> Bool {
     !haSameConnection(before, after) || before?.entityId != after?.entityId ||
         before?.lockId != after?.lockId || before?.doorIds != after?.doorIds ||
-        before?.doorsChosen != after?.doorsChosen
+        before?.doorsChosen != after?.doorsChosen ||
+        before.flatMap(garageSelectedID) != after.flatMap(garageSelectedID)
 }
 
 public func preserveSelectionOrder(_ before: [String], selected: Set<String>, available: [String]) -> [String] {

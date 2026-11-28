@@ -27,8 +27,8 @@ struct HomeWidgetInventoryTests {
         )
         let widgets = configuredWidgets(config: config, chargePointSignedIn: true)
 
-        // Should return all 10 widgets in allCases order
-        #expect(widgets.count == 10)
+        // Should return all 9 widgets in allCases order
+        #expect(widgets.count == 9)
         #expect(widgets == HomeWidgetKind.allCases)
     }
 

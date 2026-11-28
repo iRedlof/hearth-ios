@@ -3,6 +3,8 @@ import AppIntents
 import HearthKit
 
 /// Actual panel/door telemetry with a centered door well and controls bound to their rendered origin.
+/// With a garage configured the well holds two compact rows (front door, garage); without one the
+/// single front-door row keeps its roomier layout.
 public struct AlarmBeaconView: View {
     public let snap: AlarmSnapshot
     @Environment(\.cardStyle) private var cardStyle
@@ -62,28 +64,51 @@ public struct AlarmBeaconView: View {
                 Spacer(minLength: 2)
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.alarm", ink: surfaceInk)
             }
-            BeaconMiddle(maximumHeight: 72) {
-                if snap.setup {
-                    Text("Set up home alarm").font(HearthFont.callout.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .background(Color(argb: look.chipFaint), in: RoundedRectangle(cornerRadius: 13))
-                } else {
-                    doorRow
+            if let garage = snap.garage, snap.compactDoorRows {
+                compactDoorRows(garage)
+            } else {
+                BeaconMiddle(maximumHeight: 72) {
+                    if snap.setup {
+                        Text("Set up home alarm").font(HearthFont.callout.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .background(Color(argb: look.chipFaint), in: RoundedRectangle(cornerRadius: 13))
+                    } else {
+                        doorRow
+                    }
                 }
             }
             if snap.setup || snap.error.map(beaconNeedsSettings) == true || snap.error.map(beaconNeedsSignIn) == true {
                 Button(intent: HaSetupIntent(reconnect: snap.needsSignIn)) {
                     Text(snap.needsSignIn ? "Sign in" : snap.setup ? "Connect" : "Open Settings")
                         .font(HearthFont.callout.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk)
-                        .frame(maxWidth: .infinity).frame(height: 34)
+                        .frame(maxWidth: .infinity).frame(height: AlarmCardMetrics.actionHeight)
                         .background(Color(argb: look.chip), in: RoundedRectangle(cornerRadius: 10))
                 }.buttonStyle(.plain)
             } else {
                 actionsRow
             }
         }
-        .padding(.horizontal, 13).padding(.top, 11).padding(.bottom, 6)
+        .padding(.horizontal, 13).padding(.top, AlarmCardMetrics.surfaceTopPadding)
+        .padding(.bottom, AlarmCardMetrics.surfaceBottomPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// Front door over garage, sized for the height actually left between the header and the arm
+    /// button (`alarmDoorRowsLayout`), and centred in it.
+    private func compactDoorRows(_ garage: AlarmGarageRow) -> some View {
+        GeometryReader { geometry in
+            let layout = alarmDoorRowsLayout(availableHeight: geometry.size.height, textScale: textScale)
+            VStack(spacing: layout.rowSpacing) {
+                AlarmCompactDoorRow(icon: doorIcon, name: snap.doorName,
+                    statusLines: alarmDoorStatusLines(state: snap.doorState, since: snap.doorSince, stale: snap.doorStale),
+                    statusColor: doorStatusColor, ink: surfaceInk, fill: Color(argb: look.chipFaint),
+                    layout: layout, accessibilityText: doorAccessibilityText) {
+                    doorControl(compact: layout)
+                }
+                AlarmGarageRowView(garage: garage, scope: snap.requestScope, look: look, layout: layout)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
     }
 
     /// Independent lock freshness; unknown and historical readings never imply a freshly secure door.
@@ -106,7 +131,7 @@ public struct AlarmBeaconView: View {
 
     private var selectedDoorRow: some View {
         HStack(spacing: 8) {
-            Image(systemName: snap.doorStale ? "clock" : snap.doorLocked.map { $0 ? "lock.fill" : "lock.open.fill" } ?? "questionmark.circle")
+            Image(systemName: doorIcon)
                 .font(HearthFont.cardHeading.font).foregroundStyle(surfaceInk.opacity(0.9)).frame(width: 20)
             VStack(alignment: .leading, spacing: 1) {
                 Text(snap.doorName).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).foregroundStyle(surfaceInk).lineLimit(1)
@@ -118,40 +143,56 @@ public struct AlarmBeaconView: View {
                         .accessibilityLabel(since)
                 }
             }.frame(maxWidth: .infinity, alignment: .leading)
-            if let action = snap.doorAction {
-                doorButton(action)
-            } else if !snap.doorSelected || snap.doorError.map(beaconNeedsSettings) == true
-                        || snap.doorError.map(beaconNeedsSignIn) == true {
-                Button(intent: HaSetupIntent(reconnect: snap.doorError.map(beaconNeedsSignIn) == true)) {
-                    doorLabel(snap.doorError.map(beaconNeedsSignIn) == true ? "Sign in" : "Settings")
-                }.buttonStyle(.plain)
-            } else if snap.commandPending && snap.doorLocked != nil {
-                doorLabel(snap.doorLocked == true ? "Unlock" : "Lock").opacity(0.7)
-            }
+            doorControl(compact: nil)
         }
         .padding(9)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(argb: look.chipFaint), in: RoundedRectangle(cornerRadius: 11))
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(snap.doorName), \(snap.doorStale ? "last known " : "")\(snap.doorState). \(snap.doorError ?? "")")
+        .accessibilityLabel(doorAccessibilityText)
     }
 
-    private func doorLabel(_ text: String) -> some View {
-        Text(text).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).lineLimit(1)
-            .foregroundStyle(surfaceInk).padding(.horizontal, 8).frame(height: 32)
-            .background(Color(argb: look.chip), in: RoundedRectangle(cornerRadius: 9))
-            .fixedSize(horizontal: true, vertical: false)
+    private var doorIcon: String {
+        snap.doorStale ? "clock" : snap.doorLocked.map { $0 ? "lock.fill" : "lock.open.fill" } ?? "questionmark.circle"
     }
-    @ViewBuilder private func doorButton(_ action: LockAction) -> some View {
+    private var doorAccessibilityText: String {
+        "\(snap.doorName), \(snap.doorStale ? "last known " : "")\(snap.doorState). \(snap.doorError ?? "")"
+    }
+
+    /// The front door's trailing control, in the single row's size or a compact row's.
+    @ViewBuilder private func doorControl(compact: AlarmDoorRowsLayout?) -> some View {
+        if let action = snap.doorAction {
+            doorButton(action, compact: compact)
+        } else if !snap.doorSelected || snap.doorError.map(beaconNeedsSettings) == true
+                    || snap.doorError.map(beaconNeedsSignIn) == true {
+            Button(intent: HaSetupIntent(reconnect: snap.doorError.map(beaconNeedsSignIn) == true)) {
+                doorLabel(snap.doorError.map(beaconNeedsSignIn) == true ? "Sign in" : "Settings", compact: compact)
+            }.buttonStyle(.plain)
+        } else if snap.commandPending && snap.doorLocked != nil {
+            doorLabel(snap.doorLocked == true ? "Unlock" : "Lock", compact: compact).opacity(0.7)
+        }
+    }
+
+    @ViewBuilder private func doorLabel(_ text: String, compact: AlarmDoorRowsLayout?) -> some View {
+        if let compact {
+            AlarmCompactDoorLabel(text: text, ink: surfaceInk, fill: Color(argb: look.chip), layout: compact)
+        } else {
+            Text(text).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).lineLimit(1)
+                .foregroundStyle(surfaceInk).padding(.horizontal, 8).frame(height: 32)
+                .background(Color(argb: look.chip), in: RoundedRectangle(cornerRadius: 9))
+                .fixedSize(horizontal: true, vertical: false)
+        }
+    }
+    @ViewBuilder private func doorButton(_ action: LockAction, compact: AlarmDoorRowsLayout?) -> some View {
         if !hasOrigin {
-            doorLabel(action.label)
+            doorLabel(action.label, compact: compact)
         } else if action == .unlock {
             Button(intent: AlarmGatedIntent(action.rawValue, snapshot: snap, entityID: snap.lockID)) {
-                doorLabel(action.label)
+                doorLabel(action.label, compact: compact)
             }.buttonStyle(.plain)
         } else {
             Button(intent: AlarmControlIntent(action.rawValue, snapshot: snap, entityID: snap.lockID)) {
-                doorLabel(action.label)
+                doorLabel(action.label, compact: compact)
             }.buttonStyle(.plain)
         }
     }
@@ -161,7 +202,7 @@ public struct AlarmBeaconView: View {
             if snap.actionSlots.isEmpty {
                 Text(snap.commandPending ? "Updating…" : snap.stale || snap.error != nil ? "Refresh to check" : "No supported controls")
                     .font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(surfaceInk.opacity(0.75))
-                    .frame(maxWidth: .infinity).frame(height: 34)
+                    .frame(maxWidth: .infinity).frame(height: AlarmCardMetrics.actionHeight)
             }
             ForEach(snap.actionSlots, id: \.self) { action in
                 if !hasOrigin || !snap.actions.contains(action) {
@@ -185,7 +226,7 @@ public struct AlarmBeaconView: View {
             Text(action.label).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold)).lineLimit(1)
         }
         .foregroundStyle(primary ? Color(argb: look.chipPrimaryInk) : surfaceInk)
-        .frame(maxWidth: .infinity).frame(height: 34)
+        .frame(maxWidth: .infinity).frame(height: AlarmCardMetrics.actionHeight)
         .background(Color(argb: primary ? look.chipPrimary : look.chip),
                     in: RoundedRectangle(cornerRadius: 10))
     }
