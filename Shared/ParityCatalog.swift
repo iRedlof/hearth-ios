@@ -266,6 +266,21 @@ struct ParityStateScreen: View {
               let value = Double(args[index + 1]), value >= 110, value <= 900 else { return fallback }
         return CGFloat(value)
     }
+    #if DEBUG
+    /// Render harness (docs/RENDER-HARNESS.md): `-parityFlush` pins the card to the true top-left
+    /// (0,0), so the host crop is a fixed `width × height` rect with no safe-area maths.
+    private var flush: Bool { ProcessInfo.processInfo.arguments.contains("-parityFlush") }
+    /// Render harness: `-renderColorScheme light|dark`; nil without the argument.
+    static func renderColorScheme() -> ColorScheme? {
+        let args = ProcessInfo.processInfo.arguments
+        guard let index = args.firstIndex(of: "-renderColorScheme"), index + 1 < args.count else { return nil }
+        switch args[index + 1] {
+        case "light": return .light
+        case "dark": return .dark
+        default: return nil
+        }
+    }
+    #endif
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color(red: 1, green: 0, blue: 1).ignoresSafeArea()   // magenta crop marker — appears nowhere in the card
@@ -276,9 +291,18 @@ struct ParityStateScreen: View {
                 #if DEBUG
                 .cardStyle(ParityCatalog.launchCardStyle() ?? .default)
                 #endif
+                #if DEBUG
+                .padding(.leading, flush ? 0 : 16).padding(.top, flush ? 0 : 70)
+                #else
                 .padding(.leading, 16).padding(.top, 70)
+                #endif
         }
+        #if DEBUG
+        .ignoresSafeArea(flush ? .all : [])
+        .preferredColorScheme(Self.renderColorScheme() ?? .dark)
+        #else
         .preferredColorScheme(.dark)
+        #endif
         .statusBarHidden(true)
         .task {
             #if DEBUG

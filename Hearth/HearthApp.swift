@@ -15,6 +15,8 @@ struct HearthApp: App {
             probeSelection = .inactive
             return
         }
+        // Render harness (docs/RENDER-HARNESS.md). Inert unless `-demoHouse` is, or was last, passed.
+        DemoHouse.prepareLaunch()
         probeSelection = CarRouteProbe.resolveLaunch(arguments: ProcessInfo.processInfo.arguments)
         if case .inactive = probeSelection,
            Self.settingsFixture() == nil,
@@ -24,6 +26,7 @@ struct HearthApp: App {
     var body: some Scene {
         WindowGroup {
             #if DEBUG
+            Group {
             if CpSessionStore.fixtureActive {
                 CpOwnedNativeHost()
             } else {
@@ -37,10 +40,15 @@ struct HearthApp: App {
                 else if Self.designGallery() { DesignSystemGallery() }
                 else if let preview = Self.homePreview() { HomePreviewFixture(previewCase: preview) }
                 else if let page = Self.phase3Page() { Phase3PageFixture(pageCase: page) }
+                else if ParityCatalog.launchListsRenderIDs() { ParityRenderIndexScreen() }
                 else if let id = Self.parityState() { ParityStateScreen(id: id) }
                 else { ContentView() }
             }
             }
+            }
+            // Render harness: `-renderColorScheme light|dark` draws the app in that appearance.
+            // Without the argument nothing is applied.
+            .modifier(RenderColorSchemeOverride())
             #else
             if let id = Self.parityState() { ParityStateScreen(id: id) }
             else { ContentView() }
@@ -114,6 +122,10 @@ struct ContentView: View {
     @State private var thermostatAdmission = ThermostatRouteAdmission()
     @State private var thermostatModel: ThermostatControlsModel?
     @State private var signOutError: String?
+    #if DEBUG
+    /// Render harness: the picker `-demoPicker <name>` opens over the demo Home.
+    @State private var demoPicker: DemoHousePicker?
+    #endif
     private let carReadingsRuntime: CarReadingsRuntime
     private let inertTabs: Bool
 
@@ -198,6 +210,9 @@ struct ContentView: View {
         }
         #if DEBUG
         .onAppear { handleDebugLaunchArgs() }
+        .sheet(item: $demoPicker) { picker in
+            if let config { DemoHousePickerHost(picker: picker, config: config) }
+        }
         #endif
         .onAppear {
             if !inertTabs {
@@ -600,8 +615,10 @@ struct ContentView: View {
         } else if let index = args.firstIndex(of: "-widgetPage"), index + 1 < args.count,
                   let kind = HomeWidgetKind(rawValue: args[index + 1]) {
             presentedSheet = .widgetPage(kind, UUID())
-        } else if args.contains("-cardStyle") {
-            presentedSheet = .cardStylePage(nil, UUID())
+        } else if let index = args.firstIndex(of: "-cardStyle") {
+            // `-cardStyle` is All cards; `-cardStyle <kind>` is that widget's own page.
+            let kind = index + 1 < args.count ? HomeWidgetKind(rawValue: args[index + 1]) : nil
+            presentedSheet = .cardStylePage(kind, UUID())
         } else if args.contains("-morningCommute") {
             presentedSheet = .morningCommute(UUID())
         } else if args.contains("-leaveBy") {
@@ -616,6 +633,22 @@ struct ContentView: View {
             presentedSheet = .routines(UUID())
         } else if args.contains("-houseConfirm") {
             presentedSheet = .houseConfirm(UUID())
+        } else if DemoHouse.isActive {
+            handleDemoHouseLaunchArgs(args)
+        }
+    }
+
+    /// Render harness: the screens the hooks above do not reach, over the demo house only.
+    private func handleDemoHouseLaunchArgs(_ args: [String]) {
+        if args.contains("-demoChargePoint") {
+            presentedSheet = .chargePointPage(nil, UUID())
+        } else if args.contains("-demoHomeAssistant") {
+            presentedSheet = .homeAssistantPage(UUID())
+        } else if args.contains("-demoThermostatDetail"),
+                  let destination = DemoHouseThermostat.makeDetailDestination() {
+            presentThermostat(destination)
+        } else if let picker = DemoHousePicker.requested(in: args) {
+            demoPicker = picker
         }
     }
     #endif
@@ -693,6 +726,19 @@ private struct ControlledSetupScreen: View {
 }
 
 #if DEBUG
+/// Render harness: `-renderColorScheme light|dark` draws the whole app in that appearance, so the
+/// walker captures both without depending on the simulator's system appearance. Without the
+/// argument the content is returned untouched, so a screen's own preferred scheme still applies.
+private struct RenderColorSchemeOverride: ViewModifier {
+    func body(content: Content) -> some View {
+        if let scheme = ParityStateScreen.renderColorScheme() {
+            content.preferredColorScheme(scheme)
+        } else {
+            content
+        }
+    }
+}
+
 private enum HomePreviewCase {
     case populated, firstRun
 }

@@ -43,6 +43,21 @@ enum CpSessionStore {
 
     static func discardFixtureDependencies() { CpOwnedFixtureRegistry.shared.discard() }
 
+    /// Render harness seam (docs/RENDER-HARNESS.md): when set, `runtime()` talks to this canned
+    /// transport instead of ChargePoint, so the demo house's seeded account reads as connected with
+    /// no network. Only `DemoHouse` sets it, in the app process, when launched with `-demoHouse`.
+    nonisolated(unsafe) static var demoTransportProvider: (@Sendable () -> any CpOwnedTransport)?
+
+    /// True while the stored accounts are the render harness's fictional ones. A process without
+    /// the canned transport (the widget extension) then gets no ChargePoint runtime at all, so a
+    /// made-up session is never sent to ChargePoint.
+    static var demoAccountsStored: Bool {
+        get { demoDefaults?.bool(forKey: demoAccountsKey) ?? false }
+        set { demoDefaults?.set(newValue, forKey: demoAccountsKey) }
+    }
+    private static let demoAccountsKey = "demoHouse.accountsStored"
+    private static var demoDefaults: UserDefaults? { UserDefaults(suiteName: "group.com.rohit.hearth") }
+
     private static func fixtureDependencies() throws -> CpOwnedFixtureDependencies? {
         guard fixtureActive else { return nil }
         guard let dependencies = CpOwnedFixtureRegistry.shared.load() else { throw CpStateStoreError.ownershipUnavailable }
@@ -123,6 +138,12 @@ enum CpSessionStore {
             return CpOwnedRuntime(store: repository.store, directory: repository.directory,
                 transport: fixture.transport, now: fixture.now, onAlert: fixture.onAlert)
         }
+        if let provider = demoTransportProvider {
+            let repository = try repository()
+            return CpOwnedRuntime(store: repository.store, directory: repository.directory,
+                transport: provider(), now: now)
+        }
+        guard !demoAccountsStored else { throw CpStateStoreError.ownershipUnavailable }
         #endif
         let repository = try repository()
         return CpOwnedRuntime(store: repository.store, directory: repository.directory, now: now) { alert, snapshot in
