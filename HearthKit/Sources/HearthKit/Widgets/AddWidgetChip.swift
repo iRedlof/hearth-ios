@@ -3,6 +3,7 @@ import Foundation
 /// Widget chip state for the Add Widget gallery.
 public enum AddChip: Sendable, Equatable {
     case added        // Widget is configured and can be placed (green "Added")
+    case ready        // Home Assistant is connected; the widget just needs its own setup (green "Ready to set up")
     case needsHA      // Requires Home Assistant connection (grey "Needs Home Assistant")
     case needsCP      // Requires ChargePoint sign-in (grey "Needs ChargePoint")
 }
@@ -33,7 +34,9 @@ public func addWidgetChip(kind: HomeWidgetKind, config: HaConfig, cpSignedIn: Bo
     case .chargePoint:
         return .needsCP
     default:
-        return .needsHA
+        // Connected to Home Assistant: nothing is missing but this widget's own choices. Saying
+        // "Needs Home Assistant" here read as if Home Assistant were not signed in.
+        return haConnectionStatus(config) == .connected ? .ready : .needsHA
     }
 }
 

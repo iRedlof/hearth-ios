@@ -19,6 +19,22 @@ struct AddWidgetChipTests {
         #expect(chip == .added)
     }
 
+    @Test("Home Assistant connected but the widget not set up yet is ready, not 'Needs Home Assistant'")
+    func readyWhenConnectedButNotSetUp() {
+        let config = HaConfig(baseUrl: "https://ha.example.com", token: "token", entityId: "", refreshToken: "refresh")
+        for kind in [HomeWidgetKind.alarm, .thermostat, .quick, .lights, .favourites, .doors] {
+            #expect(addWidgetChip(kind: kind, config: config, cpSignedIn: false) == .ready, "\(kind)")
+        }
+        // ChargePoint depends on its own sign-in, not on Home Assistant.
+        #expect(addWidgetChip(kind: .chargePoint, config: config, cpSignedIn: false) == .needsCP)
+    }
+
+    @Test("Home Assistant needing sign-in again still says it needs Home Assistant")
+    func needsHaWhenSignedOut() {
+        let config = HaConfig(baseUrl: "https://ha.example.com", token: "", entityId: "", refreshToken: "")
+        #expect(addWidgetChip(kind: .alarm, config: config, cpSignedIn: false) == .needsHA)
+    }
+
     @Test("Returns needsHA for alarm without connection")
     func needsHaForAlarm() {
         let config = HaConfig(
@@ -103,7 +119,7 @@ struct AddWidgetChipTests {
         #expect(chip == .needsHA)
     }
 
-    @Test("Returns needsHA for thermostat without climate")
+    @Test("Connected Home Assistant: thermostat without climate is ready to set up")
     func needsHaForThermostatWithoutClimate() {
         let config = HaConfig(
             baseUrl: "https://ha.example.com",
@@ -113,7 +129,7 @@ struct AddWidgetChipTests {
             climateId: ""
         )
         let chip = addWidgetChip(kind: .thermostat, config: config, cpSignedIn: false)
-        #expect(chip == .needsHA)
+        #expect(chip == .ready)
     }
 
     @Test("Returns added for thermostat with climate")
@@ -142,7 +158,7 @@ struct AddWidgetChipTests {
         #expect(chip == .added)
     }
 
-    @Test("Returns needsHA for quick actions without scripts")
+    @Test("Connected Home Assistant: quick actions without scripts is ready to set up")
     func needsHaForQuickActionsWithoutScripts() {
         let config = HaConfig(
             baseUrl: "https://ha.example.com",
@@ -152,7 +168,7 @@ struct AddWidgetChipTests {
             scriptIdsJson: "[]"
         )
         let chip = addWidgetChip(kind: .quick, config: config, cpSignedIn: false)
-        #expect(chip == .needsHA)
+        #expect(chip == .ready)
     }
 
     @Test("Returns added for lights when pins configured")
@@ -168,7 +184,7 @@ struct AddWidgetChipTests {
         #expect(chip == .added)
     }
 
-    @Test("Returns needsHA for lights without pins")
+    @Test("Connected Home Assistant: lights without pins is ready to set up")
     func needsHaForLightsWithoutPins() {
         let config = HaConfig(
             baseUrl: "https://ha.example.com",
@@ -178,7 +194,7 @@ struct AddWidgetChipTests {
             lightPinsJson: "[]"
         )
         let chip = addWidgetChip(kind: .lights, config: config, cpSignedIn: false)
-        #expect(chip == .needsHA)
+        #expect(chip == .ready)
     }
 
     // MARK: - Category Tests

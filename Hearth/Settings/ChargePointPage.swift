@@ -37,7 +37,8 @@ struct ChargePointPage: View {
                 ConnectionHero(
                     presentation: cpHeroPresentation(connectionStatus),
                     title: "ChargePoint",
-                    detail: heroDetail
+                    detail: heroDetail,
+                    showsSide: connectionStatus == .needsSignIn
                 ) {
                     ctaButton
                 }

@@ -144,6 +144,9 @@ struct WidgetPage: View {
                 widget(for: kind.previewKind)
                     .frame(width: previewWidth, height: previewHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .redacted(reason: previewSource == .loading ? .placeholder : [])
+                    // A picture of the widget, not the widget: its keys must not act from here.
+                    .allowsHitTesting(false)
                 Spacer()
             }
             .padding(.vertical, 24)
@@ -168,7 +171,7 @@ struct WidgetPage: View {
     }
 
     private var statusSection: some View {
-        Text(statusLine)
+        Text(widgetPreviewCaption(previewSource, status: statusLine))
             .font(HearthFont.rowTitle.font)
             .foregroundStyle(isSetUp && health != .ok ? HearthColor.amber(scheme) : HearthColor.sub(scheme))
             .padding(.horizontal, HearthMetrics.pagePadding)
@@ -540,6 +543,28 @@ struct WidgetPage: View {
 
     // MARK: - Widget Preview
 
+    /// What the preview card draws: the person's own data, a placeholder while that loads, or a
+    /// labelled example. A sample under "On your home screen" would read as their real state.
+    private var previewSource: WidgetPreviewSource {
+        switch kind {
+        case .alarm:
+            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: config?.isComplete == true,
+                                       hasLiveData: alarm != nil)
+        case .thermostat:
+            return widgetPreviewSource(isSetUp: isSetUp,
+                                       supportsLive: thermostat.entry != nil || thermostat.checking,
+                                       hasLiveData: thermostat.entry != nil)
+        case .chargePoint:
+            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: true, hasLiveData: cp != nil)
+        default:
+            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: false, hasLiveData: false)
+        }
+    }
+
+    private var liveAlarm: AlarmSnapshot? { previewSource == .live ? alarm : nil }
+    private var liveThermostat: ThermostatEntryPayload? { previewSource == .live ? thermostat.entry : nil }
+    private var liveCp: CpSnapshot? { previewSource == .live ? cp : nil }
+
     @ViewBuilder
     private func widget(for kind: WidgetPreviewKind) -> some View {
         // NOTE: Duplicates WidgetGalleryView.widget(for:) — shared-helper extraction deferred (Phase 6 M1)
@@ -557,14 +582,16 @@ struct WidgetPage: View {
                     snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
             }
         case .alarm:
-            AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"), family: selectedFamily.widgetKitFamily)
+            AlarmBeaconView(liveAlarm ?? AlarmParityInputs.snapshot("disarmed"), family: selectedFamily.widgetKitFamily)
         case .thermostat:
-            if selectedFamily == .small {
+            if let entry = liveThermostat {
+                ThermostatBeaconView(entry, family: selectedFamily.widgetKitFamily)
+            } else if selectedFamily == .small {
                 ThermostatBeaconView(ThermostatParityInputs.payload("auto"), family: .systemSmall)
             } else {
                 ThermostatBeaconView(.sample)
             }
-        case .chargepoint: CpBeaconView(.sample)
+        case .chargepoint: CpBeaconView(liveCp ?? .sample)
         case .battery: BatteryView(.sample, layoutFamily: selectedFamily.widgetKitFamily)
         case .activity: ActivityView(.sample)
         case .lights: LightTileView(.sample)
@@ -634,7 +661,8 @@ struct WidgetPage: View {
     }
 
     private var statusLine: String {
-        widgetPageStatus(health: health, fresh: freshness, isSetUp: isSetUp)
+        widgetPageStatus(health: health, fresh: freshness, isSetUp: isSetUp,
+                         service: kind == .chargePoint ? "ChargePoint" : "Home Assistant")
     }
 
     private var freshness: String? {
