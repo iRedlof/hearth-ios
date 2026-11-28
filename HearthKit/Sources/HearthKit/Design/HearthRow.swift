@@ -53,6 +53,9 @@ public struct HearthRow<Trailing: View>: View {
         .padding(.horizontal, HearthMetrics.rowSidePadding)
         .padding(.vertical, 12)
         .frame(minHeight: HearthMetrics.rowMinHeight)
+        // Without a shape, a plain-style button or link around this row only reacts where something
+        // is drawn (icon, text, chevron); the blank space between them was dead.
+        .contentShape(Rectangle())
     }
 
     private var subtitleColor: Color {

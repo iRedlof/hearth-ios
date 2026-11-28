@@ -48,3 +48,18 @@ func friendlyName(ofStateJson json: String) -> String? {
           let name = attrs["friendly_name"] as? String, !name.isEmpty else { return nil }
     return name
 }
+
+/// Filters a picker list by what the person typed. Every word must appear in the entity's name or
+/// id, in any order; case and accents are ignored. A blank search keeps the whole list.
+public func entitiesMatching(_ entities: [HaEntity], query: String) -> [HaEntity] {
+    let words = query.split(whereSeparator: \.isWhitespace).map { searchFolded(String($0)) }
+    guard !words.isEmpty else { return entities }
+    return entities.filter { entity in
+        let haystack = searchFolded(entity.name) + " " + searchFolded(entity.id)
+        return words.allSatisfy { haystack.contains($0) }
+    }
+}
+
+private func searchFolded(_ text: String) -> String {
+    text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+}

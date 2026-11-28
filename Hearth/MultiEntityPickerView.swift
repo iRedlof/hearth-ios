@@ -19,6 +19,7 @@ struct MultiEntityPickerView: View {
     @State private var phase: Phase = .loading
     @State private var limitBlocked = false
     @State private var saveError: String?
+    @State private var search = ""
 
     private enum Phase: Equatable { case loading, loaded, failed(String) }
 
@@ -58,8 +59,10 @@ struct MultiEntityPickerView: View {
                     Button("Try again") { Task { await load() } }
                 }
             case .loaded:
+                let shown = entitiesMatching(entities, query: search)
                 if entities.isEmpty { Text("No matching entities found").foregroundStyle(.secondary) }
-                ForEach(entities) { row($0) }
+                else if shown.isEmpty { Text("Nothing matches “\(search)”").foregroundStyle(.secondary) }
+                ForEach(shown) { row($0) }
             }
             if !missingSelections.isEmpty {
                 Section(phase == .loaded ? "Not currently found" : "Saved selections") {
@@ -69,6 +72,9 @@ struct MultiEntityPickerView: View {
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.never)
         .task { await load() }
         .alert("Couldn't save settings", isPresented: Binding(
             get: { saveError != nil }, set: { if !$0 { saveError = nil } }
@@ -100,7 +106,10 @@ struct MultiEntityPickerView: View {
                     Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(.tint)
                 }
             }
+            // The whole row is the target, blank space included.
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier("settings.picker.\(e.id)")
         .accessibilityValue(selected.contains(e.id) ? "Selected" : "Not selected")
     }

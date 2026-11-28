@@ -536,6 +536,8 @@ private struct KeepOnLightsSheet: View {
                                         .foregroundStyle(.blue)
                                 }
                             }
+                            // The whole row is the target, blank space included.
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

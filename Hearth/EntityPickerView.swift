@@ -22,6 +22,7 @@ struct EntityPickerView: View {
     @State private var entities: [HaEntity] = []
     @State private var phase: Phase = .loading
     @State private var saveError: String?
+    @State private var search = ""
 
     private enum Phase: Equatable { case loading, loaded, failed(String) }
 
@@ -47,16 +48,22 @@ struct EntityPickerView: View {
                     Button("Try again") { Task { await load() } }
                 }
             case .loaded:
-                if allowNone { row(id: "", name: "None") }
+                let shown = entitiesMatching(entities, query: search)
+                if allowNone, search.trimmingCharacters(in: .whitespaces).isEmpty { row(id: "", name: "None") }
                 if entities.isEmpty {
                     Text("No \(title.lowercased()) entities found")
                         .foregroundStyle(.secondary)
+                } else if shown.isEmpty {
+                    Text("Nothing matches “\(search)”").foregroundStyle(.secondary)
                 }
-                ForEach(entities) { row(id: $0.id, name: $0.name) }
+                ForEach(shown) { row(id: $0.id, name: $0.name) }
             }
         }
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
+        .searchable(text: $search, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search")
+        .autocorrectionDisabled()
+        .textInputAutocapitalization(.never)
         .task { await load() }
         .alert("Couldn't save settings", isPresented: Binding(
             get: { saveError != nil }, set: { if !$0 { saveError = nil } }
@@ -86,7 +93,10 @@ struct EntityPickerView: View {
                     Image(systemName: "checkmark").fontWeight(.semibold).foregroundStyle(.tint)
                 }
             }
+            // The whole row is the target, blank space included.
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
         .accessibilityIdentifier("settings.picker.\(id.isEmpty ? "none" : id)")
         .accessibilityValue(id == selected ? "Selected" : "Not selected")
     }
