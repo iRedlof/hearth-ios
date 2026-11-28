@@ -36,8 +36,6 @@ public struct CardSheen: Sendable, Equatable {
     public static let standardHeight: CGFloat = 96
     /// `jewel_card_c0…c6`.
     public static let dark = CardSheen(topARGB: 0x38FFFFFF, centreARGB: 0x12FFFFFF, bottomARGB: 0x00FFFFFF)
-    /// `jewel_card_c7` (Snow).
-    public static let light = CardSheen(topARGB: 0x66FFFFFF, centreARGB: 0x12FFFFFF, bottomARGB: 0x00FFFFFF)
 }
 
 /// Everything a view needs to paint a styled background: the fill, then its lighting and edge.
@@ -62,14 +60,12 @@ public struct CardSurface: Sendable, Equatable {
     public static let strokeWidth: CGFloat = 1
     /// `jewel_card_c0…c6`'s edge.
     static let darkStrokeARGB: UInt32 = 0x1FFFFFFF
-    /// `jewel_card_c7`'s edge.
-    static let lightStrokeARGB: UInt32 = 0x1F000000
     static let blackARGB: UInt32 = 0xFF000000
 
-    /// A colour card: `jewel_card_c*.xml` (gradient, sheen, edge).
+    /// A dark colour's body: `jewel_card_c0…c6` (gradient, sheen, edge). Snow, the one light
+    /// colour, has its own body (`beaconLook`).
     static func colour(_ colour: CardColour) -> CardSurface {
         CardSurface(fill: .vertical(top: colour.topARGB, bottom: colour.bottomARGB),
-                    sheen: colour.isLight ? .light : .dark,
-                    strokeARGB: colour.isLight ? lightStrokeARGB : darkStrokeARGB)
+                    sheen: .dark, strokeARGB: darkStrokeARGB)
     }
 }

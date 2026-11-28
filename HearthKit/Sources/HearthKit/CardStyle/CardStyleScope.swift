@@ -40,10 +40,11 @@ public func cardStyleScopeHelper(follows: Bool, name: String) -> String {
         : "Changes below restyle only \(name)."
 }
 
-/// The text under "Background" (`CardStylePage.kt:163`). Android's has nothing about Glass to drop.
-public let cardStyleBackgroundHelper = "Alarm, Thermostat, Car and ChargePoint use Beacon compartments. "
-    + "Status gives a dark body; Snow gives a light body. ChargePoint keeps its orange rail; "
-    + "the others follow the widget’s state."
+/// The text under "Background" (`CardStylePage.kt:163`). Every iOS widget is a Beacon card (a rail
+/// and a body), so it no longer names four of them.
+public let cardStyleBackgroundHelper = "The background paints each card’s body. "
+    + "Status gives a dark body; Snow gives a light body. The rail keeps the widget’s state colour; "
+    + "ChargePoint keeps its orange rail."
 
 /// The All-cards preview's ‹ › stepper: wraps around the added widgets, and stays in range when
 /// their number changes.

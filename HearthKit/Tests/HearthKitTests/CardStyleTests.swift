@@ -150,6 +150,17 @@ struct CardStyleScopeTests {
             == "Its own: Plum · Larger")
     }
 
+    @Test("The Background helper speaks for every card: none is singled out as a Beacon card")
+    func backgroundHelper() {
+        #expect(cardStyleBackgroundHelper.contains("each card"))
+        #expect(cardStyleBackgroundHelper.contains("body"))
+        #expect(cardStyleBackgroundHelper.contains("rail"))
+        #expect(cardStyleBackgroundHelper.contains("ChargePoint keeps its orange rail"))
+        for name in ["Alarm", "Thermostat", "Car "] {
+            #expect(!cardStyleBackgroundHelper.contains(name))
+        }
+    }
+
     @Test("Helper text names the card being styled")
     func scopeHelper() {
         #expect(cardStyleScopeHelper(follows: true, name: "Alarm")

@@ -18,8 +18,8 @@ public let BATTERY_TEMPLATE = """
 public let BATTERY_LOW = 30
 public let BATTERY_EMPTY = 10
 
-/// Card colours for the non-Beacon status tone (green / amber / red / grey). `DoorsTone` itself is
-/// defined in Car.swift and shared across the non-Beacon widgets.
+/// Rail colours for the status tone (green / amber / red / grey) of the two-panel widgets:
+/// Lights, Quick actions, Favourites, Activity, Batteries. `DoorsTone` itself is defined in Car.swift.
 public extension DoorsTone {
     var fillARGB: UInt32 {
         switch self { case .calm: 0xFFD6EEDF; case .warn: 0xFFF6E7C6; case .alert: 0xFFF3D4D4; case .unknown: 0xFFE2E6E3 }

@@ -6,7 +6,7 @@ private func style(_ background: CardBackground, _ text: CardTextSize = .normal,
     CardStyle(background: background, textSize: text, smallPrint: small)
 }
 
-@Suite("Beacon look (Alarm, Thermostat, Car, ChargePoint)")
+@Suite("Beacon look (every widget: the style paints the body)")
 struct BeaconLookTests {
     @Test("Status paints the body Android's raised graphite")
     func statusBody() {
@@ -99,88 +99,14 @@ struct BeaconLookTests {
             #expect(look.body.baseARGB != tone.fillARGB)
         }
     }
-}
 
-@Suite("Card look (Lights, Quick actions, Favourites, Activity, Batteries)")
-struct CardLookTests {
-    @Test("Status keeps the card's own state colours")
-    func status() {
-        let look = cardLook(style(.status), warn: true, emergency: false)
-        #expect(look.surface == nil)
-        #expect(look.statusColours)
-        #expect(look.strip == nil)
-        #expect(!look.light)
-    }
-
-    @Test("A colour fills the card with its gradient, sheen and stroke, in white inks")
-    func colour() {
-        let look = cardLook(style(.colour(.ocean)), warn: false, emergency: false)
-        #expect(look.surface == CardSurface(fill: .vertical(top: 0xFF1D8FB4, bottom: 0xFF0A3C58),
-            sheen: CardSheen(topARGB: 0x38FFFFFF, centreARGB: 0x12FFFFFF, bottomARGB: 0x00FFFFFF),
-            strokeARGB: 0x1FFFFFFF))
-        #expect(!look.statusColours)
-        #expect(look.ink == 0xFFFFFFFF)
-        #expect(look.soft == 0xC7FFFFFF)
-        #expect(look.faint == 0x99FFFFFF)
-        #expect(look.flag == 0xFFFFD27A)
-        #expect(look.headline == 0xFFFFFFFF)
-        #expect(look.key == 0x26FFFFFF)
-    }
-
-    @Test("Snow is the light card: dark inks, brighter sheen, dark stroke")
-    func snow() {
-        let look = cardLook(style(.colour(.snow)), warn: false, emergency: false)
-        #expect(look.surface == CardSurface(fill: .vertical(top: 0xFFF4F5F7, bottom: 0xFFD9DDE3),
-            sheen: CardSheen(topARGB: 0x66FFFFFF, centreARGB: 0x12FFFFFF, bottomARGB: 0x00FFFFFF),
-            strokeARGB: 0x1F000000))
-        #expect(look.light)
-        #expect(look.ink == 0xFF1B1D22)
-        #expect(look.soft == 0xA61B1D22)
-        #expect(look.faint == 0x8C1B1D22)
-        #expect(look.flag == 0xFF9A5B00)
-        #expect(look.key == 0x141B1D22)
-    }
-
-    @Test("Black is pure black with white inks")
-    func black() {
-        let look = cardLook(style(.black), warn: false, emergency: false)
-        #expect(look.surface == CardSurface(fill: .solid(0xFF000000)))
-        #expect(look.ink == 0xFFFFFFFF)
-    }
-
-    @Test("Needing you shows as an accent on the chosen background")
-    func warnAccent() {
-        let dark = cardLook(style(.black), warn: true, emergency: false)
-        #expect(dark.headline == 0xFFFFC861)
-        #expect(dark.strip == 0xFFFFC861)
-        #expect(dark.flag == 0xFFFFC861)
-        let light = cardLook(style(.colour(.snow)), warn: true, emergency: false)
-        #expect(light.headline == 0xFF9A5B00)
-        #expect(light.strip == 0xFF9A5B00)
-    }
-
-    @Test("An emergency keeps the card's own alert colours whatever the style")
-    func emergency() {
-        let look = cardLook(style(.colour(.snow)), warn: true, emergency: true)
-        #expect(look.surface == nil)
-        #expect(look.statusColours)
-        #expect(look.strip == nil)
-        #expect(!look.light)
-    }
-
-    @Test("The widget container follows the chosen background, else the card's own colour")
-    func container() {
-        let tone: UInt32 = 0xFFB6D9C1
-        #expect(cardContainerARGB(style(.status), statusARGB: tone) == tone)
-        #expect(cardContainerARGB(style(.black), statusARGB: tone) == 0xFF000000)
-        #expect(cardContainerARGB(style(.colour(.rose)), statusARGB: tone) == 0xFFB4536E)
-    }
-
-    @Test("Text scale and small print come straight from the style")
-    func scaleAndSmallPrint() {
-        let look = cardLook(style(.black, .smaller, small: false), warn: false, emergency: false)
-        #expect(look.textScale == 0.9)
-        #expect(!look.smallPrint)
+    @Test("Nor the rail of a two-panel widget: its three tones stay their own colours")
+    func panelRailKeepsState() {
+        for tone in [PanelTone.active, PanelTone.settled, PanelTone.neutral] {
+            for background in [CardBackground.status, .black, .colour(.plum), .colour(.snow)] {
+                #expect(beaconLook(style(background)).body.baseARGB != tone.fillARGB)
+            }
+        }
     }
 }
 
