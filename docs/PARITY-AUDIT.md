@@ -155,28 +155,34 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 
 ## Widgets (Phase 4)
 
-**Status:** ✅ Shipped (Add-a-widget gallery, per-widget settings pages, Card style page, Glance widget)
+**Status:** ✅ Shipped (Add-a-widget gallery, per-widget settings pages, Card style page)
 
-**11 widgets at parity:**
-1. **Glance** (new 11th widget) — At-a-glance summary showing car/alarm/thermostat/doors/battery status in one view
-2. Car
-3. Alarm
-4. Thermostat
-5. Doors
-6. Quick actions
-7. Lights
-8. Favourites
-9. Activity
-10. Battery
-11. ChargePoint
+**10 widgets, one size each** (Car, Alarm, Thermostat, ChargePoint, Quick actions and Battery are
+medium; Doors, Lights, Favourites and Activity are large):
+1. Car
+2. Alarm
+3. Thermostat
+4. Doors
+5. Quick actions
+6. Lights
+7. Favourites
+8. Activity
+9. Battery
+10. ChargePoint
+
+**Removed (owner decision 2026-11-27):** the small sizes of Alarm, Thermostat and Car, and the
+small-only **Glance** summary widget. The Alarm readings screen, which only the small Alarm opened,
+went with them. Values saved for them are ignored: a Glance card style is dropped when read, and an
+old `hearth://alarm-readings/…` link opens nothing.
 
 **Surfaces built:**
 - **AddWidgetGallery** — Categorized widget picker with Added/Needs-HA/Needs-CP status chips
   - 3 categories: Activity, Comfort & safety, Energy
   - Status chips show availability for each widget based on HA/CP connection state
   - Tapping a widget opens its per-widget settings page
-- **WidgetPage** — Per-widget settings page for each of the 11 widgets
-  - Preview mat showing widget at Narrow/Standard/Wide sizes (slot size picker)
+- **WidgetPage** — Per-widget settings page for each of the 10 widgets
+  - Preview mat showing the widget's one size with the person's own live data (the same preview
+    the Card style page draws); a labelled example only when there is no data of theirs to draw
   - **Uses** — Prerequisite connections (HA/CP) with setup CTAs
   - **Safety** — Entity/device pickers (alarm, lock, climate, resume temp, doors, sensors, lights, scripts, favourites)
   - **Shows** — Display-name editor (App-Group state, keyed by `HomeWidgetKind`)
@@ -189,9 +195,6 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
   - **Small print:** on / off
   - **Platform divergence (owner decision 2026-11-27):** iOS leaves out Corners/Glass/Wallpaper because an iPhone widget cannot draw them; the page does not present controls that are no-ops on a real widget.
 
-**Glance honesty ruling:**
-Glance summarises only what placed widgets last read (no new network fetch). Unreadable or stale saved state yields "can't check" or error states, never a false "OK". This prevents showing stale data as current.
-
 **Integration:**
 - Gallery accessible via Home dashboard "Add a widget" card
 - Widget pages route from gallery picks and Home widget-card taps
@@ -201,17 +204,15 @@ Glance summarises only what placed widgets last read (no new network fetch). Unr
 
 **DEBUG hooks:**
 - `-addGallery` → present AddWidgetGallery
-- `-widgetPage <kind>` → present WidgetPage for the specified `HomeWidgetKind` (e.g., `-widgetPage glance`)
+- `-widgetPage <kind>` → present WidgetPage for the specified `HomeWidgetKind` (e.g., `-widgetPage car`)
 - `-cardStyle` → present CardStylePage
-- `-glancePreview` → present Glance widget preview (via WidgetPage)
 
 **Deferred to Phase 6:**
-- 6 Glance provider feeds not yet wired (Car/Alarm/Thermostat/Doors/Battery/ChargePoint — only placeholders in GlanceSnapshot)
 - Goodnight-key Every-day rows route to `.settings` placeholder until Phase 5 builds real destinations
 
 **Parity vs Android mocks:**
 - Gallery categories and status chips match Android design (mocks 04/11)
-- WidgetPage preview mat with slot-size picker matches Android mock 16
+- WidgetPage preview mat follows Android mock 16, without its slot-size picker (iOS widgets have one size)
 - CardStylePage matches Android top to bottom for the axes iOS can draw (Background/Text size/Small print); every widget kind reads the style
 - **Platform divergence:** iOS intentionally omits Corners/Glass/Wallpaper (Android mock 18) — documented above
 

@@ -1,5 +1,8 @@
 # iOS Phase 4 — Widgets (Add gallery · widget pages · Card style · Glance) Implementation Plan
 
+> **Update 2026-11-27 (owner decision):** the Glance widget and the small widget sizes were removed
+> from the app. What this document says about Glance is kept as a record of the original plan.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development. Steps use checkbox (`- [ ]`).
 
 **Goal:** Bring the widget experience to Android v2: a re-skinned **Add-a-widget gallery** (categorised, with Added/Needs-HA chips), a **per-widget settings page** template (preview mat + Uses/Safety/Shows/Every day/Look/Remove), a **Card-style** page (the iOS-portable subset), and a **new Glance widget** (the at-a-glance summary) for 11-tile parity — all on the Phase-1 design system.
