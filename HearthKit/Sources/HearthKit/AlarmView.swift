@@ -27,6 +27,13 @@ public func sinceLabel(_ changed: Date?, now: Date, zone: TimeZone = .current, l
     return "since " + fmt.string(from: changed)
 }
 
+/// A Beacon rail is narrow: there the unreachable line is said in fewer words ("Can't reach
+/// home"), so it stays on one line instead of being cut ("Can't reach Ho…"). The body and
+/// VoiceOver keep the full sentence.
+public func beaconRailDetail(_ detail: String) -> String {
+    detail.replacingOccurrences(of: "Can't reach Home Assistant", with: "Can't reach home")
+}
+
 /// The status row, honestly: live state + when it changed; on error the last known state greyed with
 /// when it was last checked; never a made-up state.
 public func cardFor(_ state: String?, error: String?, changedAt: Date?, checkedAt: Date?, now: Date,

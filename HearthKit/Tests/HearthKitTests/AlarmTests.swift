@@ -145,4 +145,11 @@ final class BeaconAlarmTests: XCTestCase {
         XCTAssertEqual(snap.doorLocked, true)
         XCTAssertEqual(snap.actions, [.armHome, .armAway])
     }
+
+    func testRailSaysTheUnreachableLineInFewerWordsAndLeavesTheRestAlone() {
+        XCTAssertEqual(beaconRailDetail("Can't reach Home Assistant\nlast checked 9:42 AM"),
+                       "Can't reach home\nlast checked 9:42 AM")
+        XCTAssertEqual(beaconRailDetail("Armed at 8:36 AM"), "Armed at 8:36 AM")
+        XCTAssertEqual(beaconRailDetail("Signed out: sign in again"), "Signed out: sign in again")
+    }
 }

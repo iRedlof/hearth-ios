@@ -137,19 +137,19 @@ struct AddWidgetGallery: View {
             CpBeaconView(.sample)
                 .widgetThumbnail()
         case .battery:
-            BatteryView(.sample, layoutFamily: .systemMedium)
+            BatteriesPanelView(.sample)
                 .widgetThumbnail()
         case .activity:
-            ActivityView(.sample)
+            ActivityPanelView(.sample)
                 .widgetThumbnail()
         case .lights:
-            LightTileView(.sample)
+            LightsPanelView(.sample)
                 .widgetThumbnail()
         case .quick:
-            QuickView(.sample)
+            QuickPanelView(.sample)
                 .widgetThumbnail()
         case .favourites:
-            FavouritesView(.sample)
+            FavouritesPanelView(.sample)
                 .widgetThumbnail()
         }
     }
@@ -310,10 +310,10 @@ private final class InertWidgetPreviewController: UIHostingController<AnyView> {
 /// `.scaleEffect(0.38)`) left the widget laying itself out inside the 60pt slot first, which
 /// produced the squashed, unreadable thumbnails.
 enum WidgetThumbnail {
-    /// The slot every row reserves, so titles line up whatever the widget's shape.
+    /// The slot every row reserves. Every widget is medium, so each thumbnail fills it the same way.
     static let slot = CGSize(width: 96, height: 60)
 
-    /// The medium Home Screen widget size on a 393pt-wide iPhone.
+    /// The medium Home Screen widget at its largest (a 428pt-wide iPhone or wider).
     static let natural = CGSize(width: 364, height: 170)
 
     static let scale = min(slot.width / natural.width, slot.height / natural.height)

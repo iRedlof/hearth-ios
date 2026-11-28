@@ -1,13 +1,11 @@
-/// The designed widget families, shared by the extension and the in-app gallery. Each widget has
-/// exactly one. Add a family only after designing useful content for that size.
+/// The designed widget families, shared by the extension and the in-app gallery. Every widget is
+/// medium and nothing else. Add a family only after designing useful content for that size.
 public enum WidgetPreviewFamily: String, CaseIterable, Sendable {
     case medium
-    case large
 
     public var title: String {
         switch self {
         case .medium: "Medium"
-        case .large: "Large"
         }
     }
 }
@@ -54,10 +52,6 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var family: WidgetPreviewFamily {
-        switch self {
-        case .car, .alarm, .thermostat, .chargepoint, .battery, .quick: .medium
-        case .activity, .lights, .favourites: .large
-        }
-    }
+    /// The one size this widget is designed for.
+    public var family: WidgetPreviewFamily { .medium }
 }

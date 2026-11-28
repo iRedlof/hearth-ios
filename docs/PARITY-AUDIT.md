@@ -157,8 +157,10 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 
 **Status:** ✅ Shipped (Add-a-widget gallery, per-widget settings pages, Card style page)
 
-**9 widgets, one size each** (Car, Alarm, Thermostat, ChargePoint, Quick actions and Battery are
-medium; Lights, Favourites and Activity are large):
+**9 widgets, one size each, all medium.** Every widget is a Beacon card: a rail with the answer
+and a body with the details. Lights, Quick actions, Favourites, Activity and Battery became
+two-panel cards on 2026-11-28 (Lights, Favourites and Activity were large before); see
+`docs/CARD-STYLE-IOS.md`, "Two-panel widgets".
 1. Car
 2. Alarm (front door + garage)
 3. Thermostat

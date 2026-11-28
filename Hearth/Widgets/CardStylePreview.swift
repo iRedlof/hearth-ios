@@ -53,7 +53,7 @@ final class CardStylePreviewModel: ObservableObject {
         case .chargePoint: return .chargePoint(await CpLiveSnapshot.fetch(now: now))
         case .battery: return .battery(await CollectionLiveSnapshots.batteries(now: now))
         case .activity: return .activity(await CollectionLiveSnapshots.activity(now: now))
-        case .lights: return .lights(await fetchLightsSnapshot(config, now: now))
+        case .lights: return .lights(await CollectionLiveSnapshots.lights(now: now))
         case .quick: return .quick(await fetchQuickSnapshot(config, now: now))
         case .favourites: return .favourites(await fetchFavouritesSnapshot(config, now: now))
         }
@@ -72,10 +72,7 @@ struct CardStylePreviewCard: View {
     /// preview is the same box the real widget has to fit.
     private var size: CGSize {
         let real = homeScreenWidgetSize(screenWidth: Double(UIScreen.main.bounds.width))
-        switch kind.previewKind.family {
-        case .medium: return CGSize(width: real.medium.width, height: real.medium.height)
-        case .large: return CGSize(width: real.large.width, height: real.large.height)
-        }
+        return CGSize(width: real.width, height: real.height)
     }
 
     var body: some View {
@@ -102,11 +99,11 @@ struct CardStylePreviewCard: View {
         case .alarm: AlarmBeaconView(data?.alarm ?? AlarmParityInputs.snapshot("disarmed"))
         case .thermostat: thermostatWidget
         case .chargePoint: CpBeaconView(data?.chargePoint ?? .sample)
-        case .battery: BatteryView(data?.battery ?? .sample, layoutFamily: .systemMedium)
-        case .activity: ActivityView(data?.activity ?? .sample)
-        case .lights: LightTileView(data?.lights ?? .sample)
-        case .quick: QuickView(data?.quick ?? .sample)
-        case .favourites: FavouritesView(data?.favourites ?? .sample)
+        case .battery: BatteriesPanelView(data?.battery ?? .sample)
+        case .activity: ActivityPanelView(data?.activity ?? .sample)
+        case .lights: LightsPanelView(data?.lights ?? .sample)
+        case .quick: QuickPanelView(data?.quick ?? .sample)
+        case .favourites: FavouritesPanelView(data?.favourites ?? .sample)
         }
     }
 

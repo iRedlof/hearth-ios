@@ -28,6 +28,9 @@ struct BeaconFreshness: View {
     var ink: Color
     var interactionsEnabled: Bool = true
     var thermostatSelection: ThermostatSelectionOrigin? = nil
+    /// False when there is no check time to print (not set up, never read): the reload button
+    /// then stands alone.
+    var showsStamp: Bool = true
     @Environment(\.cardStyle) private var cardStyle
 
     private var textScale: CGFloat { cardStyle.textSize.scale }
@@ -35,11 +38,15 @@ struct BeaconFreshness: View {
     var body: some View {
         HStack(spacing: 6) {
             // "Checked …" is small print: Card style can hide it (Android `BeaconChrome.kt:248`).
-            if cardShowsCheckedStamp(smallPrint: cardStyle.smallPrint) {
+            if showsStamp && cardShowsCheckedStamp(smallPrint: cardStyle.smallPrint) {
+                // Each line keeps its own width. Squeezed by a long title, the stamp used to
+                // break mid-word ("Checke" / "d"); now the title gives way instead.
                 VStack(alignment: .trailing, spacing: -1) {
                     Text("Checked").font(HearthFont.caption.font(scale: textScale))
                     Text(checkedAt).font(HearthFont.caption.font(scale: textScale))
                 }
+                .lineLimit(1)
+                .fixedSize(horizontal: true, vertical: false)
                 .foregroundStyle(ink.opacity(0.78))
                 .invalidatableContent()
             }

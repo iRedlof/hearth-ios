@@ -39,20 +39,6 @@ public struct LightsSummary: Sendable, Equatable {
     }
 }
 
-public struct LightTilePage: Sendable {
-    public let main: [LightView]
-    public let pinned: [LightView]
-    public let hiddenCount: Int
-}
-
-/// Two columns and at most two rows. A pinned section reserves a whole row.
-public func lightTilePage(_ summary: LightsSummary) -> LightTilePage {
-    let pins = Array(summary.pinned.prefix(2))
-    let main = Array(summary.on.prefix(pins.isEmpty ? 4 : 2))
-    return LightTilePage(main: main, pinned: pins,
-                         hiddenCount: summary.on.count + summary.pinned.count - main.count - pins.count)
-}
-
 public func lightView(_ l: Light, now: Date, zone: TimeZone = .current, locale: Locale = .current) -> LightView {
     if !l.available {
         return LightView(id: l.id, name: l.name, status: "Unavailable", on: false, percent: nil,

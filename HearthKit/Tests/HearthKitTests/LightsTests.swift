@@ -38,24 +38,4 @@ final class LightsTests: XCTestCase {
         XCTAssertEqual(lightsSummary([], now: now).headline, "No lights found")
         XCTAssertEqual(lightsSummary([Light(id: "l.a", name: "A", on: false, percent: nil, since: nil)], now: now).headline, "All off")
     }
-
-    func testPinnedTilesReserveAWholeRowAndCountActualHiddenTiles() {
-        func summary(main: Int, pins: Int) -> LightsSummary {
-            let lights = (0..<(main + pins)).map {
-                Light(id: "light.\($0)", name: "\($0)", on: true, percent: nil, since: nil)
-            }
-            return lightsSummary(lights, now: now, pinned: Set((main..<(main + pins)).map { "light.\($0)" }))
-        }
-        for pins in [3, 4, 5] {
-            let page = lightTilePage(summary(main: 0, pins: pins))
-            XCTAssertEqual(page.pinned.count, 2)
-            XCTAssertEqual(page.hiddenCount, pins - 2)
-        }
-        let onePin = lightTilePage(summary(main: 3, pins: 1))
-        XCTAssertEqual(onePin.main.count, 2)
-        XCTAssertEqual(onePin.pinned.count, 1)
-        XCTAssertEqual(onePin.hiddenCount, 1)
-        let mixed = lightTilePage(summary(main: 1, pins: 3))
-        XCTAssertEqual(mixed.hiddenCount, 1)
-    }
 }

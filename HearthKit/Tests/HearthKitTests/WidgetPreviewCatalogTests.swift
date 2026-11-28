@@ -2,23 +2,17 @@ import XCTest
 @testable import HearthKit
 
 final class WidgetPreviewCatalogTests: XCTestCase {
-    func testBeaconAndCompactWidgetsAreMediumOnly() {
-        let medium: [WidgetPreviewKind] = [.car, .alarm, .thermostat, .chargepoint, .quick, .battery]
-        for kind in medium {
+    func testEveryWidgetIsMediumOnly() {
+        for kind in WidgetPreviewKind.allCases {
             XCTAssertEqual(kind.family, .medium, "\(kind) must remain medium only")
         }
     }
 
-    func testCollectionsExposeOnlyTheirDesignedLargeFamily() {
-        let collections: [WidgetPreviewKind] = [.activity, .lights, .favourites]
-        for kind in collections {
-            XCTAssertEqual(kind.family, .large, "\(kind) must remain large only")
-        }
-    }
-
-    func testNoWidgetHasASmallFamily() {
-        XCTAssertEqual(WidgetPreviewFamily.allCases, [.medium, .large])
-        XCTAssertEqual(WidgetPreviewFamily.allCases.map(\.title), ["Medium", "Large"])
+    func testMediumIsTheOnlyFamily() {
+        XCTAssertEqual(WidgetPreviewFamily.allCases, [.medium])
+        XCTAssertEqual(WidgetPreviewFamily.allCases.map(\.title), ["Medium"])
+        XCTAssertNil(WidgetPreviewFamily(rawValue: "small"))
+        XCTAssertNil(WidgetPreviewFamily(rawValue: "large"))
     }
 
     func testCatalogCoversEveryShippedWidget() {

@@ -160,6 +160,8 @@ public struct CpBeaconView: View {
                         Text(snap.account).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(surfaceInk.opacity(0.85)).lineLimit(1).minimumScaleFactor(0.8)
                     }
                 }
+                // The "Checked" stamp keeps its width; the site and account take the rest.
+                .layoutPriority(1)
                 Spacer(minLength: 2)
                 if !snap.checkedAt.isEmpty {
                     BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.chargepoint", ink: surfaceInk)

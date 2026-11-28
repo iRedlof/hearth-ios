@@ -121,24 +121,39 @@ struct ParityWidgetSelection: Sendable {
                 payload: CarParityInputs.productionPayload("mixed_open",
                     destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)))))
         ]
-        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + readable + nativeReadable + productionCar + disclosureCar
+        return alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + activity() + batteries() + readable + nativeReadable + productionCar + disclosureCar
         #else
-        alarm() + thermostat() + car() + chargePoint() + tiles() + collections()
+        alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + activity() + batteries()
         #endif
     }
 
-    private static func tiles() -> [(String, AnyView)] {
-        TileParityInputs.states.flatMap { state in [
-            ("favourites-" + state, AnyView(FavouritesView(TileParityInputs.favourites(state)))),
-            ("lights-" + state, AnyView(LightTileView(TileParityInputs.lights(state)))),
-            ("quick-" + state, AnyView(QuickView(TileParityInputs.quick(state))))
-        ] }
+    // MARK: Lights
+    private static func lights() -> [(String, AnyView)] {
+        TileParityInputs.lightStates.map { ("lights-" + $0, AnyView(LightsPanelView(TileParityInputs.lights($0)))) }
     }
-    private static func collections() -> [(String, AnyView)] {
+
+    // MARK: Quick actions
+    private static func quick() -> [(String, AnyView)] {
+        TileParityInputs.quickStates.map { ("quick-" + $0, AnyView(QuickPanelView(TileParityInputs.quick($0)))) }
+    }
+
+    // MARK: Favourites
+    private static func favourites() -> [(String, AnyView)] {
+        TileParityInputs.favouriteStates.map {
+            ("favourites-" + $0, AnyView(FavouritesPanelView(TileParityInputs.favourites($0))))
+        }
+    }
+    // MARK: Activity
+    private static func activity() -> [(String, AnyView)] {
         CollectionParityInputs.activityStates.map {
-            ("activity-" + $0, AnyView(ActivityView(CollectionParityInputs.activity($0), now: CollectionParityInputs.now)))
-        } + CollectionParityInputs.batteryStates.map {
-            ("battery-" + $0, AnyView(BatteryView(CollectionParityInputs.batteries($0))))
+            ("activity-" + $0, AnyView(ActivityPanelView(CollectionParityInputs.activity($0), now: CollectionParityInputs.now)))
+        }
+    }
+
+    // MARK: Batteries
+    private static func batteries() -> [(String, AnyView)] {
+        CollectionParityInputs.batteryStates.map {
+            ("battery-" + $0, AnyView(BatteriesPanelView(CollectionParityInputs.batteries($0))))
         }
     }
     // MARK: Alarm

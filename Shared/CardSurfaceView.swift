@@ -69,42 +69,8 @@ struct BeaconRailBackground: View {
     var body: some View {
         let fill = Color(argb: fillARGB)
         return LinearGradient(colors: [fill, fill.opacity(fade)], startPoint: .topLeading, endPoint: .bottomTrailing)
-            .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
-    }
-}
-
-/// The accent strip on a styled card's leading edge when it needs you (`CardFrame` in `CardChrome.kt`).
-struct CardStatusStrip: View {
-    let look: CardLook
-
-    var body: some View {
-        if let strip = look.strip {
-            RoundedRectangle(cornerRadius: CardLook.stripRadius)
-                .fill(Color(argb: strip))
-                .frame(width: CardLook.stripWidth)
-                .padding(.vertical, CardLook.stripInset)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .allowsHitTesting(false)
-                .accessibilityHidden(true)
-        }
-    }
-}
-
-extension View {
-    /// The background of a non-Beacon card: the chosen style, or `status` (the card's own state
-    /// colours) when the style is Status or the card is in an emergency.
-    func cardBackground<Status: View>(_ look: CardLook, @ViewBuilder status: () -> Status) -> some View {
-        background {
-            if let surface = look.surface { CardSurfaceView(surface) } else { status() }
-        }
-        .overlay { CardStatusStrip(look: look) }
-    }
-}
-
-extension CardLook {
-    /// The ink a non-Beacon card draws with: its own on its state colours, the look's on a chosen
-    /// background.
-    func inkColor(status: UInt32) -> Color {
-        Color(argb: statusColours ? status : ink)
+            // A plain rectangle. As a background *style* the base took the container's rounded
+            // corners, so on a light body (Snow) the body showed at the rail's inner corners.
+            .background { Rectangle().fill(Color(argb: BeaconSurfaceColors.graphiteARGB)) }
     }
 }

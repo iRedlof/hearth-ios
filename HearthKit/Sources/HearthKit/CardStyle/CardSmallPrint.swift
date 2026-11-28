@@ -11,12 +11,3 @@ public func cardShowsCheckedStamp(smallPrint: Bool, checking: Bool = false) -> B
 public func cpContextLines(_ lines: [String], smallPrint: Bool) -> [String] {
     smallPrint ? lines : []
 }
-
-/// Activity drops who did it, "by …" (`ActivityWidget.kt:77`).
-public func activityItems(_ items: [ActivityItem], smallPrint: Bool) -> [ActivityItem] {
-    guard !smallPrint else { return items }
-    return items.map {
-        ActivityItem(at: $0.at, kind: $0.kind, text: $0.text, by: nil, entityId: $0.entityId,
-                     name: $0.name, action: $0.action, eventKey: $0.eventKey)
-    }
-}

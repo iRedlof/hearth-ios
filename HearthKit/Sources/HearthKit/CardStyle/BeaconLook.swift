@@ -1,10 +1,11 @@
 import Foundation
 
-/// Everything a Beacon card (Alarm, Thermostat, Car, ChargePoint) needs to draw its BODY in a style.
-/// Ported from Android's `beaconLook` in `BeaconChrome.kt`.
+/// Everything a card needs to draw its BODY in a style. Every Hearth widget is a Beacon card: a
+/// rail and a body. Ported from Android's `beaconLook` in `BeaconChrome.kt`.
 ///
 /// The rail is not here on purpose: it always keeps the widget's own state colour and ink
-/// (`BeaconTone`; ChargePoint's orange), so no style can reach it.
+/// (`BeaconTone`, the two-panel widgets' `DoorsTone`; ChargePoint's orange), so no style can
+/// reach it.
 public struct BeaconLook: Sendable, Equatable {
     public let body: CardSurface
     public let ink: UInt32
@@ -17,13 +18,13 @@ public struct BeaconLook: Sendable, Equatable {
     /// The bright primary pill (Disarm).
     public let chipPrimary: UInt32
     public let chipPrimaryInk: UInt32
-    /// Heat setpoint.
+    /// Heat setpoint; the warm accent of a light or favourite that is on, and of a low battery.
     public let heat: UInt32
     /// Cool setpoint.
     public let cool: UInt32
     /// A locked door.
     public let secure: UInt32
-    /// An unlocked door, Sentry on.
+    /// An unlocked door, Sentry on, a nearly empty battery.
     public let alert: UInt32
     public let light: Bool
     public let textScale: CGFloat

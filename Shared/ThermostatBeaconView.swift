@@ -111,11 +111,15 @@ public struct ThermostatBeaconView: View {
         .background(BeaconRailBackground(fillARGB: snap.tone.fillARGB, fade: 0.9))
     }
 
+    private static let titleShrink: CGFloat = 0.8
+
     // MARK: Right — controls, on the body the Card style paints
     private func right(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
+                // The "Checked" stamp keeps its width; the name takes the rest and shrinks before it is cut.
                 Text(snap.name).font(.system(size: 16 * textScale, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
+                    .minimumScaleFactor(Self.titleShrink).layoutPriority(1)
                 Spacer(minLength: 2)
                 // Use the shared freshness cluster (Checked stamp + circular refresh button to its RIGHT),
                 // same as Alarm/Car/ChargePoint and Android — was a bespoke header (bare icon on the left).

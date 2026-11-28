@@ -3,10 +3,12 @@ import HearthKit
 
 /// Inert raw HA replies mirror CollectionFixtures.kt. Native capture mode blocks every action.
 enum CollectionParityInputs {
-    static let commonStates = ["setup", "loading", "empty", "ready", "unavailable", "failed",
-                               "partial_failure", "overflow", "long_names", "history"]
-    static let activityStates = commonStates + ["boundary", "legacy_bypass"]
-    static let batteryStates = commonStates + ["binary_low", "invalid_numeric"]
+    /// Activity fixtures: five events (the latest on the rail), a quiet day, eighteen events
+    /// ("+N more"), long names, not set up, and unreachable with the earlier events kept.
+    static let activityStates = ["ready", "empty", "overflow", "long_names", "setup", "failed"]
+    /// Batteries fixtures: all good (green), one low with one unavailable (amber), sixteen
+    /// ("+13 more"), long names, not set up, and unreachable with the last levels kept (two low).
+    static let batteryStates = ["good", "low", "overflow", "long_names", "setup", "failed"]
     static let now = ISO8601DateFormatter().date(from: "2026-10-30T17:00:00Z")!
     private static let old = now.addingTimeInterval(-7_200)
     private static let unreachable = "Can't reach Home Assistant"
@@ -27,27 +29,17 @@ enum CollectionParityInputs {
         }
         return value
     }
+    private static let overflowActivityCount = 18
+    private static let longActivityName = "Upstairs primary bedroom balcony entrance"
+
     private static func activityRaw(_ state: String, observed: Date) -> [[String: Any]] {
         switch state {
         case "empty": return []
-        // Unavailable/transient states are a valid quiet logbook, not invented activity events.
-        case "unavailable": return [
-            event("cover.garage", state: "unavailable", at: observed.addingTimeInterval(-300)),
-            event("lock.front", state: "locking", at: observed.addingTimeInterval(-600))]
-        case "overflow": return (0..<18).map { (index: Int) -> [String: Any] in
+        case "overflow": return (0..<overflowActivityCount).map { (index: Int) -> [String: Any] in
             let eventState: String = index % 2 == 0 ? "closed" : "open"
             let offset: TimeInterval = -300 - Double(index) * 420
-            let date: Date = observed.addingTimeInterval(offset)
-            let routine: Bool = index % 3 == 0
-            return event("cover.garage", state: eventState, at: date, routine: routine)
+            return event("cover.garage", state: eventState, at: observed.addingTimeInterval(offset), routine: index % 3 == 0)
         }
-        case "boundary": return [
-            event("cover.garage", state: "closed", at: now),
-            event("lock.front", state: "locked", at: now.addingTimeInterval(-86_400)),
-            event("binary_sensor.back", state: "on", at: now.addingTimeInterval(-86_401)),
-            event("alarm_control_panel.home", state: "armed_home", at: now.addingTimeInterval(1))]
-        case "legacy_bypass": return [
-            event("alarm_control_panel.home", state: "armed_custom_bypass", at: observed.addingTimeInterval(-300))]
         default: return [
             event("cover.garage", state: "closed", at: observed.addingTimeInterval(-300), routine: true),
             event("alarm_control_panel.home", state: "disarmed", at: observed.addingTimeInterval(-1_800)),
@@ -59,45 +51,39 @@ enum CollectionParityInputs {
 
     static func activity(_ state: String) -> ActivitySnapshot {
         precondition(activityStates.contains(state))
-        if state == "loading" { return .loading }
-        let names = activityNames.mapValues { state == "long_names" ? "Upstairs primary bedroom balcony entrance" : $0 }
+        let names = activityNames.mapValues { state == "long_names" ? longActivityName : $0 }
         let previous = mapActivitySnapshot(config: base, reply: .success(json(activityRaw("ready", observed: old))),
                                            names: names, now: old)
-        let observed = ["failed", "partial_failure", "history"].contains(state) ? old : now
-        let reply: Result<String, HaError>
-        if state == "failed" { reply = .failure(HaError(unreachable)) }
-        else if state == "partial_failure" {
-            reply = .success(json([event("cover.garage", state: "closed", at: now), "invalid logbook row"] as [Any]))
-        } else { reply = .success(json(activityRaw(state, observed: observed))) }
-        let snapshot = mapActivitySnapshot(config: state == "setup" ? nil : base, reply: reply, names: names,
-                                            previous: previous, now: observed)
-        guard state == "legacy_bypass" else { return snapshot }
-        // Exercise the shipped cache decoder after dropping fields absent from old cache records.
-        let data = try! JSONEncoder().encode(snapshot.items)
-        var cache = try! JSONSerialization.jsonObject(with: data) as! [[String: Any]]
-        for index in cache.indices {
-            for key in ["entityId", "name", "action", "eventKey"] { cache[index].removeValue(forKey: key) }
-        }
-        let items = try! JSONDecoder().decode([ActivityItem].self, from: Data(json(cache).utf8))
-        return ActivitySnapshot(items: items, checkedAt: snapshot.checkedAt, state: snapshot.state,
-                                error: snapshot.error, observedAt: snapshot.observedAt, windowEnd: snapshot.windowEnd)
+        let observed = state == "failed" ? old : now
+        let reply: Result<String, HaError> = state == "failed" ? .failure(HaError(unreachable))
+            : .success(json(activityRaw(state, observed: observed)))
+        return mapActivitySnapshot(config: state == "setup" ? nil : base, reply: reply, names: names,
+                                   previous: previous, now: observed)
     }
 
+    private static let batteryNames = ["Front Door Lock Battery", "Backyard Motion Battery",
+                                       "Living Room Remote Battery", "Garage Sensor Battery"]
+    private static let longBatteryName = "Upstairs primary bedroom balcony entrance sensor Battery"
+    private static let goodLevels = [92, 78, 64, 88]
+    /// What an unreachable card last knew: two low, one of them nearly empty.
+    private static let lastKnownLevels = [9, 24, 61, 88]
+    /// "low": the first three report low / OK / nothing, as binary sensors do.
+    private static let binaryStates = ["on", "off", "unknown"]
+    private static let overflowBatteryCount = 16
+
     private static func batteryRaw(_ state: String) -> String {
-        if state == "empty" { return "[]" }
-        let count = state == "overflow" ? 16 : 4
-        let names = ["Front Door Lock Battery", "Backyard Motion Battery", "Living Room Remote Battery", "Garage Sensor Battery"]
+        let count = state == "overflow" ? overflowBatteryCount : batteryNames.count
+        let levels = state == "good" ? goodLevels : lastKnownLevels
         let rows: [[String: Any]] = (0..<count).map { index in
-            let binary = state == "binary_low" && index < 3
-            let unavailable = state == "unavailable" || state == "overflow" && index % 4 == 1
-            let raw: Any = state == "invalid_numeric" ? ([-1, 101, "NaN", true] as [Any])[index] :
-                [9, 24, 61, 88][index % 4]
+            let binary = state == "low" && index < binaryStates.count
+            let unavailable = state == "overflow" && index % batteryNames.count == 1
+            let level = levels[index % levels.count]
             var value: [String: Any] = [
                 "id": "\(binary ? "binary_sensor" : "sensor").fixture_battery_\(index + 1)",
-                "name": state == "long_names" ? "Upstairs primary bedroom balcony entrance sensor Battery" : names[index % 4],
+                "name": state == "long_names" ? longBatteryName : batteryNames[index % batteryNames.count],
                 "kind": binary ? "binary" : "numeric",
-                "state": unavailable ? "unavailable" : binary ? ["on", "off", "unknown"][index] : String(describing: raw)]
-            if !binary { value["level"] = raw }
+                "state": unavailable ? "unavailable" : binary ? binaryStates[index] : String(level)]
+            if !binary { value["level"] = level }
             return value
         }
         return json(rows)
@@ -105,16 +91,10 @@ enum CollectionParityInputs {
 
     static func batteries(_ state: String) -> BatterySnapshot {
         precondition(batteryStates.contains(state))
-        if state == "loading" { return .loading }
-        let previous = mapBatterySnapshot(base, reply: .success(batteryRaw("ready")), now: old)
-        let observed = ["failed", "partial_failure", "history"].contains(state) ? old : now
-        let reply: Result<String, HaError>
-        if state == "failed" { reply = .failure(HaError(unreachable)) }
-        else if state == "partial_failure" {
-            var rows = try! JSONSerialization.jsonObject(with: Data(batteryRaw("ready").utf8)) as! [Any]
-            rows.append("invalid battery row")
-            reply = .success(json(rows))
-        } else { reply = .success(batteryRaw(state)) }
-        return mapBatterySnapshot(state == "setup" ? nil : base, reply: reply, previous: previous, now: observed)
+        let previous = mapBatterySnapshot(base, reply: .success(batteryRaw("failed")), now: old)
+        let reply: Result<String, HaError> = state == "failed" ? .failure(HaError(unreachable))
+            : .success(batteryRaw(state))
+        return mapBatterySnapshot(state == "setup" ? nil : base, reply: reply, previous: previous,
+                                  now: state == "failed" ? old : now)
     }
 }

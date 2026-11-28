@@ -56,8 +56,8 @@ struct BatteryProvider: TimelineProvider {
 struct BatteryWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.battery", provider: BatteryProvider()) { entry in
-            CardStyledContent(kind: .battery, statusARGB: entry.snap.summary.tone.fillARGB) {
-                ParityWidgetContent(prefix: "battery") { BatteryView(entry.snap) }
+            CardStyledContent(beacon: .battery) {
+                ParityWidgetContent(prefix: "battery") { BatteriesPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Batteries")
@@ -97,8 +97,8 @@ struct ActivityProvider: TimelineProvider {
 struct ActivityWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.activity", provider: ActivityProvider()) { entry in
-            CardStyledContent(kind: .activity, statusARGB: DoorsTone.unknown.fillARGB) {
-                ParityWidgetContent(prefix: "activity") { ActivityView(entry.snap) }
+            CardStyledContent(beacon: .activity) {
+                ParityWidgetContent(prefix: "activity") { ActivityPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Activity")
@@ -131,19 +131,19 @@ struct LightsProvider: TimelineProvider {
         #if DEBUG
         if ParityCatalog.activeWidgetID(prefix: "lights") != nil { return .loading }
         #endif
-        return await fetchLightsSnapshot(HaConfigStore.load())
+        return await CollectionLiveSnapshots.lights()
     }
 }
 
 struct LightsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.lights", provider: LightsProvider()) { entry in
-            CardStyledContent(kind: .lights, statusARGB: BeaconSurfaceColors.graphiteARGB) {
-                ParityWidgetContent(prefix: "lights") { LightTileView(entry.snap) }
+            CardStyledContent(beacon: .lights) {
+                ParityWidgetContent(prefix: "lights") { LightsPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Lights")
-        .description("Lights that are on, plus your always-show favourites.")
+        .description("How many lights are on, and four to switch.")
         .supportedFamilies([WidgetPreviewKind.lights.widgetKitFamily])
         .contentMarginsDisabled()
     }
@@ -179,8 +179,8 @@ struct QuickProvider: TimelineProvider {
 struct QuickWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.quick", provider: QuickProvider()) { entry in
-            CardStyledContent(kind: .quick, statusARGB: BeaconSurfaceColors.graphiteARGB) {
-                ParityWidgetContent(prefix: "quick") { QuickView(entry.snap) }
+            CardStyledContent(beacon: .quick) {
+                ParityWidgetContent(prefix: "quick") { QuickPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Quick")
@@ -220,8 +220,8 @@ struct FavouritesProvider: TimelineProvider {
 struct FavouritesWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.favourites", provider: FavouritesProvider()) { entry in
-            CardStyledContent(kind: .favourites, statusARGB: BeaconSurfaceColors.graphiteARGB) {
-                ParityWidgetContent(prefix: "favourites") { FavouritesView(entry.snap) }
+            CardStyledContent(beacon: .favourites) {
+                ParityWidgetContent(prefix: "favourites") { FavouritesPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Favourites")
