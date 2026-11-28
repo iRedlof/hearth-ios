@@ -7,7 +7,7 @@ final class CarAvailabilityTests: XCTestCase {
     var now: Date { parseOffsetDateTime("2026-10-14T09:30:00Z")! }
 
     func rawReply(_ s: [String: String], tempUnit: String = "°F", pressureUnit: String = "psi") -> String {
-        let o: [String: Any] = ["found": true, "name": "Stargate", "unit": "mi",
+        let o: [String: Any] = ["found": true, "name": "My car", "unit": "mi",
                                 "tempUnit": tempUnit, "pressureUnit": pressureUnit, "s": s, "statusSince": NSNull()]
         return String(data: try! JSONSerialization.data(withJSONObject: o), encoding: .utf8)!
     }

@@ -31,7 +31,7 @@ final class CarDetailedReadingsTests: XCTestCase {
     }
 
     private func reply(_ states: [String: String], prefix: String? = "stargate",
-                       name: String = "Stargate premium", attributes: [String: Any] = [:]) throws -> String {
+                       name: String = "My car premium", attributes: [String: Any] = [:]) throws -> String {
         var object: [String: Any] = [
             "found": true, "name": name, "unit": "mi", "tempUnit": "°C",
             "pressureUnit": "psi", "statusSince": "2027-01-15T07:00:00Z", "s": states
@@ -70,7 +70,7 @@ final class CarDetailedReadingsTests: XCTestCase {
     // Dropping any template field, or collapsing distinct doors/wheels, loses a required reading.
     func testCompleteReplyPreservesAllThirtyTwoFieldsAndPrecision() throws {
         let model = details(CarReadingsCache(current: try reply(allStates), lastGood: nil, checkedAt: checked))
-        XCTAssertEqual(model.title, "Stargate premium")
+        XCTAssertEqual(model.title, "My car premium")
         XCTAssertEqual(model.cohorts.count, 1)
         XCTAssertEqual(try cohort(0, in: model).attribution, .current)
         let rows = try cohort(0, in: model).sections.flatMap(\.rows)

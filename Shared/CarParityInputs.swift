@@ -119,7 +119,7 @@ enum CarParityInputs {
             s["switch.sentry_mode"] = "unknown"; s["lock.lock"] = "unknown"
             s["cover.trunk"] = "unavailable"; s["binary_sensor.charge_cable"] = "unavailable"
         }
-        let name = state == "long_names" ? "Stargate Premium — a long vehicle name for the full readings view" : "Stargate"
+        let name = state == "long_names" ? "My car — a long vehicle name for the full readings view" : "My car"
         let raw: [String: Any] = ["found": true, "prefix": "stargate", "name": name,
             "s": s, "unit": "mi", "tempUnit": "°F", "pressureUnit": "psi",
             "statusSince": noReading ? NSNull() : "2026-10-20T05:33:00Z"]

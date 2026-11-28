@@ -98,7 +98,7 @@ struct CarReadingsFixtureHost: View {
             values["binary_sensor.tire_pressure_warning_\(wheel)"] = wheel == "rear_right" ? "unknown" : "off"
         }
         let object: [String: Any] = ["found": true, "prefix": "stargate",
-            "name": "Stargate Premium — a long vehicle name for the full readings view",
+            "name": "My car — a long vehicle name for the full readings view",
             "s": values, "unit": "mi", "tempUnit": "°F", "pressureUnit": "psi",
             "statusSince": ISO8601DateFormatter().string(from: now.addingTimeInterval(-3600))]
         return String(decoding: try JSONSerialization.data(withJSONObject: object, options: .sortedKeys), as: UTF8.self)

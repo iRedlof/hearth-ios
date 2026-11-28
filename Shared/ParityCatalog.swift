@@ -201,14 +201,14 @@ struct ParityWidgetSelection: Sendable {
         ]
         return rows.map { id, status, allowance, auto in
             let location = ["signed_out", "no_location"].contains(id) ? nil :
-                CpLocation(name: "Amazon Day 1", address: "", deviceIds: Array(1...43).map(Int64.init),
+                CpLocation(name: "Main garage", address: "", deviceIds: Array(1...43).map(Int64.init),
                            bounds: cpBounds(lat: 0, lon: 0))
             let deadline = id == "unknown_deadline" ? 0 : Int64(now.addingTimeInterval(id == "expired" ? -1 : 1690).timeIntervalSince1970 * 1000)
             let offer = CpOffer(deviceId: 1, port: 1,
-                charger: id == "offer_no_floor" ? "SEA41-29" : "SEA41 - 29 P3",
+                charger: id == "offer_no_floor" ? "MG-29" : "MG - 29 P3",
                 untilMs: deadline, startMs: Int64(now.addingTimeInterval(600).timeIntervalSince1970 * 1000))
             let charging = status == "CHARGING" ? CpCharging(sessionId: 9, powerKw: 6.6, energyKwh: 7.4,
-                minutes: 65, canStop: id != "charging_no_stop", miles: 31, vehicle: "Tesla Model Y", charger: "SEA41 - 29 P3") : nil
+                minutes: 65, canStop: id != "charging_no_stop", miles: 31, vehicle: "Tesla Model Y", charger: "MG - 29 P3") : nil
             let floors = zip(["P2", "P3", "P4", "P5", "P6"], [14, 18, 22, 22, 10]).enumerated().map { index, pair in
                 CpFloor(level: pair.0, free: status == nil ? [8, 17, 22, 21, 10][index] : 0, total: pair.1)
             }
@@ -217,7 +217,7 @@ struct ParityWidgetSelection: Sendable {
                 location: location, now: location == nil ? nil : CpNow(free: 78, inUse: 7, offline: 1, stations: 43),
                 waitlist: status.map { .inLine(place: $0 == "WAITING" ? 3 : nil, state: $0, stations: 43, offer: offer, auto: false) } ?? .notQueued,
                 charging: charging, autoOn: auto, floors: floors, snoozesLeft: allowance)
-            let snapshot = cpSnapshot(state, email: "iredlof@example.com",
+            let snapshot = cpSnapshot(state, email: "driver@example.com",
                                       checkedAt: HearthTimeFormatter.shortTime(now), now: now)
             let operation = id == "working_accept" ? CpOperation(command: "accept", startedAt: now)
                 : id == "failed_accept" ? CpOperation(command: "accept", startedAt: now, error: "Offer expired") : nil

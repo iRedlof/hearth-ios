@@ -201,11 +201,11 @@ struct AccessibleBeaconConcept: Identifiable {
                       "unknown_deadline": "ACCEPT_PENDING", "working": "ACCEPT_PENDING"]
         let phase = phases[name]
         let site = ["signed_out", "no_location"].contains(name) ? nil :
-            CpLocation(name: "Amazon Day 1", address: "", deviceIds: [1, 2],
+            CpLocation(name: "Main garage", address: "", deviceIds: [1, 2],
                        bounds: cpBounds(lat: 0, lon: 0))
         let deadline = name == "unknown_deadline" ? 0 :
             Int64(referenceDate.addingTimeInterval(name == "expired" ? -1 : 833).timeIntervalSince1970 * 1000)
-        let offer = CpOffer(deviceId: 1, port: 1, charger: "SEA41 - 29 P3", untilMs: deadline,
+        let offer = CpOffer(deviceId: 1, port: 1, charger: "MG - 29 P3", untilMs: deadline,
                             startMs: Int64(referenceDate.addingTimeInterval(600).timeIntervalSince1970 * 1000))
         let state = CpState(signedOut: name == "signed_out",
             account: cpAccount(hasSession: name != "signed_out", expired: false, joinExpired: name == "cant_join"),
@@ -217,7 +217,7 @@ struct AccessibleBeaconConcept: Identifiable {
             autoOn: ["waiting", "held", "snoozed", "working"].contains(name),
             floors: [CpFloor(level: "P2", free: 4, total: 10), CpFloor(level: "P3", free: 8, total: 10)],
             snoozesLeft: name == "offer_last" ? 0 : 1)
-        var s = cpSnapshot(state, email: "iredlof@example.com",
+        var s = cpSnapshot(state, email: "driver@example.com",
                            checkedAt: HearthTimeFormatter.shortTime(referenceDate, locale: Locale(identifier: "en_US")),
                            now: referenceDate)
         if name == "working" {
@@ -257,7 +257,7 @@ struct AccessibleBeaconConcept: Identifiable {
             sections: [
                 .init(title: "Account and site", rows: [
                     .init(label: "Site", value: s.site),
-                    .init(label: "Account", value: s.account == "Signed out" ? "Signed out" : "iredlof@example.com"),
+                    .init(label: "Account", value: s.account == "Signed out" ? "Signed out" : "driver@example.com"),
                     .init(label: "Auto", value: autoState),
                     .init(label: "Checked", value: s.checkedAt)]),
                 .init(title: "Assignment", rows: [

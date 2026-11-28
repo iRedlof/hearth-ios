@@ -8,7 +8,7 @@ private actor CpRequestLog {
 
 final class CpWidgetCommandsTests: XCTestCase {
     private var location: CpLocation {
-        CpLocation(name: "Amazon Day 1", address: "", deviceIds: [1], bounds: cpBounds(lat: 0, lon: 0))
+        CpLocation(name: "Main garage", address: "", deviceIds: [1], bounds: cpBounds(lat: 0, lon: 0))
     }
     private func client(status: String, log: CpRequestLog, supportsStop: Bool = false) -> CpClient {
         CpClient(token: "fixture", userId: 1, transport: { req in
