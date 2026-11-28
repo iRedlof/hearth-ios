@@ -84,7 +84,11 @@ public struct ConnectionHero<Side: View>: View {
     public var body: some View {
         let isCompact = horizontalSizeClass == .compact
 
-        if isCompact {
+        if !showsSide {
+            // Nothing to press: the tinted status panel is the whole card, with no white frame
+            // around it.
+            statusPanel
+        } else if isCompact {
             // Vertical stack for phone widths
             VStack(spacing: Self.panelGap) {
                 statusPanel
