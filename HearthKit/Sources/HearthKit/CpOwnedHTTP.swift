@@ -22,6 +22,13 @@ public protocol CpOwnedTransport: Sendable {
 public struct CpHTTPResult: Sendable {
     public let body: String
     public let admission: CpDispatchAdmission
+    /// Host and HTTP status of the (successful) response, carried so a later parse failure can
+    /// identify itself. Never a secret.
+    public let host: String?
+    public let status: Int
+    public init(body: String, admission: CpDispatchAdmission, host: String? = nil, status: Int = 200) {
+        self.body = body; self.admission = admission; self.host = host; self.status = status
+    }
 }
 
 public struct CpOwnedHTTP: Sendable {
@@ -70,7 +77,7 @@ public struct CpOwnedHTTP: Sendable {
                 }
                 try Task.checkCancellation()
                 guard let body = String(data: data, encoding: .utf8) else { throw CpObservationError.malformed }
-                return CpHTTPResult(body: body, admission: admission)
+                return CpHTTPResult(body: body, admission: admission, host: host, status: response.statusCode)
             }
         } onCancel: {
             cancellation.cancel()

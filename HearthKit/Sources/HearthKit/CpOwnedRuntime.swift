@@ -36,9 +36,11 @@ public struct CpOwnedRuntime: Sendable {
             let host = cpFailureHost(error)
             let status = cpFailureStatus(error)
             let reason = cpFailurePresentation(kind).reason
-            CpLog.readFailed(host: host, status: status, reason: reason)
+            let parse = error as? CpParseError
+            CpLog.readFailed(host: host, status: status, reason: reason, detail: parse?.detail)
             _ = try store.failRead(owner: owner, message: reason, now: now(),
-                                   kind: kind, host: host, status: status)
+                                   kind: kind, host: host, status: status,
+                                   request: parse?.request.rawValue, detail: parse?.detail)
         }
         return try store.snapshot(now: now()).displaySnapshot(now: now())
     }
@@ -162,9 +164,21 @@ public struct CpOwnedRuntime: Sendable {
         }
     }
 
+    /// Turn an opaque `.malformed` from a user-status parse into a self-identifying `CpParseError`
+    /// that names the request, host and HTTP status (which was a 2xx), plus a structural reason.
+    /// `.detailsChanged` (a changed offer/session, not a bad body) is left to propagate unchanged.
+    private func parseStatus(_ result: CpHTTPResult, _ body: () throws -> CpObservation) throws -> CpObservation {
+        do { return try body() }
+        catch CpObservationError.malformed {
+            throw CpParseError(request: .status, host: result.host, status: result.status,
+                               detail: cpParseFaultDetail(request: .status, body: result.body))
+        }
+    }
+
     private func fetch(authority: CpRequestAuthority, location: CpLocation?) async throws -> CpObservation {
-        let status = try await http.send(authority: authority, purpose: .status, now: now).body
-        let initial = try cpOwnedObservation(statusJson: status)
+        let statusResult = try await http.send(authority: authority, purpose: .status, now: now)
+        let status = statusResult.body
+        let initial = try parseStatus(statusResult) { try cpOwnedObservation(statusJson: status) }
         let inline: String?
         if initial.identity.queued {
             inline = try? await http.send(authority: authority, purpose: .inline, now: now).body
@@ -184,8 +198,11 @@ public struct CpOwnedRuntime: Sendable {
             if stations.contains(where: { location.deviceIds.contains($0.deviceId) }) { available = cpLocationNow(location, stations) }
             floors = cpFloorsFrom(location, stations)
         }
-        return try cpOwnedObservation(statusJson: status, inlineJson: inline,
-            details: CpDetailEvidence(allowanceToken: initial.identity.token, allowanceJson: allowance,
-                chargingSessionID: initial.identity.sessionID, chargingJson: charging), availability: available, floors: floors)
+        return try parseStatus(statusResult) {
+            try cpOwnedObservation(statusJson: status, inlineJson: inline,
+                details: CpDetailEvidence(allowanceToken: initial.identity.token, allowanceJson: allowance,
+                    chargingSessionID: initial.identity.sessionID, chargingJson: charging),
+                availability: available, floors: floors)
+        }
     }
 }

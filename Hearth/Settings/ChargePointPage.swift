@@ -500,7 +500,8 @@ struct ChargePointPage: View {
         let attempt = cp.lastFailure.map { failure in
             CpDiagnosticsAttempt(at: failure.attemptedAt.formatted(date: .omitted, time: .shortened),
                                  host: failure.host, status: failure.status,
-                                 reason: failure.presentation.reason)
+                                 reason: failure.presentation.reason,
+                                 request: failure.request, detail: failure.detail)
         }
         let info = Bundle.main.infoDictionary
         return CpDiagnosticsInput(

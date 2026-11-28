@@ -55,6 +55,28 @@ public func cpFailurePresentation(_ kind: CpReadFailureKind) -> CpFailurePresent
     }
 }
 
+/// A ChargePoint request whose reply the app must parse. The rawValue is the short, stable,
+/// secret-free name shown in Diagnostics ("status", "station list", …).
+public enum CpParseRequest: String, Codable, Sendable, Equatable {
+    case status
+    case stationList = "station list"
+}
+
+/// A parse failure that identifies itself. ChargePoint answered with a real HTTP response that could
+/// not be interpreted. It carries which request failed, the host, the HTTP status that WAS received
+/// (parsing runs only after a 2xx), and a structural description of what was wrong — a key path with
+/// expected-vs-found type, or "empty body"/"not JSON"/"HTML page", with a body length. It NEVER
+/// carries a value from the response, the token, a cookie, an id, an email or a name.
+public struct CpParseError: Error, Equatable, Sendable {
+    public let request: CpParseRequest
+    public let host: String?
+    public let status: Int
+    public let detail: String
+    public init(request: CpParseRequest, host: String?, status: Int, detail: String) {
+        self.request = request; self.host = host; self.status = status; self.detail = detail
+    }
+}
+
 /// Classify a thrown error from the owned ChargePoint read pipeline. Deterministic; no I/O.
 public func cpClassifyReadFailure(_ error: Error) -> CpReadFailureKind {
     if let ha = error as? HaError {
@@ -66,19 +88,23 @@ public func cpClassifyReadFailure(_ error: Error) -> CpReadFailureKind {
         }
     }
     if error is URLError { return .network }
+    if error is CpParseError { return .parse }
     if error is CpObservationError { return .parse }
     return .other
 }
 
 /// Best-effort host of a failed read, for diagnostics. Never contains a secret.
 public func cpFailureHost(_ error: Error) -> String? {
+    if let parse = error as? CpParseError { return parse.host }
     if let ha = error as? HaError, let host = ha.host { return host }
     if let url = error as? URLError { return url.failingURL?.host }
     return nil
 }
 
-/// HTTP status carried by a failure, if the error was an HTTP response (nil for transport/parse).
+/// HTTP status carried by a failure. For a parse failure this is the (successful) status of the
+/// response that could not be read, so Diagnostics shows it instead of "none".
 public func cpFailureStatus(_ error: Error) -> Int? {
+    if let parse = error as? CpParseError { return parse.status }
     guard let ha = error as? HaError, ha.code != 0 else { return nil }
     return ha.code
 }
@@ -90,9 +116,9 @@ public enum CpLog {
     private static let logger = Logger(subsystem: "com.rohit.hearth", category: "ChargePoint")
     #endif
 
-    public static func readFailed(host: String?, status: Int?, reason: String) {
+    public static func readFailed(host: String?, status: Int?, reason: String, detail: String? = nil) {
         #if canImport(os)
-        logger.error("CP read failed host=\(host ?? "unknown", privacy: .private) status=\(status ?? 0, privacy: .public) reason=\(reason, privacy: .public)")
+        logger.error("CP read failed host=\(host ?? "unknown", privacy: .private) status=\(status ?? 0, privacy: .public) reason=\(reason, privacy: .public) detail=\(detail ?? "-", privacy: .public)")
         #endif
     }
 }
@@ -115,8 +141,15 @@ public struct CpDiagnosticsAttempt: Sendable, Equatable {
     public let host: String?
     public let status: Int?
     public let reason: String
-    public init(at: String, host: String?, status: Int?, reason: String) {
+    /// The request that failed, for a parse failure (e.g. "status"). Nil for non-parse failures.
+    public let request: String?
+    /// A structural description of a parse failure (key path + expected/found type, or
+    /// "empty body"/"not JSON"/"HTML page" with a body length). Never a value. Nil otherwise.
+    public let detail: String?
+    public init(at: String, host: String?, status: Int?, reason: String,
+                request: String? = nil, detail: String? = nil) {
         self.at = at; self.host = host; self.status = status; self.reason = reason
+        self.request = request; self.detail = detail
     }
 }
 
@@ -160,6 +193,8 @@ public func cpDiagnosticsText(_ input: CpDiagnosticsInput) -> String {
         lines.append("Host: \(attempt.host ?? "unknown")")
         lines.append("HTTP status: \(attempt.status.map(String.init) ?? "none")")
         lines.append("Reason: \(attempt.reason)")
+        if let request = attempt.request { lines.append("Request: \(request)") }
+        if let detail = attempt.detail { lines.append("Detail: \(detail)") }
     } else {
         lines.append("Last read: none recorded")
     }

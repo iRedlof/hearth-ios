@@ -16,7 +16,10 @@ final class CpOwnedObservationTests: XCTestCase {
     func testDiscoveryRejectsMalformedStationIdentityBeforeLocationCanBeSelected() throws {
         let valid = try cpOwnedStations("{\"map_data\":{\"stations\":[{\"device_id\":17,\"lat\":47.6,\"lon\":-122.3}]}}")
         XCTAssertEqual(valid.map(\.deviceId), [17])
-        for rawID in ["true", "1.5", "0", "\"17\"", "9223372036854775808"] {
+        // A numeric JSON string is coerced the way Android's getLong does (some ids arrive as strings).
+        let coerced = try cpOwnedStations("{\"map_data\":{\"stations\":[{\"device_id\":\"17\",\"lat\":47.6,\"lon\":-122.3}]}}")
+        XCTAssertEqual(coerced.map(\.deviceId), [17])
+        for rawID in ["true", "1.5", "0", "\"nope\"", "9223372036854775808"] {
             XCTAssertThrowsError(try cpOwnedStations("{\"map_data\":{\"stations\":[{\"device_id\":\(rawID),\"lat\":47.6,\"lon\":-122.3}]}}"))
         }
         for raw in [
@@ -52,10 +55,27 @@ final class CpOwnedObservationTests: XCTestCase {
     }
 
     func testMissingStatusCannotProveAnEmptyQueue() {
-        for raw in ["{}", "{\"user_status\":{}}", "not json"] {
+        // A garbage body (no `user_status` at all, or not JSON) still cannot prove an empty queue.
+        for raw in ["{}", "not json"] {
             XCTAssertThrowsError(try cpOwnedObservation(statusJson: raw)) {
                 XCTAssertEqual($0 as? CpObservationError, .malformed)
             }
+        }
+    }
+
+    // An idle driver's real reply omits the waitlist/charging blocks: `{"user_status":{}}` (or just
+    // `mfhs`). ChargePoint returns exactly this for a signed-in, not-queued, not-charging account —
+    // the owner's case. Android reads it as NOT_QUEUED; iOS must too, or every idle account fails to
+    // read and shows no plugs. Regression for "Couldn't read ChargePoint's reply".
+    func testEmptyUserStatusIsPositiveIdleEvidenceNotAFailure() throws {
+        for raw in ["{\"user_status\":{}}", "{\"user_status\":{\"mfhs\":{}}}"] {
+            let value = try cpOwnedObservation(statusJson: raw)
+            XCTAssertEqual(value.identity.phase, "NOT_QUEUED")
+            XCTAssertTrue(value.identity.queueKnown)
+            XCTAssertFalse(value.identity.queued)
+            XCTAssertEqual(value.provider.waitlist, .notQueued)
+            XCTAssertNil(value.identity.sessionID)
+            XCTAssertNil(value.identity.token)
         }
     }
 
