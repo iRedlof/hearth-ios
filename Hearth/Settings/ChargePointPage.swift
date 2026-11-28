@@ -505,7 +505,7 @@ struct ChargePointPage: View {
         let session = cp.session
         let minutesLeft = session.token.isEmpty ? nil : CpToken.minutesLeft(token: session.token, now: Date())
         let attempt = cp.lastFailure.map { failure in
-            CpDiagnosticsAttempt(at: failure.attemptedAt.formatted(date: .omitted, time: .shortened),
+            CpDiagnosticsAttempt(at: HearthTimeFormatter.shortTime(failure.attemptedAt),
                                  host: failure.host, status: failure.status,
                                  reason: failure.presentation.reason,
                                  request: failure.request, detail: failure.detail)

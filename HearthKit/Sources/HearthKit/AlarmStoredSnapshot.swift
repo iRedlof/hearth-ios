@@ -9,17 +9,16 @@ public func alarmStoredSnapshot(_ context: HaStoreSnapshot, now: Date = .now,
     if let config = context.config, config.isComplete {
         let garageID = garageSelectedID(config) ?? ""
         var errors = context.failures.mapValues(\.message)
-        if let failed = garageCommandError(context.doorOperation, entityID: garageID,
-                                           readings: context.readings, failures: context.failures) {
-            errors[garageID] = failed
-        }
+        let commandFailure = garageCommandFailure(context.doorOperation, entityID: garageID,
+                                                  readings: context.readings, failures: context.failures)
         if let transientError {
             errors[config.entityId] = transientError
             if config.hasLock { errors[config.lockId] = transientError }
             if !garageID.isEmpty { errors[garageID] = transientError }
         }
         result = AlarmFetchResult(entityID: config.entityId, lockID: config.hasLock ? config.lockId : "",
-            lockName: config.lockName, garageID: garageID, readings: context.readings, errors: errors)
+            lockName: config.lockName, garageID: garageID, readings: context.readings, errors: errors,
+            garageCommandFailure: commandFailure)
     } else { result = AlarmFetchResult(setup: true) }
     var snapshot = result.snapshot(now: now, zone: zone, locale: locale)
     snapshot.requestScope = context.scope

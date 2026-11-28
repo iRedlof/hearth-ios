@@ -20,6 +20,7 @@ public enum DoorAction: String, Codable, Sendable, Equatable {
     case open, close, stop, lock
     public var label: String { switch self { case .open: "Open"; case .close: "Close"; case .stop: "Stop"; case .lock: "Lock" } }
     public var pending: String { switch self { case .open: "Opening…"; case .close: "Closing…"; case .stop: "Stopping…"; case .lock: "Locking…" } }
+    public var failed: String { switch self { case .open: "Couldn't open"; case .close: "Couldn't close"; case .stop: "Couldn't stop"; case .lock: "Couldn't lock" } }
     public var service: (domain: String, service: String) {
         switch self {
         case .open: ("cover", "open_cover"); case .close: ("cover", "close_cover")

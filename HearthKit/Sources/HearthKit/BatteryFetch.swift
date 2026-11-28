@@ -57,5 +57,5 @@ public func mapBatterySnapshot(_ config: HaConfig?, reply: Result<String, HaErro
 
 /// "9:41 AM" — shared short clock for the two-panel widgets' "Checked" stamps.
 func widgetClock(_ date: Date) -> String {
-    let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
+    HearthTimeFormatter.shortTime(date)
 }

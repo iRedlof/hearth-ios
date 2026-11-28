@@ -58,9 +58,5 @@ func climateModeDisplay(_ mode: String) -> String {
 }
 
 private func climateClock(_ date: Date, _ zone: TimeZone, _ locale: Locale) -> String {
-    let f = DateFormatter()
-    f.locale = locale
-    f.timeZone = zone
-    f.dateFormat = "h:mm a"
-    return f.string(from: date)
+    HearthTimeFormatter.shortTime(date, locale: locale, timeZone: zone)
 }

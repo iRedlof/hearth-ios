@@ -175,7 +175,7 @@ struct HomeView: View {
             case .thermostat: return "Hallway thermostat"
             case .alarm: return "Home alarm"
             case .lights: return "Lights"
-            case .car: return "Stargate"
+            case .car: return "My car"
             case .chargePoint: return nil
             case .quick, .favourites, .activity, .battery:
                 return kind.displayName

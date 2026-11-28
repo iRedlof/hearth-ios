@@ -2,7 +2,7 @@ import Foundation
 
 /// A concrete Goodnight execution plan with all steps resolved.
 public struct GoodnightPlan: Sendable, Equatable {
-    /// Cover entity IDs to close (e.g., garage doors).
+    /// Cover entity IDs to close: the covers in Doors and the selected garage, each once.
     public let covers: [String]
     /// Light entity IDs to turn off.
     public let lightsOff: [String]
@@ -33,8 +33,8 @@ public func planGoodnight(
     allLights: [String],
     panelSupportsNight: Bool
 ) -> GoodnightPlan {
-    // 1. Garage covers: filter doorIds to `cover.*` only
-    let covers = haConfig.doorIds.filter { $0.hasPrefix("cover.") }
+    // 1. Garage covers: the `cover.*` in Doors, then the garage chosen in the Garage setting
+    let covers = goodnightCovers(haConfig)
 
     // 2. Lights off: all lights minus keep-on
     let lightsOff = lightsToTurnOff(all: allLights, keepOn: config.keepOnLights)
@@ -51,4 +51,13 @@ public func planGoodnight(
     }
 
     return GoodnightPlan(covers: covers, lightsOff: lightsOff, lockId: lockId, armMode: armMode)
+}
+
+/// The covers Goodnight closes: every `cover.*` in the Doors selection, then the garage chosen in
+/// the Garage setting (`garageSelectedID`), each once and in that order.
+public func goodnightCovers(_ haConfig: HaConfig) -> [String] {
+    let fromDoors = haConfig.doorIds.filter { $0.hasPrefix("cover.") }
+    let candidates = fromDoors + [garageSelectedID(haConfig)].compactMap { $0 }
+    var seen = Set<String>()
+    return candidates.filter { seen.insert($0).inserted }
 }

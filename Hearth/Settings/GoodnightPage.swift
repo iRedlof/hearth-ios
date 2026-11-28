@@ -285,15 +285,7 @@ struct GoodnightPage: View {
         let startDate = calendar.date(bySettingHour: config.startHour, minute: 0, second: 0, of: now) ?? now
         let endDate = calendar.date(bySettingHour: config.endHour, minute: 0, second: 0, of: now) ?? now
 
-        // Use Date.FormatStyle to honor user's 24-hour locale setting
-        let formatter = Date.FormatStyle()
-            .hour(.defaultDigits(amPM: .abbreviated))
-            .locale(Locale.current)
-
-        let startFormatted = startDate.formatted(formatter)
-        let endFormatted = endDate.formatted(formatter)
-
-        return "\(startFormatted)–\(endFormatted)"
+        return HearthTimeFormatter.hourRange(from: startDate, to: endDate)
     }
 
     private var armModeSubtitle: String {
@@ -454,7 +446,7 @@ private struct HoursPickerSheet: View {
         let calendar = Calendar.current
         let now = Date()
         let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: now) ?? now
-        return date.formatted(Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)))
+        return HearthTimeFormatter.hourOnly(date)
     }
 }
 

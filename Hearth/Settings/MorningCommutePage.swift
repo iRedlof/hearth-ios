@@ -107,8 +107,7 @@ struct MorningCommutePage: View {
         case .found:
             return "Sensor active"
         case .lastHeard(let date):
-            let formatter = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
-            return "Last heard \(date.formatted(formatter))"
+            return "Last heard \(HearthTimeFormatter.shortTime(date))"
         case .waiting:
             return "Waiting for first sensor read"
         }
@@ -250,8 +249,7 @@ struct MorningCommutePage: View {
         case .found:
             return "Found in Home Assistant"
         case .lastHeard(let date):
-            let formatter = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
-            return "Last heard: today \(date.formatted(formatter))"
+            return "Last heard: today \(HearthTimeFormatter.shortTime(date))"
         case .waiting:
             return "Waiting for first read"
         }
@@ -263,8 +261,7 @@ struct MorningCommutePage: View {
         case .found:
             return "Found in Home Assistant"
         case .lastHeard(let date):
-            let formatter = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
-            return "Last heard: today \(date.formatted(formatter))"
+            return "Last heard: today \(HearthTimeFormatter.shortTime(date))"
         case .waiting:
             return "Waiting for first read"
         }

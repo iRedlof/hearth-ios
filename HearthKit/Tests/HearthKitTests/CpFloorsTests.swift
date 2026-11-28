@@ -4,10 +4,10 @@ import XCTest
 /// Floor-level availability grouping for the ChargePoint card (ported from Android CpRight.Floors).
 final class CpFloorsTests: XCTestCase {
     private func station(_ id: Int64, _ level: String, free: Int, inUse: Int, offline: Int) -> CpStation {
-        CpStation(deviceId: id, address: "", name: "", lat: 0, lon: 0, site: "SEA41",
+        CpStation(deviceId: id, address: "", name: "", lat: 0, lon: 0, site: "MG",
                   free: free, inUse: inUse, offline: offline, waitlist: true, city: "", state: "", level: level)
     }
-    private let loc = CpLocation(name: "SEA41", address: "", deviceIds: [1, 2, 3],
+    private let loc = CpLocation(name: "MG", address: "", deviceIds: [1, 2, 3],
                                  bounds: CpBounds(swLat: 0, swLon: 0, neLat: 0, neLon: 0))
 
     func testFloorsGroupByLevelSortedWithFreeAndTotal() {

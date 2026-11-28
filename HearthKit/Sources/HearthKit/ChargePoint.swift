@@ -50,7 +50,7 @@ public struct CpStation: Sendable, Equatable {
     public let city, state, level: String
 }
 
-/// A location: every station at one address, its area + name (the site code like "SEA41", else the address).
+/// A location: every station at one address, its area + name (the site code like "MG1", else the address).
 public struct CpLocation: Sendable, Equatable, Codable {
     public let name: String
     public let address: String
@@ -135,7 +135,7 @@ private func siteOf(_ name1: String, _ name2: String) -> String {
 }
 
 private let levelRegex = try! NSRegularExpression(pattern: "\\bP\\d{1,2}\\b")
-/// The level in a charger's name ("SEA41 - 29 P3" -> "P3").
+/// The level in a charger's name ("MG - 29 P3" -> "P3").
 public func cpLevelOf(_ name: String) -> String? {
     let r = NSRange(name.startIndex..., in: name)
     guard let m = levelRegex.firstMatch(in: name, range: r), let rr = Range(m.range, in: name) else { return nil }
@@ -217,7 +217,7 @@ public func cpFloorsFrom(_ loc: CpLocation, _ stations: [CpStation]) -> [CpFloor
     }.sorted { $0.level.localizedStandardCompare($1.level) == .orderedAscending }
 }
 
-/// "SEA41 SEA41-29 P3" (site, then charger) -> "SEA41-29 P3".
+/// "MG MG-29 P3" (site, then charger) -> "MG-29 P3".
 private func chargerName(_ name: String) -> String {
     let parts = name.trimmingCharacters(in: .whitespaces).split(separator: " ", maxSplits: 1).map(String.init)
     if parts.count == 2, parts[1].hasPrefix(parts[0]) { return parts[1] }
@@ -302,7 +302,7 @@ public func cpChargingFrom(_ detailJson: String?) -> CpCharging? {
         charger: device.isEmpty ? nil : device)
 }
 
-/// A charger's short name ("SEA41 - 29 P3" -> "SEA41-29"), without the level.
+/// A charger's short name ("MG - 29 P3" -> "MG-29"), without the level.
 public func cpChargerShort(_ name: String) -> String {
     var s = name
     if let r = name.range(of: "\\bP\\d{1,2}\\b", options: .regularExpression) { s.removeSubrange(r) }

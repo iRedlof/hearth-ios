@@ -3,7 +3,8 @@ import AppIntents
 import HearthKit
 
 /// The Alarm card's Garage row: last reported state and one button — Open when closed, Close when
-/// open, Stop while moving, none when unavailable or last known. The button runs the guarded door
+/// open, Stop while moving, none when unavailable or its reading failed. A failed command shows its
+/// reason in the status line and keeps the button for a retry. The button runs the guarded door
 /// command (`DoorActionIntent`) with the account scope and door-command origin rendered here.
 struct AlarmGarageRowView: View {
     let garage: AlarmGarageRow
@@ -19,7 +20,7 @@ struct AlarmGarageRowView: View {
 
     var body: some View {
         AlarmCompactDoorRow(icon: icon, name: garage.name,
-            statusLines: alarmDoorStatusLines(state: garage.state, since: garage.since, stale: garage.stale),
+            statusLines: alarmGarageStatusLines(garage),
             statusColor: statusColor, ink: ink, fill: Color(argb: look.chipFaint), layout: layout,
             accessibilityText: "\(garage.name), \(garage.stale ? "last known " : "")\(garage.state). \(garage.error ?? "")") {
             control

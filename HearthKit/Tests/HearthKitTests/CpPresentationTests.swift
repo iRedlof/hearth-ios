@@ -6,7 +6,7 @@ final class CpPresentationTests: XCTestCase {
         CpState(signedOut: false, account: cpAccount(hasSession: true, expired: false),
                 location: nil, now: nil,
                 waitlist: .inLine(place: nil, state: state, stations: 1,
-                                 offer: CpOffer(deviceId: 1, port: 1, charger: "SEA41 - 29 P3",
+                                 offer: CpOffer(deviceId: 1, port: 1, charger: "MG - 29 P3",
                                                 untilMs: 1_700_000_600_000), auto: false),
                 charging: nil, autoOn: true)
     }
@@ -28,7 +28,7 @@ final class CpPresentationTests: XCTestCase {
 
     private let now = Date(timeIntervalSince1970: 1_700_000_000)
     private var location: CpLocation {
-        CpLocation(name: "Amazon Day 1", address: "", deviceIds: [1], bounds: cpBounds(lat: 0, lon: 0))
+        CpLocation(name: "Main garage", address: "", deviceIds: [1], bounds: cpBounds(lat: 0, lon: 0))
     }
 
     func testSnoozedSnapshotUsesLiveMapperAndOffersEscape() {
@@ -46,11 +46,11 @@ final class CpPresentationTests: XCTestCase {
         var value = held("CHARGING")
         value.location = location
         value.charging = CpCharging(sessionId: 9, powerKw: 6.6, energyKwh: 7.4, minutes: 65,
-                                   canStop: false, miles: 31, vehicle: "Tesla Model Y", charger: "SEA41 - 29 P3")
+                                   canStop: false, miles: 31, vehicle: "Tesla Model Y", charger: "MG - 29 P3")
         let snap = cpSnapshot(value, email: nil, checkedAt: "9:41 AM", now: now)
         XCTAssertEqual(snap.bigAnswer, "7.4")
         XCTAssertEqual(snap.unit, "kWh added")
-        XCTAssertEqual(snap.stats.map(\.value), ["31 mi", "1 h 05", "SEA41-29 · P3"])
+        XCTAssertEqual(snap.stats.map(\.value), ["31 mi", "1 h 05", "MG-29 · P3"])
         XCTAssertEqual(snap.keys.map(\.command), ["open"])
         XCTAssertFalse(snap.autoOn)
     }
@@ -78,7 +78,7 @@ final class CpPresentationTests: XCTestCase {
             let snap = cpSnapshot(value, email: nil, checkedAt: "9:41 AM", now: now)
             XCTAssertEqual(snap.bigAnswer, title, status)
             XCTAssertEqual(snap.keys.map(\.command), keys, status)
-            XCTAssertEqual(snap.goTo, "SEA41 - 29 P3", status)
+            XCTAssertEqual(snap.goTo, "MG - 29 P3", status)
             if status != "BLOCKED" { XCTAssertNotNil(snap.deadline, status) }
         }
     }

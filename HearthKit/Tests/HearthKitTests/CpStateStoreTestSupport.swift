@@ -6,7 +6,7 @@ enum CpStoreFixture {
     static let now = Date(timeIntervalSince1970: 1_000)
     static let session = CpSession(token: "inert-fixture-cookie", userId: 17, email: "person@example.invalid",
                                    renewedAt: 900_000)
-    static let location = CpLocation(name: "Amazon Day 1", address: "Fixture address",
+    static let location = CpLocation(name: "Main garage", address: "Fixture address",
         deviceIds: [1, 2], bounds: CpBounds(swLat: 0, swLon: 0, neLat: 1, neLon: 1), label: "Office")
     static let otherLocation = CpLocation(name: "Other", address: "Other fixture",
         deviceIds: [3], bounds: CpBounds(swLat: 2, swLon: 2, neLat: 3, neLon: 3))
