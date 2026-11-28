@@ -23,4 +23,20 @@ struct RemovedWidgetStorageTests {
                                   favouriteIdsJson: "[\"fav.one\"]", doorsChosen: true)
         #expect(configuredWidgets(config: everything, chargePointSignedIn: true).count == 10)
     }
+
+    @Test("A stored small size is not a widget size any more")
+    func smallFamilyIsUnknown() {
+        #expect(WidgetPreviewFamily(rawValue: "small") == nil)
+        #expect(WidgetPreviewFamily(rawValue: "medium") == .medium)
+    }
+
+    @Test("A link from an old small Alarm widget opens no readings screen", arguments: [
+        "hearth://alarm-readings/11111111-1111-1111-1111-111111111111",
+        "hearth://alarm-readings/unavailable"
+    ])
+    func oldAlarmReadingsLinkIsIgnored(link: String) throws {
+        let url = try #require(URL(string: link))
+        #expect(thermostatDestination(from: url) == nil)
+        #expect(carReadingsDestination(from: url) == nil)
+    }
 }

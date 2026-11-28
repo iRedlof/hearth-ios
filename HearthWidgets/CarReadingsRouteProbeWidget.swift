@@ -119,7 +119,7 @@ private struct CarReadingsRouteProbeView: View {
     var body: some View {
         let currentEntry = entry.currentInteractionEntry
         let _ = CarRouteProbeWidgetReceipts.widgetRendered(entry: currentEntry)
-        CarWidgetPresentation(payload: currentEntry.payload, family: .systemMedium)
+        CarWidgetPresentation(payload: currentEntry.payload)
             .accessibilityIdentifier("car-route-probe-\(slot.rawValue)")
     }
 }

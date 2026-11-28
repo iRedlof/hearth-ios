@@ -15,7 +15,6 @@ struct WidgetPage: View {
     @State private var editScope: String?
     @State private var entityNames: [String: String] = [:]
     @State private var customName: String?
-    @State private var previewFamily: WidgetPreviewFamily
     @State private var showRename = false
     @State private var showRemove = false
     @State private var saveError: String?
@@ -41,7 +40,6 @@ struct WidgetPage: View {
         let current = runtime.loadHa()
         _editScope = State(initialValue: haSameConnection(current?.config, config) ? current?.scope : nil)
         _customName = State(initialValue: WidgetNameStore.name(for: kind))
-        _previewFamily = State(initialValue: kind.previewKind.family)
         _confirmWithBiometric = State(initialValue: config?.confirmWithBiometric ?? true)
     }
 
@@ -154,20 +152,6 @@ struct WidgetPage: View {
             .padding(.vertical, 24)
             .background(HearthColor.widgetPreviewBg(scheme))
             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            // Size picker (only if widget supports multiple sizes)
-            if kind.previewKind.supportedFamilies.count > 1 {
-                Picker("Widget size", selection: $previewFamily) {
-                    ForEach(kind.previewKind.supportedFamilies, id: \.self) { family in
-                        Text(family.title).tag(family)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            Text("Resize it on your home screen")
-                .font(HearthFont.rowTitle.font)
-                .foregroundStyle(HearthColor.sub(scheme))
         }
         .padding(.horizontal, HearthMetrics.pagePadding)
     }
@@ -569,24 +553,18 @@ struct WidgetPage: View {
         // NOTE: Duplicates WidgetGalleryView.widget(for:) — shared-helper extraction deferred (Phase 6 M1)
         switch kind {
         case .car:
-            if selectedFamily == .small {
-                CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
-            } else {
-                CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
-                    snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
-            }
+            CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
+                snapshot: .sample, destination: .inert, primary: .battery(72)))
         case .alarm:
-            AlarmBeaconView(liveAlarm ?? AlarmParityInputs.snapshot("disarmed"), family: selectedFamily.widgetKitFamily)
+            AlarmBeaconView(liveAlarm ?? AlarmParityInputs.snapshot("disarmed"))
         case .thermostat:
             if let entry = liveThermostat {
-                ThermostatBeaconView(entry, family: selectedFamily.widgetKitFamily)
-            } else if selectedFamily == .small {
-                ThermostatBeaconView(ThermostatParityInputs.payload("auto"), family: .systemSmall)
+                ThermostatBeaconView(entry)
             } else {
                 ThermostatBeaconView(.sample)
             }
         case .chargepoint: CpBeaconView(liveCp ?? .sample)
-        case .battery: BatteryView(.sample, layoutFamily: selectedFamily.widgetKitFamily)
+        case .battery: BatteryView(.sample, layoutFamily: .systemMedium)
         case .activity: ActivityView(.sample)
         case .lights: LightTileView(.sample)
         case .quick: QuickView(.sample)
@@ -722,24 +700,13 @@ struct WidgetPage: View {
         }
     }
 
-    private var previewWidth: CGFloat {
-        switch selectedFamily {
-        case .small: 155
-        case .medium: 329
-        case .large: 329
-        }
-    }
+    private var previewWidth: CGFloat { 329 }
 
     private var previewHeight: CGFloat {
-        switch selectedFamily {
-        case .small: 155
+        switch kind.previewKind.family {
         case .medium: 155
         case .large: 345
         }
-    }
-
-    private var selectedFamily: WidgetPreviewFamily {
-        kind.previewKind.supportedFamilies.contains(previewFamily) ? previewFamily : kind.previewKind.family
     }
 
     private func loadNames() async {

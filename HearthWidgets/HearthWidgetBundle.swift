@@ -20,7 +20,6 @@ struct HearthWidgetBundle: WidgetBundle {
         FavouritesWidget()
         DoorsWidget()
         #if DEBUG
-        SmallConceptWidget()
         ReadableConceptWidget()
         CarReadingsRouteProbeWidget(slot: .a)
         CarReadingsRouteProbeWidget(slot: .b)
@@ -64,7 +63,7 @@ struct BatteryWidget: Widget {
         }
         .configurationDisplayName("Batteries")
         .description("Every battery you replace, lowest first.")
-        .supportedFamilies(WidgetPreviewKind.battery.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.battery.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }
@@ -105,7 +104,7 @@ struct ActivityWidget: Widget {
         }
         .configurationDisplayName("Activity")
         .description("Recent home events — doors, locks, alarm.")
-        .supportedFamilies(WidgetPreviewKind.activity.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.activity.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }
@@ -146,7 +145,7 @@ struct LightsWidget: Widget {
         }
         .configurationDisplayName("Lights")
         .description("Lights that are on, plus your always-show favourites.")
-        .supportedFamilies(WidgetPreviewKind.lights.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.lights.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }
@@ -187,7 +186,7 @@ struct QuickWidget: Widget {
         }
         .configurationDisplayName("Quick")
         .description("Run your scripts and scenes.")
-        .supportedFamilies(WidgetPreviewKind.quick.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.quick.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }
@@ -228,7 +227,7 @@ struct FavouritesWidget: Widget {
         }
         .configurationDisplayName("Favourites")
         .description("Your pinned switches, lights, fans and scripts.")
-        .supportedFamilies(WidgetPreviewKind.favourites.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.favourites.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }
@@ -269,7 +268,7 @@ struct DoorsWidget: Widget {
         }
         .configurationDisplayName("Doors")
         .description("Doors, garages and the front-door lock.")
-        .supportedFamilies(WidgetPreviewKind.doors.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.doors.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }
@@ -383,41 +382,25 @@ struct CarProvider: TimelineProvider, Sendable {
     }
 }
 
-private struct CarWidgetEntryView: View {
-    let entry: CarEntry
-    @Environment(\.widgetFamily) private var family
-
-    var body: some View {
-        CarWidgetPresentation(payload: entry.payload, family: family)
-    }
-}
-
 struct CarWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.car", provider: CarProvider()) { originalEntry in
             CardStyledContent(beacon: .car) {
                 ParityWidgetContent(prefix: "car") {
-                    let entry = originalEntry.currentInteractionEntry
-                    CarWidgetEntryView(entry: entry)
+                    CarWidgetPresentation(payload: originalEntry.currentInteractionEntry.payload)
                 }
             }
         }
         .configurationDisplayName("Car")
         .description("Your car's battery, doors, and charge at a glance.")
-        .supportedFamilies(WidgetPreviewKind.car.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.car.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }
 
 // MARK: - Alarm
 
-struct AlarmEntry: TimelineEntry {
-    let date: Date
-    let snap: AlarmSnapshot
-    let payload: AlarmReadingsEntryPayload?
-    init(date: Date, snap: AlarmSnapshot) { self.date = date; self.snap = snap; payload = nil }
-    init(payload: AlarmReadingsEntryPayload) { date = payload.date; snap = payload.snapshot; self.payload = payload }
-}
+struct AlarmEntry: TimelineEntry { let date: Date; let snap: AlarmSnapshot }
 
 struct AlarmProvider: TimelineProvider {
     func placeholder(in context: Context) -> AlarmEntry { AlarmEntry(date: .now, snap: .sample) }
@@ -437,34 +420,21 @@ struct AlarmProvider: TimelineProvider {
         #if DEBUG
         if ParityCatalog.activeWidgetID(prefix: "alarm") != nil { return AlarmEntry(date: .now, snap: .sample) }
         #endif
-        let snapshot = await AlarmLiveSnapshot.fetch()
-        return AlarmEntry(payload: AlarmReadingsStore.bind(snapshot))
+        return AlarmEntry(date: .now, snap: await AlarmLiveSnapshot.fetch())
     }
 }
 
 struct AlarmWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.alarm", provider: AlarmProvider()) { entry in
-            AlarmWidgetEntryView(entry: entry)
+            CardStyledContent(beacon: .alarm) {
+                ParityWidgetContent(prefix: "alarm") { AlarmBeaconView(entry.snap) }
+            }
         }
         .configurationDisplayName("Home Alarm")
         .description("Your alarm state and front door at a glance.")
-        .supportedFamilies(WidgetPreviewKind.alarm.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.alarm.widgetKitFamily])
         .contentMarginsDisabled()
-    }
-}
-
-private struct AlarmWidgetEntryView: View {
-    let entry: AlarmEntry
-    @Environment(\.widgetFamily) private var family
-    var body: some View {
-        CardStyledContent(beacon: .alarm) { ParityWidgetContent(prefix: "alarm") { beacon } }
-            .widgetURL(family == .systemSmall ? alarmReadingsURL(for: entry.payload?.destination ?? .inert) : nil)
-    }
-    // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
-    @ViewBuilder private var beacon: some View {
-        if let payload = entry.payload { AlarmBeaconView(payload, family: family) }
-        else { AlarmBeaconView(entry.snap, family: family) }
     }
 }
 
@@ -524,14 +494,13 @@ struct ThermostatWidget: Widget {
         }
         .configurationDisplayName("Thermostat")
         .description("Your thermostat's temperature and setpoints at a glance.")
-        .supportedFamilies(WidgetPreviewKind.thermostat.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.thermostat.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }
 
 private struct ThermostatWidgetEntryView: View {
     let entry: ThermostatEntry
-    @Environment(\.widgetFamily) private var family
     var body: some View {
         CardStyledContent(beacon: .thermostat) { ParityWidgetContent(prefix: "thermostat") { beacon } }
             .widgetURL(thermostatReadingsURL(for: entry.payload?.destination ?? .inert))
@@ -539,9 +508,8 @@ private struct ThermostatWidgetEntryView: View {
     // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
     @ViewBuilder private var beacon: some View {
         if let payload = entry.payload {
-            ThermostatBeaconView(payload, family: family,
-                                 inlineChoices: entry.inlineChoices, inlinePicker: true)
-        } else { ThermostatBeaconView(entry.snap, family: family, inlinePicker: true) }
+            ThermostatBeaconView(payload, inlineChoices: entry.inlineChoices, inlinePicker: true)
+        } else { ThermostatBeaconView(entry.snap, inlinePicker: true) }
     }
 }
 
@@ -588,7 +556,7 @@ struct ChargePointWidget: Widget {
         }
         .configurationDisplayName("ChargePoint")
         .description("Your ChargePoint site, waitlist, and charging at a glance.")
-        .supportedFamilies(WidgetPreviewKind.chargepoint.widgetKitFamilies)
+        .supportedFamilies([WidgetPreviewKind.chargepoint.widgetKitFamily])
         .contentMarginsDisabled()
     }
 }

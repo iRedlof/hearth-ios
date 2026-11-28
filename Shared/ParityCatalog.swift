@@ -103,7 +103,6 @@ struct ParityWidgetSelection: Sendable {
 
     static func all() -> [(String, AnyView)] {
         #if DEBUG
-        let small = SmallWidgetConceptCatalog.concepts.map { ($0.id, AnyView(SmallWidgetConceptView(concept: $0))) }
         let readable = AccessibleBeaconConceptCatalog.concepts.map {
             ($0.id, AnyView(AccessibleBeaconConceptView(concept: $0)))
         }
@@ -113,22 +112,16 @@ struct ParityWidgetSelection: Sendable {
         let productionCar = (CarParityInputs.states + ["save_failed", "long_names", "auth_history"]
             + CarParityInputs.compactOpeningStates).map {
             ("car-production-" + $0, AnyView(CarWidgetPresentation(
-                payload: CarParityInputs.productionPayload($0), family: .systemMedium)))
-        }
-        let productionCarSmall = (CarParityInputs.states + ["save_failed", "long_names", "auth_history"]
-            + CarParityInputs.compactOpeningStates).map {
-            ("car-small-production-" + $0, AnyView(CarWidgetPresentation(
-                payload: CarParityInputs.productionPayload($0), family: .systemSmall)))
+                payload: CarParityInputs.productionPayload($0))))
         }
         // Fabricated immutable destination for visual disclosure fit only. No ticket is persisted;
         // the direct parity screen disables hit testing and does not prove navigation.
         let disclosureCar = [
             ("car-production-mixed_open-ticket", AnyView(CarWidgetPresentation(
                 payload: CarParityInputs.productionPayload("mixed_open",
-                    destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)),
-                family: .systemMedium)))
+                    destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)))))
         ]
-        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + small + readable + nativeReadable + productionCar + productionCarSmall + disclosureCar
+        return alarm() + thermostat() + car() + chargePoint() + tiles() + collections() + readable + nativeReadable + productionCar + disclosureCar
         #else
         alarm() + thermostat() + car() + chargePoint() + tiles() + collections()
         #endif
@@ -153,10 +146,6 @@ struct ParityWidgetSelection: Sendable {
     // MARK: Alarm
     private static func alarm() -> [(String, AnyView)] {
         AlarmParityInputs.states.map { ("alarm-" + $0, AnyView(AlarmBeaconView(AlarmParityInputs.snapshot($0)))) }
-        + AlarmParityInputs.states.map {
-            ("alarm-small-production-" + $0,
-             AnyView(AlarmBeaconView(AlarmParityInputs.snapshot($0), family: .systemSmall)))
-        }
     }
 
     // MARK: Thermostat
@@ -165,9 +154,6 @@ struct ParityWidgetSelection: Sendable {
             ("thermostat-" + $0, AnyView(ThermostatBeaconView(ThermostatParityInputs.snapshot($0))))
         } + ThermostatParityInputs.readableStates.map {
             ("thermostat-production-" + $0, AnyView(ThermostatBeaconView(ThermostatParityInputs.payload($0))))
-        } + ThermostatParityInputs.readableStates.map {
-            ("thermostat-small-production-" + $0,
-             AnyView(ThermostatBeaconView(ThermostatParityInputs.payload($0), family: .systemSmall)))
         } + ThermostatParityInputs.pickerStates.map {
             ("thermostat-" + $0, AnyView(ThermostatBeaconView(
                 ThermostatParityInputs.snapshot(ThermostatParityInputs.pickerBaseState),

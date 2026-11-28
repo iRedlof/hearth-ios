@@ -57,19 +57,12 @@ struct CardStylePreviewCard: View {
         static let width: CGFloat = 329
         static let mediumHeight: CGFloat = 155
         static let largeHeight: CGFloat = 345
-        static let smallSide: CGFloat = 155
         static let corner: CGFloat = 22
     }
 
-    /// The size the widget is drawn at. A kind with a Medium size shows that one.
-    private var family: WidgetPreviewFamily {
-        let preview = kind.previewKind
-        return preview.supportedFamilies.contains(.medium) ? .medium : preview.family
-    }
-
+    /// The size the widget is drawn at: its one Home Screen size.
     private var size: CGSize {
-        switch family {
-        case .small: CGSize(width: Size.smallSide, height: Size.smallSide)
+        switch kind.previewKind.family {
         case .medium: CGSize(width: Size.width, height: Size.mediumHeight)
         case .large: CGSize(width: Size.width, height: Size.largeHeight)
         }
@@ -97,7 +90,7 @@ struct CardStylePreviewCard: View {
     @ViewBuilder private var widget: some View {
         switch kind {
         case .car: CarBeaconView(car ?? .sample, interactionMode: .inert)
-        case .alarm: AlarmBeaconView(alarm ?? AlarmParityInputs.snapshot("disarmed"), family: .systemMedium)
+        case .alarm: AlarmBeaconView(alarm ?? AlarmParityInputs.snapshot("disarmed"))
         case .thermostat: thermostatWidget
         case .chargePoint: CpBeaconView(chargePoint ?? .sample)
         case .battery: BatteryView(battery ?? .sample, layoutFamily: .systemMedium)
@@ -110,7 +103,7 @@ struct CardStylePreviewCard: View {
     }
 
     @ViewBuilder private var thermostatWidget: some View {
-        if let thermostat { ThermostatBeaconView(thermostat, family: .systemMedium) }
+        if let thermostat { ThermostatBeaconView(thermostat) }
         else { ThermostatBeaconView(.sample) }
     }
 
