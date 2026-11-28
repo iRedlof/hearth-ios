@@ -339,8 +339,9 @@ enum WidgetThumbnail {
 
     var natural: CGSize {
         switch self {
-        case .small: CGSize(width: 155, height: 155)
-        case .medium: CGSize(width: 329, height: 155)
+        // Home Screen widget sizes on a 393pt-wide iPhone.
+        case .small: CGSize(width: 170, height: 170)
+        case .medium: CGSize(width: 364, height: 170)
         }
     }
 
