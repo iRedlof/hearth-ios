@@ -8,10 +8,14 @@ public struct AlarmFetchResult: Sendable {
     public let readings: [String: HaStateReading]
     public let errors: [String: String]
     public let setup: Bool
+    /// The selected garage's last command, when it failed and no newer reading has replaced it.
+    public let garageCommandFailure: GarageCommandFailure?
     public init(entityID: String = "", lockID: String = "", lockName: String = "", garageID: String = "",
-                readings: [String: HaStateReading] = [:], errors: [String: String] = [:], setup: Bool = false) {
+                readings: [String: HaStateReading] = [:], errors: [String: String] = [:], setup: Bool = false,
+                garageCommandFailure: GarageCommandFailure? = nil) {
         self.entityID = entityID; self.lockID = lockID; self.lockName = lockName; self.garageID = garageID
         self.readings = readings; self.errors = errors; self.setup = setup
+        self.garageCommandFailure = garageCommandFailure
     }
     public func snapshot(now: Date = .now, zone: TimeZone = .current,
                          locale: Locale = .current) -> AlarmSnapshot {
@@ -45,7 +49,8 @@ public struct AlarmFetchResult: Sendable {
         if !setup, !garageID.isEmpty {
             let garage = reading(garageID)
             snapshot.garage = alarmGarageRow(entityID: garageID, reading: garage,
-                error: error(garageID, reading: garage), now: now, zone: zone, locale: locale)
+                error: error(garageID, reading: garage), commandFailure: garageCommandFailure,
+                now: now, zone: zone, locale: locale)
         }
         return snapshot
     }
