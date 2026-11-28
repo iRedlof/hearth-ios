@@ -184,6 +184,14 @@ jobs:
           grep -q "group.com.rohit.hearth" "$WORK/ent.txt" \
             || { echo "::error::Exported IPA is MISSING the group.com.rohit.hearth App Group entitlement — would break shared storage on device."; exit 1; }
           echo "✓ App Group entitlement present in the shipped IPA"
+          # The widget extension reads the same shared container. If its copy of the
+          # entitlement is missing, every widget fails while the app looks fine.
+          APPEX="$APP/PlugIns/HearthWidgets.appex"
+          test -d "$APPEX" || { echo "::error::HearthWidgets.appex is missing from the exported IPA."; exit 1; }
+          codesign -d --entitlements :- "$APPEX" 2>/dev/null > "$WORK/appex-ent.txt" || true
+          grep -q "group.com.rohit.hearth" "$WORK/appex-ent.txt" \
+            || { echo "::error::HearthWidgets.appex is MISSING the group.com.rohit.hearth App Group entitlement — widgets could not read shared storage."; exit 1; }
+          echo "✓ App Group entitlement present in HearthWidgets.appex"
 
       - name: Upload to TestFlight
         env:

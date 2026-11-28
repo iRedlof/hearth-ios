@@ -1,3 +1,4 @@
+import HearthKit
 import SwiftUI
 import WebKit
 
@@ -37,6 +38,29 @@ struct CookieCaptureWebView: UIViewRepresentable {
             self.allowedDomain = allowedDomain
             self.onCapture = onCapture
         }
+
+        /// Keeps the login inside this web view. Without this, iOS hands the navigation to the
+        /// native ChargePoint app when it is installed (its hosts claim universal links), the
+        /// session cookie is never set here, and sign-in cannot complete. The rule lives in
+        /// `webLoginNavigationDecision` (HearthKit), where it is tested.
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
+        ) {
+            switch webLoginNavigationDecision(target: navigationAction.request.url) {
+            case .keepInWebView: decisionHandler(Self.allowWithoutOpeningApps)
+            case .allow: decisionHandler(.allow)
+            case .block: decisionHandler(.cancel)
+            }
+        }
+
+        /// WebKit's "allow, but do not try to open the link in another app" policy
+        /// (`_WKNavigationActionPolicyAllowWithoutTryingAppLink`, two above `.allow`; it has no
+        /// public name). It leaves the navigation itself untouched, so the login behaves exactly
+        /// as before for people who do not have the ChargePoint app.
+        private static let allowWithoutOpeningApps =
+            WKNavigationActionPolicy(rawValue: WKNavigationActionPolicy.allow.rawValue + 2) ?? .allow
 
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
             cookieStore.getAllCookies { [weak self] cookies in
