@@ -20,10 +20,3 @@ public func activityItems(_ items: [ActivityItem], smallPrint: Bool) -> [Activit
                      name: $0.name, action: $0.action, eventKey: $0.eventKey)
     }
 }
-
-/// Glance's support line is small print only when it is the "Checked …" stamp.
-public func glanceShowsSupport(_ support: String, smallPrint: Bool) -> Bool {
-    smallPrint || !support.hasPrefix(glanceCheckedPrefix)
-}
-
-private let glanceCheckedPrefix = "Checked "

@@ -15,7 +15,6 @@ public enum WidgetPreviewFamily: String, CaseIterable, Sendable {
 }
 
 public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
-    case glance
     case car
     case alarm
     case thermostat
@@ -31,7 +30,6 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
 
     public var title: String {
         switch self {
-        case .glance: "Glance"
         case .car: "Car"
         case .alarm: "Home Alarm"
         case .thermostat: "Thermostat"
@@ -48,7 +46,6 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
     /// Outline identity symbols. Device-action symbols belong to their production views.
     public var symbolName: String {
         switch self {
-        case .glance: "sparkles"
         case .car: "car"
         case .alarm: "shield"
         case .thermostat: "thermometer.medium"
@@ -64,7 +61,6 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
 
     public var family: WidgetPreviewFamily {
         switch self {
-        case .glance: .small
         case .car, .alarm, .thermostat, .chargepoint, .battery, .quick: .medium
         case .activity, .lights, .favourites, .doors: .large
         }

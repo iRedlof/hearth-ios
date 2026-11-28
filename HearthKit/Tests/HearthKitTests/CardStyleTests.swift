@@ -87,6 +87,26 @@ struct CardStyleTests {
         #expect(decoded["car"] == CardStyle(background: .colour(.rose), textSize: .larger, smallPrint: false))
     }
 
+    @Test("A style saved for the removed Glance widget is dropped, the others are kept")
+    func removedKindOverrideIsDropped() throws {
+        let stored = #"{"glance":{"background":{"black":{}},"textSize":"larger","smallPrint":false},"#
+            + #""car":{"background":{"colour":{"_0":"rose"}},"textSize":"larger","smallPrint":false}}"#
+        let overrides = try cardStyleOverrides(fromStored: Data(stored.utf8))
+        #expect(overrides == ["car": CardStyle(background: .colour(.rose), textSize: .larger, smallPrint: false)])
+    }
+
+    @Test("Stored own styles survive for every current widget kind", arguments: HomeWidgetKind.allCases)
+    func currentKindOverrideIsKept(kind: HomeWidgetKind) throws {
+        let style = CardStyle(background: .black, textSize: .smaller, smallPrint: false)
+        let stored = try JSONEncoder().encode([kind.rawValue: style])
+        #expect(try cardStyleOverrides(fromStored: stored) == [kind.rawValue: style])
+    }
+
+    @Test("Unreadable own styles are reported, not guessed")
+    func unreadableOverridesThrow() {
+        #expect(throws: (any Error).self) { try cardStyleOverrides(fromStored: Data("not json".utf8)) }
+    }
+
     @Test("Unknown or missing fields fall back the way Android's fromJson does")
     func lenientDecoding() throws {
         let unknown = #"{"background":{"glass":{"_0":76}},"textSize":"huge"}"#

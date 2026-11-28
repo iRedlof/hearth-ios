@@ -13,7 +13,6 @@ enum CardStylePreviewData {
     case quick(QuickSnapshot)
     case favourites(FavSnapshot)
     case doors(DoorsSnapshot)
-    case glance(GlanceSummary)
 }
 
 /// Reads each added widget's current data once, with the same live helpers the widgets and
@@ -42,7 +41,6 @@ final class CardStylePreviewModel: ObservableObject {
         case .lights: return .lights(await fetchLightsSnapshot(config, now: now))
         case .quick: return .quick(await fetchQuickSnapshot(config, now: now))
         case .favourites: return .favourites(await fetchFavouritesSnapshot(config, now: now))
-        case .glance: return .glance(glanceSummary(GlanceFeedStore.load(), now: now))
         }
     }
 }
@@ -108,7 +106,6 @@ struct CardStylePreviewCard: View {
         case .quick: QuickView(quick ?? .sample)
         case .favourites: FavouritesView(favourites ?? .sample)
         case .doors: DoorsView(doors ?? .sample)
-        case .glance: glanceWidget
         }
     }
 
@@ -116,14 +113,6 @@ struct CardStylePreviewCard: View {
         if let thermostat { ThermostatBeaconView(thermostat, family: .systemMedium) }
         else { ThermostatBeaconView(.sample) }
     }
-
-    private var glanceWidget: some View {
-        let summary = glance ?? Self.sampleGlance
-        return GlanceView(summary: summary, plan: glanceLayout(summary: summary, size: .small2x1))
-    }
-
-    private static let sampleGlance = GlanceSummary(verdict: .ok, word: "OK", tone: .ok, lines: [],
-        support: "Checked 9:41", calmLine: "Alarm · Doors · Lights", key: nil)
 
     // MARK: - The loaded data, by kind
 
@@ -136,7 +125,6 @@ struct CardStylePreviewCard: View {
     private var quick: QuickSnapshot? { if case .quick(let value) = data { value } else { nil } }
     private var favourites: FavSnapshot? { if case .favourites(let value) = data { value } else { nil } }
     private var doors: DoorsSnapshot? { if case .doors(let value) = data { value } else { nil } }
-    private var glance: GlanceSummary? { if case .glance(let value) = data { value } else { nil } }
 }
 
 /// The numbers of `WallpaperBackdrop.kt`.

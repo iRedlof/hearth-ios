@@ -608,8 +608,6 @@ struct ContentView: View {
             presentedSheet = .widgetPage(kind, UUID())
         } else if args.contains("-cardStyle") {
             presentedSheet = .cardStylePage(nil, UUID())
-        } else if args.contains("-glancePreview") {
-            presentedSheet = .widgetPage(.glance, UUID())
         } else if args.contains("-morningCommute") {
             presentedSheet = .morningCommute(UUID())
         } else if args.contains("-leaveBy") {

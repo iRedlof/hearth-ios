@@ -124,19 +124,6 @@ struct AddWidgetGallery: View {
     @ViewBuilder
     private func widget(for kind: WidgetPreviewKind) -> some View {
         switch kind {
-        case .glance:
-            let summary = GlanceSummary(
-                verdict: .ok,
-                word: "OK",
-                tone: .ok,
-                lines: [],
-                support: "Checked 9:41",
-                calmLine: "Alarm · Doors · Lights",
-                key: nil
-            )
-            let plan = glanceLayout(summary: summary, size: .small2x1)
-            GlanceView(summary: summary, plan: plan)
-                .widgetThumbnail(.medium)
         case .car:
             CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
                 .widgetThumbnail(.small)
@@ -195,8 +182,6 @@ struct AddWidgetGallery: View {
 
     private func description(for kind: HomeWidgetKind) -> String {
         switch kind {
-        case .glance:
-            return "At-a-glance status of all your widgets"
         case .car:
             return "Car status and readings"
         case .alarm:
@@ -222,7 +207,6 @@ struct AddWidgetGallery: View {
 
     private func previewKind(for kind: HomeWidgetKind) -> WidgetPreviewKind? {
         switch kind {
-        case .glance: return .glance
         case .car: return .car
         case .alarm: return .alarm
         case .thermostat: return .thermostat

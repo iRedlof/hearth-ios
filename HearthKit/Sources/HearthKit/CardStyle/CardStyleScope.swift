@@ -20,6 +20,14 @@ public func cardStyleSaveTarget(kind: HomeWidgetKind?, follows: Bool) -> CardSty
     return .own(kind)
 }
 
+/// Each widget's own style as stored, keyed by `HomeWidgetKind` raw value. A key that is no longer
+/// a widget kind (Glance was removed) is dropped, so the other cards keep their styles and the next
+/// save forgets it.
+public func cardStyleOverrides(fromStored data: Data) throws -> [String: CardStyle] {
+    try JSONDecoder().decode([String: CardStyle].self, from: data)
+        .filter { HomeWidgetKind(rawValue: $0.key) != nil }
+}
+
 /// The per-widget "Card style" row's subtitle (`SettingsList.kt:277-279`).
 public func cardStyleEntrySubtitle(own: CardStyle?) -> String {
     own.map { "Its own: \($0.summary)" } ?? "Follows All cards"

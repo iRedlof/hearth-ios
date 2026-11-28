@@ -9,7 +9,6 @@ struct HearthWidgetBundle: WidgetBundle {
     }
 
     var body: some Widget {
-        GlanceWidget()
         CarWidget()
         AlarmWidget()
         ThermostatWidget()
@@ -257,11 +256,7 @@ struct DoorsProvider: TimelineProvider {
         #if DEBUG
         if ParityCatalog.activeWidgetID(prefix: "doors") != nil { return .loading }
         #endif
-        let snapshot = await CollectionLiveSnapshots.doors()
-        // Write Glance feed
-        let feed = glanceFeed(from: snapshot, checkedAt: .now)
-        GlanceFeedStore.save(feed)
-        return snapshot
+        return await CollectionLiveSnapshots.doors()
     }
 }
 
@@ -380,15 +375,9 @@ struct CarProvider: TimelineProvider, Sendable {
                 ParityCatalog.activeWidgetID(prefix: "car") == nil &&
                     ParityCatalog.widgetInteractionGeneration() == generation
             })
-        // Write Glance feed
-        let feed = glanceFeed(from: payload.snapshot, checkedAt: .now)
-        GlanceFeedStore.save(feed)
         return CarEntry(payload: payload, interactionGeneration: generation)
         #else
         let payload = await CarLiveSnapshot.loadEntry(selection: isPreview ? .inert : .live)
-        // Write Glance feed
-        let feed = glanceFeed(from: payload.snapshot, checkedAt: .now)
-        GlanceFeedStore.save(feed)
         return CarEntry(payload: payload)
         #endif
     }
@@ -449,9 +438,6 @@ struct AlarmProvider: TimelineProvider {
         if ParityCatalog.activeWidgetID(prefix: "alarm") != nil { return AlarmEntry(date: .now, snap: .sample) }
         #endif
         let snapshot = await AlarmLiveSnapshot.fetch()
-        // Write Glance feed
-        let feed = glanceFeed(from: snapshot, checkedAt: .now)
-        GlanceFeedStore.save(feed)
         return AlarmEntry(payload: AlarmReadingsStore.bind(snapshot))
     }
 }
@@ -589,11 +575,7 @@ struct CpProvider: TimelineProvider {
         if ParityCatalog.activeWidgetID(prefix: "chargepoint") != nil { return .sample }
         #endif
         // iOS schedules refreshes at its discretion; Auto remains best-effort.
-        let snapshot = await CpLiveSnapshot.fetch(advanceAuto: advanceAuto)
-        // Write Glance feed
-        let feed = glanceFeed(from: snapshot, checkedAt: .now)
-        GlanceFeedStore.save(feed)
-        return snapshot
+        return await CpLiveSnapshot.fetch(advanceAuto: advanceAuto)
     }
 }
 

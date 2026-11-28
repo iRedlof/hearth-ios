@@ -101,7 +101,7 @@ struct BeaconLookTests {
     }
 }
 
-@Suite("Card look (Doors, Lights, Quick actions, Favourites, Activity, Batteries, Glance)")
+@Suite("Card look (Doors, Lights, Quick actions, Favourites, Activity, Batteries)")
 struct CardLookTests {
     @Test("Status keeps the card's own state colours")
     func status() {
@@ -210,12 +210,5 @@ struct CardSmallPrintTests {
         #expect(hidden.map(\.by) == [nil, nil])
         #expect(hidden.map(\.text) == items.map(\.text))
         #expect(hidden.map(\.name) == items.map(\.name))
-    }
-
-    @Test("Glance hides its Checked line, never a line that tells you what to do")
-    func glanceSupport() {
-        #expect(glanceShowsSupport("Checked 9:41", smallPrint: true))
-        #expect(!glanceShowsSupport("Checked 9:41", smallPrint: false))
-        #expect(glanceShowsSupport("Add Alarm, Doors or Lights", smallPrint: false))
     }
 }

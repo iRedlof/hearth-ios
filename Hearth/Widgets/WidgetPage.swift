@@ -260,9 +260,6 @@ struct WidgetPage: View {
                         .padding(.vertical, HearthMetrics.mediumPadding)
                 }
             }
-
-        case .glance:
-            EmptyView()
         }
     }
 
@@ -571,11 +568,6 @@ struct WidgetPage: View {
     private func widget(for kind: WidgetPreviewKind) -> some View {
         // NOTE: Duplicates WidgetGalleryView.widget(for:) — shared-helper extraction deferred (Phase 6 M1)
         switch kind {
-        case .glance:
-            let summary = GlanceSummary(verdict: .ok, word: "OK", tone: .ok, lines: [],
-                                        support: "Checked 9:41", calmLine: "Alarm · Doors · Lights", key: nil)
-            let plan = glanceLayout(summary: summary, size: .small2x1)
-            GlanceView(summary: summary, plan: plan)
         case .car:
             if selectedFamily == .small {
                 CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
@@ -621,7 +613,6 @@ struct WidgetPage: View {
         case .doors: return config.doorsChosen
         case .activity, .battery: return !config.sensorIds.isEmpty
         case .chargePoint: return (try? CpSessionStore.context().session.isSignedIn) == true
-        case .glance: return config.isComplete
         }
     }
 
@@ -704,7 +695,6 @@ struct WidgetPage: View {
         case .doors: 1  // Doors
         case .activity, .battery: 1  // Sensors
         case .chargePoint: 1  // Sign in
-        case .glance: 1  // Connect Home Assistant
         }
     }
 
@@ -729,7 +719,6 @@ struct WidgetPage: View {
         case .doors: "Choose which doors to monitor."
         case .activity, .battery: "Choose which sensors to monitor."
         case .chargePoint: "Sign in to ChargePoint to get started."
-        case .glance: "Connect Home Assistant to get started."
         }
     }
 

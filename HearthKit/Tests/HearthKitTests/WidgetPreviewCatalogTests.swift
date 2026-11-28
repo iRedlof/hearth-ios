@@ -22,14 +22,14 @@ final class WidgetPreviewCatalogTests: XCTestCase {
         XCTAssertEqual(WidgetPreviewFamily.small.title, "Small")
         XCTAssertEqual(WidgetPreviewKind.car.family, .medium)
         XCTAssertEqual(WidgetPreviewKind.car.supportedFamilies, [.small, .medium])
-        for kind in WidgetPreviewKind.allCases where kind != .thermostat && kind != .car && kind != .alarm && kind != .glance {
+        for kind in WidgetPreviewKind.allCases where kind != .thermostat && kind != .car && kind != .alarm {
             XCTAssertFalse(kind.supportedFamilies.contains(.small), "\(kind) has no Small design")
         }
     }
 
     func testCatalogCoversEveryShippedWidgetWithItsDesignedFamilies() {
         let shipped: Set<WidgetPreviewKind> = [
-            .glance, .alarm, .thermostat, .car, .chargepoint, .quick, .battery,
+            .alarm, .thermostat, .car, .chargepoint, .quick, .battery,
             .doors, .activity, .lights, .favourites
         ]
         XCTAssertEqual(Set(WidgetPreviewKind.allCases), shipped)
