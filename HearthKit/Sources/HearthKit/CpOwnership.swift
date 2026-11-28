@@ -179,13 +179,21 @@ public struct CpStateFailure: Codable, Sendable, Equatable {
     public let kind: CpReadFailureKind?
     /// Host that produced the failure, for diagnostics. Never a secret.
     public let host: String?
-    /// HTTP status if the failure was an HTTP response (nil for transport/parse failures).
+    /// HTTP status of the response that failed. For a parse failure this is the 2xx that was
+    /// received but could not be read (nil only for a transport failure with no response).
     public let status: Int?
+    /// For a parse failure: the request whose reply could not be read (e.g. "status"). Optional for
+    /// backward compatibility with records persisted before this field existed.
+    public let request: String?
+    /// For a parse failure: a structural, secret-free description of what was wrong (key path +
+    /// expected/found type, or "empty body"/"not JSON"/"HTML page" with a body length).
+    public let detail: String?
 
     public init(message: String, attemptedAt: Date, kind: CpReadFailureKind? = nil,
-                host: String? = nil, status: Int? = nil) {
+                host: String? = nil, status: Int? = nil, request: String? = nil, detail: String? = nil) {
         self.message = message; self.attemptedAt = attemptedAt
         self.kind = kind; self.host = host; self.status = status
+        self.request = request; self.detail = detail
     }
 
     /// How this failure is presented to the user (real reason + whether retrying can help). Falls

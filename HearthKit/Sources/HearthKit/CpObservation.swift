@@ -140,9 +140,19 @@ public func cpOwnedObservation(statusJson: String, inlineJson: String? = nil,
           state?["error"] == nil, state?["error_message"] == nil else { throw CpObservationError.malformed }
     guard let rawPhase = state?["state"] as? String, !rawPhase.isEmpty else {
         // Charging can be identified even when the provider omits its waitlist section.
-        guard sessionID != nil else { throw CpObservationError.malformed }
-        return try cpOwnedChargingObservation(sessionID: sessionID!, details: details,
-            availability: availability, floors: floors)
+        if let sessionID {
+            return try cpOwnedChargingObservation(sessionID: sessionID, details: details,
+                availability: availability, floors: floors)
+        }
+        // No waitlist phase and no live session: the driver is simply idle. ChargePoint's
+        // user_status omits the waitlist/charging blocks for an idle driver, so the reply is
+        // `{"user_status":{}}` (or just `mfhs`). Android reads this as NOT_QUEUED
+        // (ChargePointState.kt cpWaitlistFrom returns NotQueued when user_status/waitlist is
+        // absent). Earlier iOS builds threw .malformed here, which failed EVERY idle real
+        // account — the read reported "Couldn't read ChargePoint's reply" and showed no plugs.
+        // Root-level provider errors were already rejected above, so an empty user_status here is
+        // positive idle evidence, not an ambiguous body.
+        return try cpOwnedIdleObservation(availability: availability, floors: floors)
     }
     let known: Set<String> = [
         "NOT_QUEUED", "WAITING", "PENDING", "ACCEPT_PENDING", "PENDING_PLUG_IN",
@@ -216,6 +226,17 @@ public func cpOwnedObservation(statusJson: String, inlineJson: String? = nil,
     return observation
 }
 
+/// The driver is signed in, has a location, but is not queued and not charging. Mirrors Android's
+/// NOT_QUEUED reading of an empty `user_status`. Availability/floors come from the map read.
+private func cpOwnedIdleObservation(availability: CpNow?, floors: [CpFloor]) throws -> CpObservation {
+    let provider = CpProviderReading(waitlist: .notQueued, charging: nil,
+        availability: availability, floors: floors)
+    _ = try JSONEncoder().encode(provider)
+    return CpObservation(provider: provider,
+        identity: CpObservedIdentity(phase: "NOT_QUEUED", stationIDs: [], token: nil, deviceID: nil,
+            port: nil, startMs: nil, deadlineMs: nil, sessionID: nil))
+}
+
 private func cpOwnedChargingObservation(sessionID: Int64, details: CpDetailEvidence,
                                        availability: CpNow?, floors: [CpFloor]) throws -> CpObservation {
     let provider = CpProviderReading(waitlist: .inLine(place: nil, state: "CHARGING", stations: 0, offer: nil, auto: false),
@@ -253,13 +274,20 @@ private func cpOwnedCharging(sessionID: Int64?, details: CpDetailEvidence) throw
     return CpCharging(sessionId: sessionID, powerKw: nil, energyKwh: nil, minutes: nil, canStop: false)
 }
 
-private func cpOwnedObject(_ json: String) -> [String: Any]? {
+func cpOwnedObject(_ json: String) -> [String: Any]? {
     (try? JSONSerialization.jsonObject(with: Data(json.utf8))) as? [String: Any]
 }
 
-private func cpOwnedInteger(_ raw: Any?) -> Int64? {
-    guard let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() else { return nil }
-    return Int64(number.stringValue)
+/// A non-negative-or-any integer identity, coercing a numeric JSON string the way Android's
+/// `optLong`/`getLong` do (ChargePoint's legacy portal APIs deliver some ids as strings). A boolean,
+/// a fractional/non-numeric string, or an out-of-range value is still rejected (returns nil) so a
+/// malformed identity can never be mistaken for a real one.
+func cpOwnedInteger(_ raw: Any?) -> Int64? {
+    if let number = raw as? NSNumber, CFGetTypeID(number) != CFBooleanGetTypeID() {
+        return Int64(number.stringValue)
+    }
+    if let string = raw as? String { return Int64(string) }
+    return nil
 }
 
 private func cpOwnedBoolean(_ raw: Any?) -> Bool? {

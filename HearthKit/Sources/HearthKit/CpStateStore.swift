@@ -356,13 +356,14 @@ public struct CpStateStore: Sendable {
 
     public func failRead(owner: CpReadOwner, message: String, now: Date = .now,
                          kind: CpReadFailureKind? = nil, host: String? = nil,
-                         status: Int? = nil) throws -> CpStoreSnapshot? {
+                         status: Int? = nil, request: String? = nil, detail: String? = nil) throws -> CpStoreSnapshot? {
         try requireFinite(now)
         return try locked {
             var stored = try read()
             guard matches(stored, owner: owner, now: now) else { return nil }
             stored.failure = CpStateFailure(message: message, attemptedAt: now,
-                                            kind: kind, host: host, status: status)
+                                            kind: kind, host: host, status: status,
+                                            request: request, detail: detail)
             stored.activeRead = nil
             stored.journal!.actionable = false
             stored.journal!.actionRevision = UUID().uuidString
