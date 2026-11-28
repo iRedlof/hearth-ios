@@ -332,13 +332,17 @@ final class CpOwnedActionStoreTests: XCTestCase {
         XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .mutation(.accept), now: now))
     }
 
-    func testForeignQueueCannotBecomeSelectedLocationAuthority() throws {
+    /// OWNERSHIP MODEL CHANGE (match Android): a waitlist entry whose stations are not in this
+    /// phone's saved location — e.g. joined from the Android app or ChargePoint's own app — is the
+    /// account's single live entry and stays fully actionable. Android never checks the saved
+    /// station set for Accept/Leave/Snooze (ChargePointRepository.cpDispatch). It used to be refused
+    /// and have its keys stripped, which is exactly the "Leave does nothing" symptom.
+    func testWaitlistJoinedElsewhereIsActionableLikeAndroid() throws {
         let value = try store(armed: false)
         let foreign = try observed(value, observation("WAITING", ids: [99]))
         let origin = try XCTUnwrap(foreign.renderedOrigin)
-        XCTAssertEqual(try value.claim(origin: origin, action: .leave, now: now), .rejected(.detailsChanged))
-        XCTAssertEqual(try value.claimAuto(origin: origin, desired: .resume, now: now), .rejected(.detailsChanged))
-        XCTAssertTrue(try foreign.displaySnapshot(now: now).keys.isEmpty)
+        XCTAssertNotNil(try owner(value.claim(origin: origin, action: .leave, now: now)))
+        XCTAssertFalse(try foreign.displaySnapshot(now: now).keys.isEmpty)
     }
 
     func testUnknownPostFenceReadingDoesNotReconcileAdmittedMutation() throws {

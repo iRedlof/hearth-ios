@@ -67,7 +67,7 @@ public struct CpOwnedHTTP: Sendable {
                 // Cookie ownership is checked before the gate opens for another owned request.
                 let cookie = response.value(forHTTPHeaderField: "Set-Cookie").flatMap { CpClient.cookieValue($0, "coulomb_sess") }
                 guard try store.commitResponse(admission: admission,
-                    metadata: CpResponseMetadata(status: response.statusCode, cookie: cookie), now: now(),
+                    metadata: CpResponseMetadata(status: response.statusCode, cookie: cookie, host: host), now: now(),
                     synchronousAlert: onAlert) else {
                     throw CpFeedback.detailsChanged
                 }

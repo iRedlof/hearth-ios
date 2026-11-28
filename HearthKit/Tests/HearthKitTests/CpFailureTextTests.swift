@@ -93,6 +93,33 @@ final class CpFailureTextTests: XCTestCase {
         let text = cpDiagnosticsText(input)
         XCTAssertTrue(text.contains("Token valid for: unknown"))
         XCTAssertTrue(text.contains("Last read: none recorded"))
+        XCTAssertTrue(text.contains("Last action: none recorded"))
+    }
+
+    private func inputWith(action: CpActionRecord) -> CpDiagnosticsInput {
+        CpDiagnosticsInput(tokenPresent: true, userIDPresent: true, expired: false, minutesLeft: 42,
+                           lastAttempt: nil, lastAction: action, appVersion: "1.0", build: "18")
+    }
+
+    func testDiagnosticsTextListsASentAction() {
+        let action = CpActionRecord(action: "accept", at: Date(timeIntervalSince1970: 1_000),
+                                    requestSent: true, host: "na.chargepoint.com", status: 200, outcome: "Accepted")
+        let text = cpDiagnosticsText(inputWith(action: action))
+        XCTAssertTrue(text.contains("Last action: accept at"))
+        XCTAssertTrue(text.contains("Request sent: Yes"))
+        XCTAssertTrue(text.contains("Action host: na.chargepoint.com"))
+        XCTAssertTrue(text.contains("Action HTTP status: 200"))
+        XCTAssertTrue(text.contains("Outcome: Accepted"))
+    }
+
+    func testDiagnosticsTextListsALocallyDroppedAction() {
+        let action = CpActionRecord(action: "leave", at: Date(timeIntervalSince1970: 1_000),
+                                    requestSent: false, host: nil, status: nil, outcome: "Button was out of date")
+        let text = cpDiagnosticsText(inputWith(action: action))
+        XCTAssertTrue(text.contains("Last action: leave at"))
+        XCTAssertTrue(text.contains("Request sent: No"))
+        XCTAssertFalse(text.contains("Action host:"), "A dropped action names no host")
+        XCTAssertTrue(text.contains("Outcome: Button was out of date"))
     }
 
     /// A secret-looking value (the token string, an email) must never appear in the output.
@@ -102,7 +129,11 @@ final class CpFailureTextTests: XCTestCase {
         // Even if a reason/host echoed something, the input never carries the token or email.
         let attempt = CpDiagnosticsAttempt(at: "9:41 AM", host: "mc.chargepoint.com",
                                            status: 401, reason: "ChargePoint signed you out")
-        let text = cpDiagnosticsText(sampleInput(lastAttempt: attempt))
+        let action = CpActionRecord(action: "accept", at: Date(timeIntervalSince1970: 1_000),
+                                    requestSent: true, host: "na.chargepoint.com", status: 200, outcome: "Accepted")
+        let input = CpDiagnosticsInput(tokenPresent: true, userIDPresent: true, expired: true, minutesLeft: 42,
+                                       lastAttempt: attempt, lastAction: action, appVersion: "1.0", build: "18")
+        let text = cpDiagnosticsText(input)
         XCTAssertFalse(text.contains(token))
         XCTAssertFalse(text.contains(email))
         XCTAssertFalse(text.lowercased().contains("@example"))
