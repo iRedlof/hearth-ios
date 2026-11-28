@@ -217,12 +217,9 @@ struct AccessibleBeaconConcept: Identifiable {
             autoOn: ["waiting", "held", "snoozed", "working"].contains(name),
             floors: [CpFloor(level: "P2", free: 4, total: 10), CpFloor(level: "P3", free: 8, total: 10)],
             snoozesLeft: name == "offer_last" ? 0 : 1)
-        let clock = DateFormatter()
-        clock.locale = Locale(identifier: "en_US")
-        clock.timeZone = .current
-        clock.dateFormat = "h:mm a"
         var s = cpSnapshot(state, email: "iredlof@example.com",
-                           checkedAt: clock.string(from: referenceDate), now: referenceDate)
+                           checkedAt: HearthTimeFormatter.shortTime(referenceDate, locale: Locale(identifier: "en_US")),
+                           now: referenceDate)
         if name == "working" {
             s = cpApplyingOperation(s, CpOperation(command: "accept", startedAt: referenceDate), now: referenceDate)
         }

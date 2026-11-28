@@ -13,8 +13,7 @@ public func alarmSnapshot(alarm: AlarmState?, lockState: String?, lockChanged: D
     let glyph = beaconAlarmGlyph(statusFor(alarm?.state).tone)
     let lock = lockStatusFor(lockState)
 
-    let timeFmt = DateFormatter(); timeFmt.locale = locale; timeFmt.timeZone = zone; timeFmt.dateFormat = "h:mm a"
-    let checkedStr = checkedAt.map { timeFmt.string(from: $0) } ?? "—"
+    let checkedStr = checkedAt.map { HearthTimeFormatter.shortTime($0, locale: locale, timeZone: zone) } ?? "—"
 
     let selected = doorSelected ?? (lockState != nil)
     let historicalDoor = doorError != nil && lockState != nil

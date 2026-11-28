@@ -129,9 +129,7 @@ enum CpSessionStore {
             guard cpAlertAllowed(alert, prefs: snapshot.alerts) else { return }
             let display = try? snapshot.displaySnapshot(now: now())
             let who = display?.goTo ?? "your charger"
-            let by = display?.deadline.map { date in
-                let formatter = DateFormatter(); formatter.dateFormat = "h:mm a"; return formatter.string(from: date)
-            } ?? "the deadline"
+            let by = display?.deadline.map { HearthTimeFormatter.shortTime($0) } ?? "the deadline"
             let content = cpAlertContent(alert, who: who, by: by)
             CpNotify.post(title: content.title, body: content.body, id: content.id)
         }

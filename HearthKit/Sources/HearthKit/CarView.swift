@@ -7,8 +7,9 @@ private func dayDiff(_ from: Date, _ to: Date, _ zone: TimeZone) -> Int {
     return cal.dateComponents([.day], from: cal.startOfDay(for: from), to: cal.startOfDay(for: to)).day ?? 0
 }
 
-private func dformat(_ date: Date, _ pattern: String, _ zone: TimeZone, _ locale: Locale) -> String {
-    let f = DateFormatter(); f.locale = locale; f.timeZone = zone; f.dateFormat = pattern
+/// "Oct 3" — a calendar day, no time of day.
+private func monthDay(_ date: Date, _ zone: TimeZone, _ locale: Locale) -> String {
+    let f = DateFormatter(); f.locale = locale; f.timeZone = zone; f.dateFormat = "MMM d"
     return f.string(from: date)
 }
 
@@ -17,22 +18,26 @@ func kwText(_ kw: Double, _ locale: Locale) -> String {
     kw.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(kw)) : String(format: "%.1f", kw)
 }
 
+/// "9:42 AM" on the same day as `now`, else "Mon 9:42 AM".
 private func clock(_ at: Date, _ now: Date, _ zone: TimeZone, _ locale: Locale) -> String {
-    dformat(at, dayDiff(now, at, zone) == 0 ? "h:mm a" : "EEE h:mm a", zone, locale)
+    dayDiff(now, at, zone) == 0
+        ? HearthTimeFormatter.shortTime(at, locale: locale, timeZone: zone)
+        : HearthTimeFormatter.weekdayTime(at, locale: locale, timeZone: zone)
 }
 
 /// "since 9:42 AM" today, "since Mon 9:42 PM" this week, else "since Oct 3". Ported from `AlarmState.kt`.
 public func sinceLabel(_ changed: Date?, _ now: Date, _ zone: TimeZone = .current, _ locale: Locale = .current) -> String? {
     guard let changed else { return nil }
     let days = dayDiff(changed, now, zone)
-    let pattern = days == 0 ? "h:mm a" : (days >= 1 && days <= 6 ? "EEE h:mm a" : "MMM d")
-    return "since " + dformat(changed, pattern, zone, locale)
+    if days == 0 { return "since " + HearthTimeFormatter.shortTime(changed, locale: locale, timeZone: zone) }
+    if days >= 1 && days <= 6 { return "since " + HearthTimeFormatter.weekdayTime(changed, locale: locale, timeZone: zone) }
+    return "since " + monthDay(changed, zone, locale)
 }
 
 /// Charge ETA: nil unless `at` is strictly after `now`; else "Full by h:mm a" / "Full by EEE h:mm a".
 public func beaconCarEta(_ at: Date?, _ now: Date, _ zone: TimeZone = .current, _ locale: Locale = .current) -> String? {
     guard let at, at > now else { return nil }
-    return "Full by " + dformat(at, dayDiff(now, at, zone) == 0 ? "h:mm a" : "EEE h:mm a", zone, locale)
+    return "Full by " + clock(at, now, zone, locale)
 }
 
 // MARK: - Car helpers

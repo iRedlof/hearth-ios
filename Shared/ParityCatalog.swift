@@ -218,7 +218,7 @@ struct ParityWidgetSelection: Sendable {
                 waitlist: status.map { .inLine(place: $0 == "WAITING" ? 3 : nil, state: $0, stations: 43, offer: offer, auto: false) } ?? .notQueued,
                 charging: charging, autoOn: auto, floors: floors, snoozesLeft: allowance)
             let snapshot = cpSnapshot(state, email: "iredlof@example.com",
-                                      checkedAt: now.formatted(date: .omitted, time: .shortened), now: now)
+                                      checkedAt: HearthTimeFormatter.shortTime(now), now: now)
             let operation = id == "working_accept" ? CpOperation(command: "accept", startedAt: now)
                 : id == "failed_accept" ? CpOperation(command: "accept", startedAt: now, error: "Offer expired") : nil
             return ("chargepoint-\(id)", AnyView(CpBeaconView(cpApplyingOperation(snapshot, operation, now: now))))

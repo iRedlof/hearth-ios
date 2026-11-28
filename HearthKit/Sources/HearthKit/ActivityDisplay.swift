@@ -23,10 +23,9 @@ public func activityInWindow(_ items: [ActivityItem], now: Date) -> [ActivityIte
 public func activityTimeLabel(_ at: Date, now: Date, zone: TimeZone = .current, locale: Locale = .current) -> String {
     var calendar = Calendar(identifier: .gregorian); calendar.timeZone = zone
     let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: at), to: calendar.startOfDay(for: now)).day ?? 0
-    let f = DateFormatter(); f.timeZone = zone; f.locale = locale; f.dateFormat = "h:mm a"
-    let time = f.string(from: at)
+    let time = HearthTimeFormatter.shortTime(at, locale: locale, timeZone: zone)
     if days == 0 { return time }
     if days == 1 { return "Yest \(time)" }
-    f.dateFormat = "MMM d"
+    let f = DateFormatter(); f.timeZone = zone; f.locale = locale; f.dateFormat = "MMM d"
     return "\(f.string(from: at)) \(time)"
 }

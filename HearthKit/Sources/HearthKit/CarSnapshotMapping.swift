@@ -4,17 +4,12 @@ private func numberFmt(_ n: Double) -> String {
     n.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(n)) : String(format: "%.1f", n)
 }
 
-private func hmma(_ date: Date, _ zone: TimeZone, _ locale: Locale) -> String {
-    let f = DateFormatter(); f.locale = locale; f.timeZone = zone; f.dateFormat = "h:mm a"
-    return f.string(from: date)
-}
-
 /// Maps the raw `Car` (+ `carView`) onto the formatted `CarSnapshot` the SwiftUI Beacon view renders,
 /// reproducing the Android `CarWidget` v1.4.28 display logic (left status rows, the right-panel location/
 /// sentry/charge line, and the tone). `checkedAt`/`stale` come from the refresh layer.
 public func carSnapshot(_ car: Car?, now: Date, stale: Bool, checkedAt: Date?,
                         zone: TimeZone = .current, locale: Locale = .current) -> CarSnapshot {
-    let checkedStr = checkedAt.map { hmma($0, zone, locale) } ?? "—"
+    let checkedStr = checkedAt.map { HearthTimeFormatter.shortTime($0, locale: locale, timeZone: zone) } ?? "—"
 
     guard let car else {
         let msg = checkedAt == nil ? "Finding your car…" : "No car found"

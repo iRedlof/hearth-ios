@@ -62,9 +62,9 @@ struct RunGoodnightIntent: AppIntent {
         }
     }
 
-    /// Formats an hour (0–23) as a 12-hour time string (e.g., "9 PM").
+    /// Formats an hour (0–23) as a short, locale-aware time (e.g., "9:00 PM").
     private func formatHour(_ hour: Int) -> String {
         let date = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) ?? Date()
-        return date.formatted(.dateTime.hour().minute())
+        return HearthTimeFormatter.shortTime(date)
     }
 }

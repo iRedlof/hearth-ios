@@ -324,13 +324,8 @@ private struct CarDetailFormatter {
     let zone: TimeZone
     let locale: Locale
 
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.locale = locale
-        formatter.timeZone = zone
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .medium
-        return formatter
+    private func dateText(_ date: Date) -> String {
+        HearthTimeFormatter.dateWithSeconds(date, locale: locale, timeZone: zone)
     }
 
     func textRow(_ id: String, _ label: String, _ value: String, note: String? = nil) -> CarDetailedReadingRow {
@@ -341,7 +336,7 @@ private struct CarDetailFormatter {
     func dateRow(_ id: String, _ label: String, _ date: Date?, missing: String,
                  rawState: String? = nil) -> CarDetailedReadingRow {
         CarDetailedReadingRow(id: id, label: label,
-            value: date.map(dateFormatter.string) ?? missing, rawState: rawState,
+            value: date.map(dateText) ?? missing, rawState: rawState,
             availability: date == nil ? .notReported : .reported,
             unit: nil, unitUnavailable: false, note: nil, date: date)
     }
@@ -431,7 +426,7 @@ private struct CarDetailFormatter {
             if date <= now { notes.append("This estimate's time has passed.") }
             if attribution == .historical { notes.append("This estimate belongs to historical readings.") }
             return CarDetailedReadingRow(id: field.key, label: field.label,
-                value: dateFormatter.string(from: date), rawState: original, availability: .reported,
+                value: dateText(date), rawState: original, availability: .reported,
                 unit: nil, unitUnavailable: false, note: notes.joined(separator: " "), date: date)
         }
     }
