@@ -53,7 +53,7 @@ final class CardStylePreviewModel: ObservableObject {
         case .chargePoint: return .chargePoint(await CpLiveSnapshot.fetch(now: now))
         case .battery: return .battery(await CollectionLiveSnapshots.batteries(now: now))
         case .activity: return .activity(await CollectionLiveSnapshots.activity(now: now))
-        case .lights: return .lights(await fetchLightsSnapshot(config, now: now))
+        case .lights: return .lights(await CollectionLiveSnapshots.lights(now: now))
         case .quick: return .quick(await fetchQuickSnapshot(config, now: now))
         case .favourites: return .favourites(await fetchFavouritesSnapshot(config, now: now))
         }
@@ -104,7 +104,7 @@ struct CardStylePreviewCard: View {
         case .chargePoint: CpBeaconView(data?.chargePoint ?? .sample)
         case .battery: BatteryView(data?.battery ?? .sample, layoutFamily: .systemMedium)
         case .activity: ActivityView(data?.activity ?? .sample)
-        case .lights: LightTileView(data?.lights ?? .sample)
+        case .lights: LightsPanelView(data?.lights ?? .sample)
         case .quick: QuickView(data?.quick ?? .sample)
         case .favourites: FavouritesView(data?.favourites ?? .sample)
         }

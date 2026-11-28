@@ -131,19 +131,19 @@ struct LightsProvider: TimelineProvider {
         #if DEBUG
         if ParityCatalog.activeWidgetID(prefix: "lights") != nil { return .loading }
         #endif
-        return await fetchLightsSnapshot(HaConfigStore.load())
+        return await CollectionLiveSnapshots.lights()
     }
 }
 
 struct LightsWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.lights", provider: LightsProvider()) { entry in
-            CardStyledContent(kind: .lights, statusARGB: BeaconSurfaceColors.graphiteARGB) {
-                ParityWidgetContent(prefix: "lights") { LightTileView(entry.snap) }
+            CardStyledContent(beacon: .lights) {
+                ParityWidgetContent(prefix: "lights") { LightsPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Lights")
-        .description("Lights that are on, plus your always-show favourites.")
+        .description("How many lights are on, and four to switch.")
         .supportedFamilies([WidgetPreviewKind.lights.widgetKitFamily])
         .contentMarginsDisabled()
     }

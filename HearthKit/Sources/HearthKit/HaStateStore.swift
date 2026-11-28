@@ -336,7 +336,7 @@ public struct HaStateStore: Sendable {
             var stored = try read()
             // Auto-discovered Car has no alarm/door selection; only its account generation owns it.
             let revision = kind == "car" ? stored.scope : stored.collectionRevision
-            guard ["doors", "activity", "batteries", "car"].contains(kind),
+            guard ["doors", "activity", "batteries", "lights", "car"].contains(kind),
                   stored.scope == expectedScope, revision == expectedRevision else { return nil }
             guard kind != "doors" || stored.doorOperation?.pending != true else { return nil }
             let readID = UUID().uuidString

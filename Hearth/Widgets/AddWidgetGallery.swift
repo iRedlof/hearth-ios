@@ -143,7 +143,7 @@ struct AddWidgetGallery: View {
             ActivityView(.sample)
                 .widgetThumbnail()
         case .lights:
-            LightTileView(.sample)
+            LightsPanelView(.sample)
                 .widgetThumbnail()
         case .quick:
             QuickView(.sample)

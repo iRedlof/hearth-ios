@@ -156,7 +156,7 @@ struct WidgetGalleryView: View {
         case .chargepoint: CpBeaconView(.sample)
         case .battery: BatteryView(.sample, layoutFamily: kind.widgetKitFamily)
         case .activity: ActivityView(.sample)
-        case .lights: LightTileView(.sample)
+        case .lights: LightsPanelView(.sample)
         case .quick: QuickView(.sample)
         case .favourites: FavouritesView(.sample)
         }

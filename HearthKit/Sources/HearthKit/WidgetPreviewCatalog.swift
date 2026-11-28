@@ -56,8 +56,8 @@ public enum WidgetPreviewKind: String, CaseIterable, Identifiable, Sendable {
 
     public var family: WidgetPreviewFamily {
         switch self {
-        case .car, .alarm, .thermostat, .chargepoint, .battery, .quick: .medium
-        case .activity, .lights, .favourites: .large
+        case .car, .alarm, .thermostat, .chargepoint, .battery, .quick, .lights: .medium
+        case .activity, .favourites: .large
         }
     }
 }

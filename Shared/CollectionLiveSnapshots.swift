@@ -64,6 +64,54 @@ enum CollectionLiveSnapshots {
         }
     }
 
+    /// The lights as they are now. A failed read keeps the last successful reading's lights as
+    /// last known (Unavailable), from the same account-owned cache the other collections use.
+    static func lights(now: Date = .now) async -> LightsSnapshot {
+        guard let context = HaConfigStore.context(), let store = HaConfigStore.store else {
+            return LightsSnapshot(summary: lightsSummary([], now: now), checkedAt: "", state: .failed,
+                                  error: "Can't read settings · Reopen Hearth")
+        }
+        guard let config = context.config, config.carReady else {
+            return mapLightsSnapshot(context.config, reply: .success("[]"), now: now)
+        }
+        var owner: HaCollectionReadOwner?
+        do {
+            guard let readID = try store.beginCollectionRead(lightsCacheKind, expectedScope: context.scope,
+                expectedRevision: context.collectionRevision) else { return storedLights(now: now) }
+            owner = HaCollectionReadOwner(kind: lightsCacheKind, scope: context.scope,
+                                          revision: context.collectionRevision, readID: readID)
+            let reply: Result<String, HaError>
+            do {
+                let raw = try await HaClient(config).template(LIGHTS_TEMPLATE)
+                try validateLightsReading(raw)
+                reply = .success(raw)
+            } catch { reply = .failure(HaError(friendlyError(error))) }
+            if Task.isCancelled { return storedLights(now: now) }
+            guard let result = try store.mergeCollection(lightsCacheKind, reply: reply, expectedScope: context.scope,
+                expectedRevision: context.collectionRevision, readID: readID, now: now) else { return storedLights(now: now) }
+            return storedLights(result, now: now)
+        } catch {
+            guard !Task.isCancelled, let owner,
+                  let failed = try? store.failCollectionRead(owner, error: "Can't save readings · Refresh to retry", now: now)
+            else { return storedLights(now: now) }
+            return storedLights(failed, now: now)
+        }
+    }
+
+    private static let lightsCacheKind = "lights"
+
+    private static func storedLights(_ context: HaStoreSnapshot? = HaConfigStore.context(), now: Date) -> LightsSnapshot {
+        let cache = context?.collectionCaches[lightsCacheKind]
+        let previous = cache.flatMap { value -> LightsSnapshot? in
+            guard let raw = value.payload, let at = value.observedAt else { return nil }
+            return mapLightsSnapshot(context?.config, reply: .success(raw), now: at)
+        }
+        if let error = cache?.error {
+            return mapLightsSnapshot(context?.config, reply: .failure(HaError(error)), previous: previous, now: now)
+        }
+        return previous ?? mapLightsSnapshot(context?.config, reply: .failure(HaError("No reading · Refresh to check")), now: now)
+    }
+
     private static func clock(_ date: Date?) -> String {
         guard let date else { return "" }
         let format = DateFormatter(); format.dateFormat = "h:mm a"; return format.string(from: date)
