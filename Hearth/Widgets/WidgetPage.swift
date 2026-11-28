@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 import HearthKit
 
 /// Per-widget settings page template: pencil-editable title, preview mat, status line, Uses/Safety/Shows/
@@ -15,18 +14,14 @@ struct WidgetPage: View {
     @State private var editScope: String?
     @State private var entityNames: [String: String] = [:]
     @State private var customName: String?
-    @State private var previewFamily: WidgetPreviewFamily
     @State private var showRename = false
     @State private var showRemove = false
     @State private var saveError: String?
     @State private var confirmWithBiometric: Bool
 
-    // Live snapshot state for real health/freshness
-    @State private var car: CarSnapshot?
-    @State private var alarm: AlarmSnapshot?
+    // The widget's own current data: drawn in the preview, and read for health/freshness
+    @StateObject private var preview = CardStylePreviewModel()
     @StateObject private var thermostat = ThermostatLiveModel()
-    @State private var cp: CpSnapshot?
-    @State private var loading = false
 
     @Environment(\.colorScheme) private var scheme
 
@@ -41,7 +36,6 @@ struct WidgetPage: View {
         let current = runtime.loadHa()
         _editScope = State(initialValue: haSameConnection(current?.config, config) ? current?.scope : nil)
         _customName = State(initialValue: WidgetNameStore.name(for: kind))
-        _previewFamily = State(initialValue: kind.previewKind.family)
         _confirmWithBiometric = State(initialValue: config?.confirmWithBiometric ?? true)
     }
 
@@ -136,39 +130,17 @@ struct WidgetPage: View {
         .padding(.top, 20)
     }
 
+    /// The same live picture the Card style page draws: the person's own widget, in this widget's
+    /// own Card style (else All cards'). A picture only, so its keys do not act from here.
     private var previewMat: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Preview widget
-            HStack {
-                Spacer()
-                widget(for: kind.previewKind)
-                    // As on the home screen: in this widget's own Card style, else All cards'.
-                    .cardStyle(CardStyleStore.effectiveStyle(for: kind))
-                    .frame(width: previewWidth, height: previewHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .redacted(reason: previewSource == .loading ? .placeholder : [])
-                    // A picture of the widget, not the widget: its keys must not act from here.
-                    .allowsHitTesting(false)
-                Spacer()
-            }
+        CardStylePreviewCard(kind: kind, data: liveData, thermostat: liveThermostat,
+                             style: CardStyleStore.effectiveStyle(for: kind))
+            .redacted(reason: previewSource == .loading ? .placeholder : [])
+            // Centred at its real size; the card scales itself down on a narrower page.
+            .frame(maxWidth: .infinity)
             .padding(.vertical, 24)
-            .background(HearthColor.widgetPreviewBg(scheme))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-            // Size picker (only if widget supports multiple sizes)
-            if kind.previewKind.supportedFamilies.count > 1 {
-                Picker("Widget size", selection: $previewFamily) {
-                    ForEach(kind.previewKind.supportedFamilies, id: \.self) { family in
-                        Text(family.title).tag(family)
-                    }
-                }
-                .pickerStyle(.segmented)
-            }
-
-            Text("Resize it on your home screen")
-                .font(HearthFont.rowTitle.font)
-                .foregroundStyle(HearthColor.sub(scheme))
-        }
+        .background(HearthColor.widgetPreviewBg(scheme))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
@@ -204,12 +176,10 @@ struct WidgetPage: View {
 
         case .car:
             HearthGroup("Uses") {
-                VStack(alignment: .leading, spacing: 8) {
+                groupNote {
                     Text("Your Tesla is auto-discovered from Home Assistant.")
                         .font(HearthFont.rowTitle.font)
                         .foregroundStyle(HearthColor.sub(scheme))
-                        .padding(.horizontal, HearthMetrics.mediumPadding)
-                        .padding(.vertical, HearthMetrics.mediumPadding)
                 }
             }
 
@@ -252,17 +222,12 @@ struct WidgetPage: View {
 
         case .chargePoint:
             HearthGroup("Uses") {
-                VStack(alignment: .leading, spacing: 8) {
+                groupNote {
                     Text("Your ChargePoint account is used for all charging stations.")
                         .font(HearthFont.rowTitle.font)
                         .foregroundStyle(HearthColor.sub(scheme))
-                        .padding(.horizontal, HearthMetrics.mediumPadding)
-                        .padding(.vertical, HearthMetrics.mediumPadding)
                 }
             }
-
-        case .glance:
-            EmptyView()
         }
     }
 
@@ -294,33 +259,36 @@ struct WidgetPage: View {
 
     private var showsGroup: some View {
         HearthGroup("Shows") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    ForEach(["Charge", "Range", "Locks"], id: \.self) { label in
-                        Text(label)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(HearthColor.tint(scheme))
-                            .clipShape(Capsule())
-                    }
-                }
-                HStack(spacing: 8) {
-                    ForEach(["Doors", "Cabin", "Tyres"], id: \.self) { label in
-                        Text(label)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(HearthColor.tint(scheme))
-                            .clipShape(Capsule())
+            groupNote {
+                ForEach(Self.carShows, id: \.self) { labels in
+                    HStack(spacing: HearthMetrics.smallPadding) {
+                        ForEach(labels, id: \.self) { label in
+                            Text(label)
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(HearthColor.tint(scheme))
+                                .clipShape(Capsule())
+                        }
                     }
                 }
                 Text("Tap the widget to open the Tesla app.")
                     .font(HearthFont.subtitle.font)
                     .foregroundStyle(HearthColor.sub(scheme))
             }
-            .padding(HearthMetrics.mediumPadding)
         }
+    }
+
+    /// What the Car widget shows, a row of chips each.
+    private static let carShows = [["Charge", "Range", "Locks"], ["Doors", "Cabin", "Tyres"]]
+
+    /// Words or chips in a group where its neighbours have rows: as wide as the group, inset
+    /// like a `HearthRow`, so "Uses" and "Shows" line up with "Look" and the rest of the page.
+    private func groupNote<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: HearthMetrics.mediumPadding) { content() }
+            .padding(.horizontal, HearthMetrics.rowSidePadding)
+            .padding(.vertical, HearthMetrics.mediumPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var everyDayGroup: some View {
@@ -549,59 +517,27 @@ struct WidgetPage: View {
     /// labelled example. A sample under "On your home screen" would read as their real state.
     private var previewSource: WidgetPreviewSource {
         switch kind {
-        case .alarm:
-            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: config?.isComplete == true,
-                                       hasLiveData: alarm != nil)
         case .thermostat:
+            // The Thermostat draws its saved reading; with none saved and none on its way, the sample.
             return widgetPreviewSource(isSetUp: isSetUp,
                                        supportsLive: thermostat.entry != nil || thermostat.checking,
                                        hasLiveData: thermostat.entry != nil)
-        case .chargePoint:
-            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: true, hasLiveData: cp != nil)
         default:
-            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: false, hasLiveData: false)
+            // Every other set-up widget loads its own data on this page (`loadSnapshot`).
+            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: true, hasLiveData: loaded != nil)
         }
     }
 
-    private var liveAlarm: AlarmSnapshot? { previewSource == .live ? alarm : nil }
+    /// What this page has read for its widget.
+    private var loaded: CardStylePreviewData? { preview.data[kind] }
+    private var car: CarSnapshot? { loaded?.car }
+    private var alarm: AlarmSnapshot? { loaded?.alarm }
+    private var cp: CpSnapshot? { loaded?.chargePoint }
+
+    /// What the preview may draw as the person's own: nothing until the preview is live, so a
+    /// widget that is not set up draws the labelled sample.
+    private var liveData: CardStylePreviewData? { previewSource == .live ? loaded : nil }
     private var liveThermostat: ThermostatEntryPayload? { previewSource == .live ? thermostat.entry : nil }
-    private var liveCp: CpSnapshot? { previewSource == .live ? cp : nil }
-
-    @ViewBuilder
-    private func widget(for kind: WidgetPreviewKind) -> some View {
-        // NOTE: Duplicates WidgetGalleryView.widget(for:) — shared-helper extraction deferred (Phase 6 M1)
-        switch kind {
-        case .glance:
-            let summary = GlanceSummary(verdict: .ok, word: "OK", tone: .ok, lines: [],
-                                        support: "Checked 9:41", calmLine: "Alarm · Doors · Lights", key: nil)
-            let plan = glanceLayout(summary: summary, size: .small2x1)
-            GlanceView(summary: summary, plan: plan)
-        case .car:
-            if selectedFamily == .small {
-                CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
-            } else {
-                CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
-                    snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
-            }
-        case .alarm:
-            AlarmBeaconView(liveAlarm ?? AlarmParityInputs.snapshot("disarmed"), family: selectedFamily.widgetKitFamily)
-        case .thermostat:
-            if let entry = liveThermostat {
-                ThermostatBeaconView(entry, family: selectedFamily.widgetKitFamily)
-            } else if selectedFamily == .small {
-                ThermostatBeaconView(ThermostatParityInputs.payload("auto"), family: .systemSmall)
-            } else {
-                ThermostatBeaconView(.sample)
-            }
-        case .chargepoint: CpBeaconView(liveCp ?? .sample)
-        case .battery: BatteryView(.sample, layoutFamily: selectedFamily.widgetKitFamily)
-        case .activity: ActivityView(.sample)
-        case .lights: LightTileView(.sample)
-        case .quick: QuickView(.sample)
-        case .favourites: FavouritesView(.sample)
-        case .doors: DoorsView(.sample)
-        }
-    }
 
     // MARK: - Helpers
 
@@ -621,7 +557,6 @@ struct WidgetPage: View {
         case .doors: return config.doorsChosen
         case .activity, .battery: return !config.sensorIds.isEmpty
         case .chargePoint: return (try? CpSessionStore.context().session.isSignedIn) == true
-        case .glance: return config.isComplete
         }
     }
 
@@ -704,7 +639,6 @@ struct WidgetPage: View {
         case .doors: 1  // Doors
         case .activity, .battery: 1  // Sensors
         case .chargePoint: 1  // Sign in
-        case .glance: 1  // Connect Home Assistant
         }
     }
 
@@ -729,28 +663,7 @@ struct WidgetPage: View {
         case .doors: "Choose which doors to monitor."
         case .activity, .battery: "Choose which sensors to monitor."
         case .chargePoint: "Sign in to ChargePoint to get started."
-        case .glance: "Connect Home Assistant to get started."
         }
-    }
-
-    private var previewWidth: CGFloat {
-        switch selectedFamily {
-        case .small: 155
-        case .medium: 329
-        case .large: 329
-        }
-    }
-
-    private var previewHeight: CGFloat {
-        switch selectedFamily {
-        case .small: 155
-        case .medium: 155
-        case .large: 345
-        }
-    }
-
-    private var selectedFamily: WidgetPreviewFamily {
-        kind.previewKind.supportedFamilies.contains(previewFamily) ? previewFamily : kind.previewKind.family
     }
 
     private func loadNames() async {
@@ -777,27 +690,14 @@ struct WidgetPage: View {
         onChange(next)
     }
 
+    /// Reads the widget's own current data, again whenever its settings change.
     private func loadSnapshot() async {
         guard isSetUp else { return }
-        loading = true
-        let now = Date()
-
-        switch kind {
-        case .car:
-            car = await CarLiveSnapshot.fetch(now: now)
-        case .alarm:
-            if let config, config.isComplete {
-                alarm = AlarmLiveSnapshot.currentFeedback(await AlarmLiveSnapshot.fetch(now: now))
-            }
-        case .thermostat:
+        if kind == .thermostat {
             thermostat.loadCache()
-        case .chargePoint:
-            cp = await CpLiveSnapshot.fetch(now: now)
-        default:
-            break
+        } else {
+            await preview.reload(kind, config: config)
         }
-
-        loading = false
     }
 
     private func encodeIds(_ ids: [String]) -> String {

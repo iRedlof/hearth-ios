@@ -46,17 +46,17 @@ keeps the widget's state colour and its own ink** (ChargePoint keeps its orange 
 Chips, the Disarm pill, setpoint colours, the locked/unlocked door colour and Sentry-on follow the
 body (light or dark), with Android's values.
 
-**The other cards (Doors, Lights, Quick actions, Favourites, Activity, Batteries, Glance)** follow
+**The other cards (Doors, Lights, Quick actions, Favourites, Activity, Batteries)** follow
 Android's `cardLook`: Status is the card exactly as it was; a colour or black replaces the whole
 card's background with white inks (dark inks on Snow). On a chosen background a card that needs
-you shows it as an amber headline and a strip on the leading edge; a door open too long (Doors) and
-a triggered alarm (Glance) keep their own alert colours whatever the style.
+you shows it as an amber headline and a strip on the leading edge; a door open too long (Doors)
+keeps its own alert colours whatever the style.
 
 **Text size** multiplies every text in the card (icons keep their size, as on Android). Collection
 cards (Doors, Activity, Batteries) feed the scale into their row planning, so rows still fit.
 
 **Small print off** hides what Android hides: the "Checked …" stamp (Beacon cards, Doors, Lights,
-Favourites, Batteries, Glance), ChargePoint's context lines under the rail's answer, and Activity's
+Favourites, Batteries), ChargePoint's context lines under the rail's answer, and Activity's
 "by …". Android also hides Quick's last-run line; the iOS Quick card does not show one.
 
 ### The page
@@ -75,8 +75,8 @@ saves at once and reloads the widgets.
 
 - **Own style is per widget kind, not per placed widget.** Android keys it by `appWidgetId`;
   WidgetKit's static widgets have no per-placement identity.
-- **Small sizes** (Alarm, Thermostat, Car) are not styled; they are being removed.
-- **Glance** exists only on iOS; it follows the non-Beacon rules above.
+- **One size per widget.** The small sizes (Alarm, Thermostat, Car) and the small-only Glance
+  widget were removed (owner decision 2026-11-27), so there is nothing unstyled left.
 
 ## Where it lives
 
@@ -86,10 +86,12 @@ saves at once and reloads the widgets.
 | Storage (App Group; keys `cardStyleGlobal`, `cardStyleOverrides`) | `Shared/CardStyleStore.swift` |
 | The style reaching a view (`\.cardStyle` environment) | `Shared/CardStyleEnvironment.swift` |
 | Drawing a styled background | `Shared/CardSurfaceView.swift` |
-| Every widget reading its style | `HearthWidgets/CardStyledContent.swift`, used by each widget in `HearthWidgetBundle.swift` and `GlanceWidget.swift` |
+| Every widget reading its style | `HearthWidgets/CardStyledContent.swift`, used by each widget in `HearthWidgetBundle.swift` |
 | The page | `Hearth/Widgets/CardStylePage.swift`, `CardStyleControls.swift`, `CardStylePreview.swift` |
 
-Styles saved by the first iOS port still load: its `byState` background decodes as Status.
+Styles saved by the first iOS port still load: its `byState` background decodes as Status. An own
+style saved for the removed Glance widget is dropped when the stored styles are read
+(`cardStyleOverrides(fromStored:)`).
 
 ## Checking a style without an account (DEBUG builds)
 

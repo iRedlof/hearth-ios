@@ -10,7 +10,6 @@ import WidgetKit
 public struct ThermostatBeaconView: View {
     public let snap: ThermostatSnapshot
     private let payload: ThermostatEntryPayload?
-    private let family: WidgetFamily
     /// The opened Mode/Fan choices for this exact entry; nil draws the ordinary Mode / Fan / Resume row.
     private let inlineChoices: ThermostatInlineChoices?
     /// Only the Home Screen widget opens choices in its own row; in-app hosts keep the in-app picker.
@@ -18,19 +17,17 @@ public struct ThermostatBeaconView: View {
     @Environment(\.dynamicTypeSize) private var dynamicType
     @Environment(\.cardStyle) private var cardStyle
 
-    public init(_ snap: ThermostatSnapshot, family: WidgetFamily = .systemMedium,
+    public init(_ snap: ThermostatSnapshot,
                 inlineChoices: ThermostatInlineChoices? = nil, inlinePicker: Bool = false) {
         self.snap = snap
         self.payload = nil
-        self.family = family
         self.inlineChoices = inlineChoices
         self.inlinePicker = inlinePicker
     }
-    public init(_ payload: ThermostatEntryPayload, family: WidgetFamily = .systemMedium,
+    public init(_ payload: ThermostatEntryPayload,
                 inlineChoices: ThermostatInlineChoices? = nil, inlinePicker: Bool = false) {
         self.snap = payload.snapshot
         self.payload = payload
-        self.family = family
         self.inlineChoices = inlineChoices
         self.inlinePicker = inlinePicker
     }
@@ -50,15 +47,10 @@ public struct ThermostatBeaconView: View {
     }
 
     public var body: some View {
-        Group {
-            if family == .systemSmall {
-                // Snapshot-only entries are inert gallery/WidgetKit placeholders.
-                ThermostatSmallCard(payload: payload ?? ThermostatParityInputs.payload("auto"))
-            } else if let payload, family == .systemMedium, dynamicType >= .xxxLarge {
-                ThermostatFocusedCard(payload: payload)
-            } else {
-                ordinaryBody
-            }
+        if let payload, dynamicType >= .xxxLarge {
+            ThermostatFocusedCard(payload: payload)
+        } else {
+            ordinaryBody
         }
     }
 
@@ -314,172 +306,6 @@ private enum ControlChip {
     /// Up to seven modes share the row on one line, so their names may shrink further than a value chip's.
     static let choiceScale: CGFloat = 0.6
     static let choiceInset: CGFloat = 3
-}
-
-/// A Small production card, with a single entry-bound link and no mutation or refresh intent.
-private struct ThermostatSmallCard: View {
-    let payload: ThermostatEntryPayload
-    @Environment(\.dynamicTypeSize) private var dynamicType
-    @ScaledMetric(relativeTo: .largeTitle) private var roomSize: CGFloat = 40
-    @ScaledMetric(relativeTo: .subheadline) private var secondarySize: CGFloat = 14
-    @ScaledMetric(relativeTo: .body) private var openSize: CGFloat = 16
-
-    private var content: ThermostatSmallContent {
-        thermostatSmallContent(payload.presentation, destination: payload.destination)
-    }
-    private var ink: Color { Color(argb: content.focused.tone.inkARGB) }
-    private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }
-
-    var body: some View {
-        GeometryReader { geometry in
-            if let url = content.navigationURL {
-                Link(destination: url) { composition(size: geometry.size) }
-                    .buttonStyle(.plain)
-            } else { composition(size: geometry.size) }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(thermostatSmallAccessibility(content))
-        .accessibilityAddTraits(content.navigationURL == nil ? [] : .isLink)
-        .accessibilityIdentifier("thermostat.production-small")
-    }
-
-    private func composition(size: CGSize) -> some View {
-        ViewThatFits(in: [.horizontal, .vertical]) {
-            if !dynamicType.isAccessibilitySize {
-                if content.focused.context != nil {
-                    standard(size: size, header: false, mode: true, context: true, target: false)
-                    standard(size: size, header: false, mode: true, context: false, target: false)
-                } else {
-                    if content.target != nil {
-                        standard(size: size, header: true, mode: true, context: false, target: true)
-                    }
-                    standard(size: size, header: true, mode: true, context: false, target: false)
-                    standard(size: size, header: false, mode: true, context: false, target: false)
-                }
-                standard(size: size, header: false, mode: false, context: false, target: false)
-            }
-            critical(width: max(0, size.width - 22))
-                .fixedSize(horizontal: false, vertical: true)
-            handoff
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(11)
-        .frame(width: size.width, height: size.height)
-        .background(LinearGradient(colors: [Color(argb: content.focused.tone.fillARGB),
-            Color(argb: content.focused.tone.fillARGB).opacity(0.86)],
-            startPoint: .topLeading, endPoint: .bottomTrailing))
-        .overlay(ContainerRelativeShape().strokeBorder(.white.opacity(0.24), lineWidth: 1))
-    }
-
-    private func standard(size: CGSize, header: Bool, mode: Bool, context: Bool, target: Bool) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            if header {
-                HStack(spacing: 5) {
-                    Image(systemName: "thermometer.medium")
-                    Text(content.focused.room.name)
-                }
-                .font(.system(size: secondarySize, weight: .semibold))
-                .fixedSize(horizontal: true, vertical: true)
-                .frame(minHeight: 20, alignment: .leading)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                room(verticalUnit: false)
-                if let status = content.status {
-                    Text(status).font(.system(size: secondarySize, weight: .medium)).fixedSize()
-                }
-                if mode, content.focused.room.value != nil {
-                    Text(target ? "\(content.mode) · \(content.target ?? "")" : content.mode)
-                        .font(.system(size: secondarySize, weight: .medium)).fixedSize()
-                }
-                if context, let reading = content.focused.context {
-                    contextLine(reading)
-                }
-            }
-            .frame(minHeight: max(0, size.height - (header ? 88 : 67)), alignment: .center)
-            footer
-        }
-        .foregroundStyle(ink)
-        .fixedSize(horizontal: false, vertical: true)
-    }
-
-    @ViewBuilder private func room(verticalUnit: Bool) -> some View {
-        if let number = thermostatFocusedNumberText(content.focused.room, summary: true) {
-            if verticalUnit {
-                VStack(spacing: 1) {
-                    numberText(number)
-                    unitText
-                }
-            } else {
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    numberText(number)
-                    unitText
-                }
-            }
-        } else {
-            Text(content.placeholder).font(.system(size: secondarySize, weight: .semibold))
-                .fixedSize(horizontal: true, vertical: true)
-        }
-    }
-    private func numberText(_ value: String) -> some View {
-        Text(value).font(.system(size: roomSize, weight: .heavy)).monospacedDigit()
-            .fixedSize(horizontal: true, vertical: true)
-    }
-    private var unitText: some View {
-        Text(content.focused.room.reportedUnit ?? "?")
-            .font(.system(size: secondarySize, weight: .medium)).fixedSize()
-    }
-    private func contextLine(_ reading: ThermostatReadingFacet) -> some View {
-        let value: String
-        switch reading.value {
-        case .number:
-            value = (thermostatFocusedNumberText(reading, summary: true) ?? "No reading")
-                + " " + (reading.reportedUnit ?? "?")
-        case .text(let text): value = text
-        case nil: value = reading.availability == .unavailable ? "Unavailable" : "No reading"
-        }
-        return HStack(spacing: 4) {
-            if reading.failure != nil || reading.availability == .unavailable {
-                Image(systemName: "exclamationmark")
-            } else if reading.availability == .lastKnown {
-                Image(systemName: "clock")
-            }
-            Text("\(reading.name) · \(value)")
-        }
-        .font(.system(size: secondarySize, weight: .medium))
-        .fixedSize(horizontal: true, vertical: true)
-    }
-    private func critical(width: CGFloat) -> some View {
-        VStack(spacing: 2) {
-            room(verticalUnit: true)
-            if let status = content.status {
-                Text(status).font(.system(size: secondarySize, weight: .medium))
-                    .multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: width)
-            }
-        }
-        .foregroundStyle(ink)
-    }
-    private var footer: some View {
-        Text("Open").font(.system(size: openSize, weight: .semibold))
-            .fixedSize(horizontal: true, vertical: true)
-            .frame(maxWidth: .infinity, minHeight: 44)
-            .foregroundStyle(surfaceInk)
-            .background(Color(argb: BeaconSurfaceColors.graphiteARGB),
-                        in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .opacity(content.navigationURL == nil ? 0.35 : 1)
-    }
-    /// Deliberate bounded fallback: complete raw reading/status remains in the single link's label.
-    private var handoff: some View {
-        VStack(spacing: 4) {
-            Image(systemName: content.statusSymbol).font(.system(size: secondarySize))
-            Text("Open").font(.system(size: openSize, weight: .semibold)).fixedSize()
-        }
-        .foregroundStyle(surfaceInk)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(argb: BeaconSurfaceColors.graphiteARGB),
-                    in: RoundedRectangle(cornerRadius: 11, style: .continuous))
-        .opacity(content.navigationURL == nil ? 0.35 : 1)
-    }
 }
 
 /// The complete destination keeps the controls/readings; this card's footer only navigates.

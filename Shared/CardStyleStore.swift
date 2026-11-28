@@ -60,7 +60,7 @@ public enum CardStyleStore {
     private static func loadOverrides() -> [String: CardStyle] {
         guard let data = defaults.data(forKey: overridesKey) else { return [:] }
         do {
-            return try JSONDecoder().decode([String: CardStyle].self, from: data)
+            return try cardStyleOverrides(fromStored: data)
         } catch {
             logger.error("Own card styles unreadable, following All cards: \(error.localizedDescription, privacy: .public)")
             return [:]

@@ -13,17 +13,34 @@ enum CardStylePreviewData {
     case quick(QuickSnapshot)
     case favourites(FavSnapshot)
     case doors(DoorsSnapshot)
-    case glance(GlanceSummary)
+
+    var car: CarSnapshot? { if case .car(let value) = self { value } else { nil } }
+    var alarm: AlarmSnapshot? { if case .alarm(let value) = self { value } else { nil } }
+    var chargePoint: CpSnapshot? { if case .chargePoint(let value) = self { value } else { nil } }
+    var battery: BatterySnapshot? { if case .battery(let value) = self { value } else { nil } }
+    var activity: ActivitySnapshot? { if case .activity(let value) = self { value } else { nil } }
+    var lights: LightsSnapshot? { if case .lights(let value) = self { value } else { nil } }
+    var quick: QuickSnapshot? { if case .quick(let value) = self { value } else { nil } }
+    var favourites: FavSnapshot? { if case .favourites(let value) = self { value } else { nil } }
+    var doors: DoorsSnapshot? { if case .doors(let value) = self { value } else { nil } }
 }
 
-/// Reads each added widget's current data once, with the same live helpers the widgets and
-/// `WidgetPage` use. The Thermostat reads through `ThermostatLiveModel`, which the page owns.
+/// Reads a widget's current data with the same live helpers the widgets use, for the previews on
+/// the Card style page and each widget's own page. The Thermostat reads through
+/// `ThermostatLiveModel`, which the page owns.
 @MainActor
 final class CardStylePreviewModel: ObservableObject {
     @Published private(set) var data: [HomeWidgetKind: CardStylePreviewData] = [:]
 
+    /// Reads `kind` once; a later call keeps what is already there.
     func load(_ kind: HomeWidgetKind, config: HaConfig?) async {
-        guard data[kind] == nil, let loaded = await Self.read(kind, config: config) else { return }
+        guard data[kind] == nil else { return }
+        await reload(kind, config: config)
+    }
+
+    /// Reads `kind` again, as after its settings changed. What is shown stays until the new data arrives.
+    func reload(_ kind: HomeWidgetKind, config: HaConfig?) async {
+        guard let loaded = await Self.read(kind, config: config) else { return }
         data = data.merging([kind: loaded]) { _, new in new }
     }
 
@@ -42,7 +59,6 @@ final class CardStylePreviewModel: ObservableObject {
         case .lights: return .lights(await fetchLightsSnapshot(config, now: now))
         case .quick: return .quick(await fetchQuickSnapshot(config, now: now))
         case .favourites: return .favourites(await fetchFavouritesSnapshot(config, now: now))
-        case .glance: return .glance(glanceSummary(GlanceFeedStore.load(), now: now))
         }
     }
 }
@@ -59,19 +75,11 @@ struct CardStylePreviewCard: View {
         static let width: CGFloat = 329
         static let mediumHeight: CGFloat = 155
         static let largeHeight: CGFloat = 345
-        static let smallSide: CGFloat = 155
-        static let corner: CGFloat = 22
     }
 
-    /// The size the widget is drawn at. A kind with a Medium size shows that one.
-    private var family: WidgetPreviewFamily {
-        let preview = kind.previewKind
-        return preview.supportedFamilies.contains(.medium) ? .medium : preview.family
-    }
-
+    /// The size the widget is drawn at: its one Home Screen size.
     private var size: CGSize {
-        switch family {
-        case .small: CGSize(width: Size.smallSide, height: Size.smallSide)
+        switch kind.previewKind.family {
         case .medium: CGSize(width: Size.width, height: Size.mediumHeight)
         case .large: CGSize(width: Size.width, height: Size.largeHeight)
         }
@@ -83,8 +91,7 @@ struct CardStylePreviewCard: View {
             let scale = geometry.size.width / size.width
             widget
                 .cardStyle(style)
-                .frame(width: size.width, height: size.height)
-                .clipShape(RoundedRectangle(cornerRadius: Size.corner, style: .continuous))
+                .widgetContainer(size: size)
                 .scaleEffect(scale, anchor: .topLeading)
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
         }
@@ -98,45 +105,23 @@ struct CardStylePreviewCard: View {
 
     @ViewBuilder private var widget: some View {
         switch kind {
-        case .car: CarBeaconView(car ?? .sample, interactionMode: .inert)
-        case .alarm: AlarmBeaconView(alarm ?? AlarmParityInputs.snapshot("disarmed"), family: .systemMedium)
+        case .car: CarBeaconView(data?.car ?? .sample, interactionMode: .inert)
+        case .alarm: AlarmBeaconView(data?.alarm ?? AlarmParityInputs.snapshot("disarmed"))
         case .thermostat: thermostatWidget
-        case .chargePoint: CpBeaconView(chargePoint ?? .sample)
-        case .battery: BatteryView(battery ?? .sample, layoutFamily: .systemMedium)
-        case .activity: ActivityView(activity ?? .sample)
-        case .lights: LightTileView(lights ?? .sample)
-        case .quick: QuickView(quick ?? .sample)
-        case .favourites: FavouritesView(favourites ?? .sample)
-        case .doors: DoorsView(doors ?? .sample)
-        case .glance: glanceWidget
+        case .chargePoint: CpBeaconView(data?.chargePoint ?? .sample)
+        case .battery: BatteryView(data?.battery ?? .sample, layoutFamily: .systemMedium)
+        case .activity: ActivityView(data?.activity ?? .sample)
+        case .lights: LightTileView(data?.lights ?? .sample)
+        case .quick: QuickView(data?.quick ?? .sample)
+        case .favourites: FavouritesView(data?.favourites ?? .sample)
+        case .doors: DoorsView(data?.doors ?? .sample)
         }
     }
 
     @ViewBuilder private var thermostatWidget: some View {
-        if let thermostat { ThermostatBeaconView(thermostat, family: .systemMedium) }
+        if let thermostat { ThermostatBeaconView(thermostat) }
         else { ThermostatBeaconView(.sample) }
     }
-
-    private var glanceWidget: some View {
-        let summary = glance ?? Self.sampleGlance
-        return GlanceView(summary: summary, plan: glanceLayout(summary: summary, size: .small2x1))
-    }
-
-    private static let sampleGlance = GlanceSummary(verdict: .ok, word: "OK", tone: .ok, lines: [],
-        support: "Checked 9:41", calmLine: "Alarm · Doors · Lights", key: nil)
-
-    // MARK: - The loaded data, by kind
-
-    private var car: CarSnapshot? { if case .car(let value) = data { value } else { nil } }
-    private var alarm: AlarmSnapshot? { if case .alarm(let value) = data { value } else { nil } }
-    private var chargePoint: CpSnapshot? { if case .chargePoint(let value) = data { value } else { nil } }
-    private var battery: BatterySnapshot? { if case .battery(let value) = data { value } else { nil } }
-    private var activity: ActivitySnapshot? { if case .activity(let value) = data { value } else { nil } }
-    private var lights: LightsSnapshot? { if case .lights(let value) = data { value } else { nil } }
-    private var quick: QuickSnapshot? { if case .quick(let value) = data { value } else { nil } }
-    private var favourites: FavSnapshot? { if case .favourites(let value) = data { value } else { nil } }
-    private var doors: DoorsSnapshot? { if case .doors(let value) = data { value } else { nil } }
-    private var glance: GlanceSummary? { if case .glance(let value) = data { value } else { nil } }
 }
 
 /// The numbers of `WallpaperBackdrop.kt`.

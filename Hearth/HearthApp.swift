@@ -161,12 +161,6 @@ struct ContentView: View {
             presentCarReadings(request)
         }
         .onOpenURL { url in
-            if let destination = alarmReadingsDestination(from: url) {
-                guard destination != .inert else { return }
-                retireThermostat()
-                presentedSheet = .alarm(destination, UUID())
-                return
-            }
             if let destination = thermostatDestination(from: url) {
                 presentThermostat(destination)
                 return
@@ -258,10 +252,6 @@ struct ContentView: View {
                             } }
                     }
                 }.id(returning.transitionID).interactiveDismissDisabled()
-            case .alarm(let destination, _):
-                AlarmReadingsScreen(destination: destination, inert: inertTabs,
-                    onSettings: { presentedSheet = nil },
-                    onReconnect: { presentedSheet = .reconnect(UUID(), returningTo: nil) })
             case .car(let request):
                 CarReadingsScreen(request: request, runtime: carReadingsRuntime,
                     onClose: {
@@ -608,8 +598,6 @@ struct ContentView: View {
             presentedSheet = .widgetPage(kind, UUID())
         } else if args.contains("-cardStyle") {
             presentedSheet = .cardStylePage(nil, UUID())
-        } else if args.contains("-glancePreview") {
-            presentedSheet = .widgetPage(.glance, UUID())
         } else if args.contains("-morningCommute") {
             presentedSheet = .morningCommute(UUID())
         } else if args.contains("-leaveBy") {
@@ -636,7 +624,6 @@ private struct ThermostatRecoveryReturn {
 private enum HearthSheet: Identifiable {
     case reconnect(UUID, returningTo: CarReadingsRequest?)
     case car(CarReadingsRequest)
-    case alarm(AlarmReadingsDestination, UUID)
     case thermostat(ThermostatRouteRequest)
     case thermostatReconnect(ThermostatRecoveryReturn)
     case homeAssistantPage(UUID)
@@ -655,7 +642,6 @@ private enum HearthSheet: Identifiable {
         switch self {
         case .reconnect(let id, _): "reconnect:\(id)"
         case .car(let request): "car:\(request.id)"
-        case .alarm(_, let id): "alarm:\(id)"
         case .thermostat(let request): "thermostat:\(request.eventID)"
         case .thermostatReconnect(let returning): "thermostatReconnect:\(returning.transitionID)"
         case .homeAssistantPage(let id): "homeAssistantPage:\(id)"

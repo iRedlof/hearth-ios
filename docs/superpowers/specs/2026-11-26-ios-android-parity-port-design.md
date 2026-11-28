@@ -1,5 +1,8 @@
 # Hearth iOS — Android look & UX parity port (design)
 
+> **Update 2026-11-27 (owner decision):** the Glance widget and the small widget sizes were removed
+> from the app. What this document says about Glance is kept as a record of the original plan.
+
 Date: 2026-11-26
 Status: proposed (awaiting owner approval)
 Owner: Rohit Chandani

@@ -17,9 +17,8 @@ struct AccessibleBeaconFixtureScreen: View {
                         let compact = geometry.size.width < 349.6666666667
                         Button { showingReadings = true } label: {
                             AccessibleBeaconConceptView(concept: concept)
-                                .frame(width: compact ? 333.6666666667 : 349.6666666667,
-                                       height: compact ? 159 : 164.3333333333)
-                                .clipShape(RoundedRectangle(cornerRadius: 22))
+                                .widgetContainer(size: CGSize(width: compact ? 333.6666666667 : 349.6666666667,
+                                                              height: compact ? 159 : 164.3333333333))
                         }
                         .buttonStyle(.plain)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)

@@ -8,7 +8,6 @@ import HearthKit
 struct WidgetGalleryView: View {
     @State private var kind: WidgetPreviewKind?
     @State private var reference: PhoneReference = .large
-    @State private var family: WidgetPreviewFamily = .medium
     private let unsupportedInitialKind: String?
 
     init() {
@@ -45,7 +44,6 @@ struct WidgetGalleryView: View {
         }
         .background(Color(uiColor: .systemGroupedBackground).ignoresSafeArea())
         .accessibilityIdentifier("widget.previews")
-        .onChange(of: kind) { _, selected in family = selected?.family ?? .medium }
     }
 
     private var selectors: some View {
@@ -66,22 +64,6 @@ struct WidgetGalleryView: View {
             .accessibilityLabel("Widget")
             .accessibilityValue(kind?.title ?? "None selected")
             .accessibilityIdentifier("widget.preview.kind")
-
-            if let kind, kind.supportedFamilies.count > 1 {
-                Text("Widget size").font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
-                Menu {
-                    Picker("Widget size", selection: $family) {
-                        ForEach(kind.supportedFamilies, id: \.self) { item in
-                            Text("\(item.title) widget").tag(item)
-                        }
-                    }
-                } label: {
-                    selectorLabel("\(selectedFamily(for: kind).title) widget", symbol: "square")
-                }
-                .accessibilityLabel("Widget size")
-                .accessibilityValue("\(selectedFamily(for: kind).title) widget")
-                .accessibilityIdentifier("widget.preview.family")
-            }
 
             Text("Phone reference")
                 .font(.subheadline).foregroundStyle(.secondary).padding(.top, 8)
@@ -123,8 +105,7 @@ struct WidgetGalleryView: View {
     }
 
     private func specimen(_ kind: WidgetPreviewKind, availableWidth: CGFloat) -> some View {
-        let selectedFamily = selectedFamily(for: kind)
-        let size = reference.size(for: selectedFamily)
+        let size = reference.size(for: kind.family)
         let scale = min(1, availableWidth / size.width)
         let percentage = Int((scale * 100).rounded())
         return VStack(alignment: .leading, spacing: 12) {
@@ -135,13 +116,13 @@ struct WidgetGalleryView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             }
-            Text("\(selectedFamily.title) widget · approximately \(Int(size.width)) × \(Int(size.height)) pt")
+            Text("\(kind.family.title) widget · approximately \(Int(size.width)) × \(Int(size.height)) pt")
                 .font(.body).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            InertWidgetPreview(content: widget(for: kind))
+            // The container is set inside the hosted view: it does not cross into a hosting controller.
+            InertWidgetPreview(content: widget(for: kind).widgetContainer(size: size))
                 .frame(width: size.width, height: size.height)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .scaleEffect(scale)
                 .frame(width: size.width * scale, height: size.height * scale)
                 .allowsHitTesting(false)
@@ -167,42 +148,19 @@ struct WidgetGalleryView: View {
 
     @ViewBuilder private func widget(for kind: WidgetPreviewKind) -> some View {
         switch kind {
-        case .glance:
-            let summary = GlanceSummary(
-                verdict: .ok,
-                word: "OK",
-                tone: .ok,
-                lines: [],
-                support: "Checked 9:41",
-                calmLine: "Alarm · Doors · Lights",
-                key: nil
-            )
-            let plan = glanceLayout(summary: summary, size: .small2x1)
-            GlanceView(summary: summary, plan: plan)
         case .car:
-            if selectedFamily(for: kind) == .small {
-                CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
-            } else {
-                CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
-                    snapshot: .sample, destination: .inert, primary: .battery(72)), family: .systemMedium)
-            }
-        case .alarm: AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"), family: selectedFamily(for: kind).widgetKitFamily)
-        case .thermostat:
-            if selectedFamily(for: kind) == .small {
-                ThermostatBeaconView(ThermostatParityInputs.payload("auto"), family: .systemSmall)
-            } else { ThermostatBeaconView(.sample) }
+            CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
+                snapshot: .sample, destination: .inert, primary: .battery(72)))
+        case .alarm: AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"))
+        case .thermostat: ThermostatBeaconView(.sample)
         case .chargepoint: CpBeaconView(.sample)
-        case .battery: BatteryView(.sample, layoutFamily: kind.family.widgetKitFamily)
+        case .battery: BatteryView(.sample, layoutFamily: kind.widgetKitFamily)
         case .activity: ActivityView(.sample)
         case .lights: LightTileView(.sample)
         case .quick: QuickView(.sample)
         case .favourites: FavouritesView(.sample)
         case .doors: DoorsView(.sample)
         }
-    }
-
-    private func selectedFamily(for kind: WidgetPreviewKind) -> WidgetPreviewFamily {
-        kind.supportedFamilies.contains(family) ? family : kind.family
     }
 
     private enum PhoneReference: String, CaseIterable, Identifiable {
@@ -218,8 +176,6 @@ struct WidgetGalleryView: View {
         }
         func size(for family: WidgetPreviewFamily) -> CGSize {
             switch (self, family) {
-            case (.small, .small): CGSize(width: 155, height: 155)
-            case (.large, .small): CGSize(width: 164 + 1.0 / 3, height: 164 + 1.0 / 3)
             case (.small, .medium): CGSize(width: 329, height: 155)
             case (.small, .large): CGSize(width: 329, height: 345)
             case (.large, .medium): CGSize(width: 364, height: 170)
@@ -262,11 +218,10 @@ private final class InertWidgetPreviewController: UIHostingController<AnyView> {
     override func shouldUpdateFocus(in context: UIFocusUpdateContext) -> Bool { false }
 }
 
-/// UI adapter only; family membership lives in the platform-independent catalog.
+/// UI adapter only; each widget's one family lives in the platform-independent catalog.
 extension WidgetPreviewFamily {
     var widgetKitFamily: WidgetFamily {
         switch self {
-        case .small: .systemSmall
         case .medium: .systemMedium
         case .large: .systemLarge
         }
@@ -274,7 +229,7 @@ extension WidgetPreviewFamily {
 }
 
 extension WidgetPreviewKind {
-    var widgetKitFamilies: [WidgetFamily] { supportedFamilies.map(\.widgetKitFamily) }
+    var widgetKitFamily: WidgetFamily { family.widgetKitFamily }
 }
 
 #Preview { WidgetGalleryView() }

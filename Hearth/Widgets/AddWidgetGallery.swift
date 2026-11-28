@@ -124,49 +124,36 @@ struct AddWidgetGallery: View {
     @ViewBuilder
     private func widget(for kind: WidgetPreviewKind) -> some View {
         switch kind {
-        case .glance:
-            let summary = GlanceSummary(
-                verdict: .ok,
-                word: "OK",
-                tone: .ok,
-                lines: [],
-                support: "Checked 9:41",
-                calmLine: "Alarm · Doors · Lights",
-                key: nil
-            )
-            let plan = glanceLayout(summary: summary, size: .small2x1)
-            GlanceView(summary: summary, plan: plan)
-                .widgetThumbnail(.medium)
         case .car:
-            CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"), family: .systemSmall)
-                .widgetThumbnail(.small)
+            CarWidgetPresentation(payload: CarParityInputs.productionPayload("parked"))
+                .widgetThumbnail()
         case .alarm:
-            AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"), family: .systemSmall)
-                .widgetThumbnail(.small)
+            AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"))
+                .widgetThumbnail()
         case .thermostat:
-            ThermostatBeaconView(ThermostatParityInputs.payload("auto"), family: .systemSmall)
-                .widgetThumbnail(.small)
+            ThermostatBeaconView(ThermostatParityInputs.payload("auto"))
+                .widgetThumbnail()
         case .chargepoint:
             CpBeaconView(.sample)
-                .widgetThumbnail(.medium)
+                .widgetThumbnail()
         case .battery:
             BatteryView(.sample, layoutFamily: .systemMedium)
-                .widgetThumbnail(.medium)
+                .widgetThumbnail()
         case .activity:
             ActivityView(.sample)
-                .widgetThumbnail(.medium)
+                .widgetThumbnail()
         case .lights:
             LightTileView(.sample)
-                .widgetThumbnail(.medium)
+                .widgetThumbnail()
         case .quick:
             QuickView(.sample)
-                .widgetThumbnail(.medium)
+                .widgetThumbnail()
         case .favourites:
             FavouritesView(.sample)
-                .widgetThumbnail(.medium)
+                .widgetThumbnail()
         case .doors:
             DoorsView(.sample)
-                .widgetThumbnail(.medium)
+                .widgetThumbnail()
         }
     }
 
@@ -195,8 +182,6 @@ struct AddWidgetGallery: View {
 
     private func description(for kind: HomeWidgetKind) -> String {
         switch kind {
-        case .glance:
-            return "At-a-glance status of all your widgets"
         case .car:
             return "Car status and readings"
         case .alarm:
@@ -222,7 +207,6 @@ struct AddWidgetGallery: View {
 
     private func previewKind(for kind: HomeWidgetKind) -> WidgetPreviewKind? {
         switch kind {
-        case .glance: return .glance
         case .car: return .car
         case .alarm: return .alarm
         case .thermostat: return .thermostat
@@ -332,29 +316,20 @@ private final class InertWidgetPreviewController: UIHostingController<AnyView> {
 /// `.scaleEffect(0.38)`) left the widget laying itself out inside the 60pt slot first, which
 /// produced the squashed, unreadable thumbnails.
 enum WidgetThumbnail {
-    case small, medium
-
     /// The slot every row reserves, so titles line up whatever the widget's shape.
     static let slot = CGSize(width: 96, height: 60)
 
-    var natural: CGSize {
-        switch self {
-        // Home Screen widget sizes on a 393pt-wide iPhone.
-        case .small: CGSize(width: 170, height: 170)
-        case .medium: CGSize(width: 364, height: 170)
-        }
-    }
+    /// The medium Home Screen widget size on a 393pt-wide iPhone.
+    static let natural = CGSize(width: 364, height: 170)
 
-    var scale: CGFloat {
-        min(Self.slot.width / natural.width, Self.slot.height / natural.height)
-    }
+    static let scale = min(slot.width / natural.width, slot.height / natural.height)
 }
 
 private extension View {
-    func widgetThumbnail(_ shape: WidgetThumbnail) -> some View {
-        frame(width: shape.natural.width, height: shape.natural.height)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-            .scaleEffect(shape.scale)
-            .frame(width: shape.natural.width * shape.scale, height: shape.natural.height * shape.scale)
+    func widgetThumbnail() -> some View {
+        widgetContainer(size: WidgetThumbnail.natural)
+            .scaleEffect(WidgetThumbnail.scale)
+            .frame(width: WidgetThumbnail.natural.width * WidgetThumbnail.scale,
+                   height: WidgetThumbnail.natural.height * WidgetThumbnail.scale)
     }
 }

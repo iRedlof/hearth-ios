@@ -1,8 +1,7 @@
 import Foundation
 
 /// Widget kinds available for the iOS Home dashboard, ordered by their appearance priority.
-public enum HomeWidgetKind: String, CaseIterable, Sendable, Codable {
-    case glance
+public enum HomeWidgetKind: String, CaseIterable, Sendable {
     case car
     case alarm
     case thermostat
@@ -17,7 +16,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable, Codable {
     /// User-facing display name for this widget type.
     public var displayName: String {
         switch self {
-        case .glance: return "Glance"
         case .car: return "Car"
         case .alarm: return "Alarm"
         case .thermostat: return "Thermostat"
@@ -34,7 +32,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable, Codable {
     /// SF Symbol icon for this widget type.
     public var icon: String {
         switch self {
-        case .glance: return "sparkles"
         case .car: return "car.fill"
         case .alarm: return "shield.fill"
         case .thermostat: return "thermometer"
@@ -51,7 +48,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable, Codable {
     /// Tile hue for this widget type, matching Phase-1 TileHue palette.
     public var hue: TileHue {
         switch self {
-        case .glance: return .purple
         case .car: return .green
         case .alarm: return .red
         case .thermostat: return .orange
@@ -68,7 +64,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable, Codable {
     /// Widget preview kind for the gallery.
     public var previewKind: WidgetPreviewKind {
         switch self {
-        case .glance: return .glance
         case .car: return .car
         case .alarm: return .alarm
         case .thermostat: return .thermostat
@@ -93,9 +88,6 @@ public enum HomeWidgetKind: String, CaseIterable, Sendable, Codable {
 public func configuredWidgets(config: HaConfig, chargePointSignedIn: Bool) -> [HomeWidgetKind] {
     HomeWidgetKind.allCases.filter { kind in
         switch kind {
-        case .glance:
-            // Glance appears when the app is connected (has any widgets to summarize)
-            return config.isComplete
         case .car:
             return config.carReady
         case .alarm:

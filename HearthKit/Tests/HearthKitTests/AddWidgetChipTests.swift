@@ -47,30 +47,6 @@ struct AddWidgetChipTests {
         #expect(chip == .needsHA)
     }
 
-    @Test("Returns needsHA for glance without connection")
-    func needsHaForGlance() {
-        let config = HaConfig(
-            baseUrl: "",
-            token: "",
-            entityId: "",
-            refreshToken: ""
-        )
-        let chip = addWidgetChip(kind: .glance, config: config, cpSignedIn: false)
-        #expect(chip == .needsHA)
-    }
-
-    @Test("Returns added for glance when HA is complete")
-    func addedForGlanceWhenComplete() {
-        let config = HaConfig(
-            baseUrl: "https://ha.example.com",
-            token: "token",
-            entityId: "alarm_control_panel.home",
-            refreshToken: "refresh"
-        )
-        let chip = addWidgetChip(kind: .glance, config: config, cpSignedIn: false)
-        #expect(chip == .added)
-    }
-
     @Test("Returns needsCP for ChargePoint without sign-in")
     func needsCpForChargePoint() {
         let config = HaConfig(
@@ -208,10 +184,9 @@ struct AddWidgetChipTests {
         #expect(addWidgetCategory(.quick) == .control)
     }
 
-    @Test("Check category includes doors, glance, activity, battery")
+    @Test("Check category includes doors, activity, battery")
     func checkCategory() {
         #expect(addWidgetCategory(.doors) == .check)
-        #expect(addWidgetCategory(.glance) == .check)
         #expect(addWidgetCategory(.activity) == .check)
         #expect(addWidgetCategory(.battery) == .check)
     }

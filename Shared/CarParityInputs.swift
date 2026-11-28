@@ -66,8 +66,7 @@ enum CarParityInputs {
         let primary = carReadingsPrimary(origin: origin, cache: cache, error: error, setup: setup)
         return CarReadingsEntryPayload(entryID: UUID(), date: now,
             snapshot: result.snapshot(now: now, zone: zone, locale: locale), destination: destination,
-            primary: primary, readingsUnavailable: ["save_failed", "save_failed_open"].contains(state),
-            smallReading: carSmallReading(result: result, primary: primary))
+            primary: primary, readingsUnavailable: ["save_failed", "save_failed_open"].contains(state))
     }
 
     private static func reply(_ state: String) -> String {
