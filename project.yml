@@ -96,3 +96,45 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.rohit.hearth.widgets
         TARGETED_DEVICE_FAMILY: "1"
         SKIP_INSTALL: "YES"
+
+  # DEBUG-only render harness (docs/RENDER-HARNESS.md): the UI walker that launches the app with
+  # -demoHouse, drives the real UI and writes PNGs. Not a dependency of the app and not in the
+  # Hearth scheme, so it is never built by an archive and never shipped.
+  HearthRenderTests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - HearthRenderTests
+    dependencies:
+      - target: Hearth
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.rohit.hearth.rendertests
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: "YES"
+        TEST_TARGET_NAME: Hearth
+
+# Declaring any scheme stops Xcode auto-creating one per target, so the app's own scheme is
+# declared too. The release workflows archive `Hearth`; it builds the app (and, through its
+# dependencies, the widget extension and HearthKit) and nothing from the render harness.
+schemes:
+  Hearth:
+    build:
+      targets:
+        Hearth: all
+    run:
+      config: Debug
+    archive:
+      config: Release
+  HearthRender:
+    build:
+      targets:
+        Hearth: all
+        HearthRenderTests: [test]
+    test:
+      config: Debug
+      targets:
+        - HearthRenderTests
+      gatherCoverageData: false
+    run:
+      config: Debug
