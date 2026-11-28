@@ -14,10 +14,10 @@ final class CpOwnedActionStoreTests: XCTestCase {
     }
 
     private func observation(_ phase: String = "ACCEPT_PENDING", token: String = "private-offer",
-                             ids: [Int64] = [1, 2], allowance: Int? = nil) throws -> CpObservation {
+                             ids: [Int64] = [1, 2], allowance: Int? = nil, device: Int64 = 1) throws -> CpObservation {
         var state: [String: Any] = ["state": phase]
         if !["NOT_QUEUED", "WAITING", "UNKNOWN"].contains(phase) {
-            state.merge(["token": token, "deviceId": 1, "portNo": 2,
+            state.merge(["token": token, "deviceId": device, "portNo": 2,
                 "startTimeUTC": 999, "duration": 301]) { _, new in new }
         }
         let raw = String(decoding: try JSONSerialization.data(withJSONObject:
@@ -188,7 +188,9 @@ final class CpOwnedActionStoreTests: XCTestCase {
         let value = try store()
         let initial = try observed(value, observation())
         let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .accept, now: now))
-        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: observation(token: "new-offer"), now: now))
+        // A replacement offer is a different charger. (A new token alone is the same offer: ChargePoint
+        // re-issues the token on every status read.)
+        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: observation(token: "new-offer", device: 2), now: now))
         XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .mutation(.accept), now: now))
     }
 
@@ -454,11 +456,13 @@ final class CpOwnedActionStoreTests: XCTestCase {
         XCTAssertNil(try value.finishSignIn(owner: attempt, now: now))
     }
 
-    func testOperationDetailRequestsCannotFetchForeignTargetOrRenewCredentials() throws {
+    func testOperationDetailRequestsCannotFetchForeignSessionOrRenewCredentials() throws {
         let value = try store()
         let evidence = try observation(allowance: 1)
         let operation = try owner(value.claim(origin: XCTUnwrap(observed(value, evidence).renderedOrigin), action: .snooze, now: now))
-        XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .allowance("foreign"), now: now))
+        // The allowance read follows the token of the status read made a moment earlier, which
+        // ChargePoint re-issues on every read, so it is not tied to the claimed token.
+        XCTAssertNotNil(try value.requestCredential(authority: .operation(operation), purpose: .allowance("re-issued"), now: now))
         XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .charging(999), now: now))
         XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .renew, now: now))
         XCTAssertNotNil(try value.requestCredential(authority: .operation(operation), purpose: .allowance("private-offer"), now: now))
@@ -501,7 +505,7 @@ final class CpOwnedActionStoreTests: XCTestCase {
         let value = try store()
         let initial = try observed(value, observation(token: "A"))
         let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .accept, now: now))
-        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: observation(token: "B"), now: now))
+        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: observation(token: "B", device: 2), now: now))
         let display = try value.snapshot(now: now).displaySnapshot(now: now)
         XCTAssertNil(display.deadline)
         XCTAssertNil(display.goTo)

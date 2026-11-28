@@ -460,7 +460,9 @@ public struct CpStateStore: Sendable {
             _ = expireOperation(&stored, now: now)
             guard let operation = stored.journal?.operation, validOperation(stored, owner: owner, now: now),
                   operation.stage == .claimed else { return false }
-            guard operation.target == observation.identity,
+            // Same offer, not same bytes: ChargePoint re-issues the offer token on every read, so
+            // the last-second re-read is compared without it (see `sameTargetKey`).
+            guard operation.target.sameTargetKey == observation.identity.sameTargetKey,
                   operation.action == .stop || selectedQueue(stored, observation: observation),
                   permits(operation.action, observation: observation, now: now) else {
                 stored.journal!.operation = nil; stored.journal!.actionable = false
@@ -468,6 +470,9 @@ public struct CpStateStore: Sendable {
                 try write(stored)
                 return false
             }
+            // Carry the newest token forward, so a request that does send it (still / done) uses the
+            // one ChargePoint issued last.
+            stored.journal!.operation!.target = observation.identity
             stored.journal!.operation!.stage = .preflighted
             stored.journal!.observation = observation
             try write(stored)
@@ -883,7 +888,9 @@ public struct CpStateStore: Sendable {
                 guard operation.stage == .claimed, readPurpose(purpose) else { return nil }
                 switch purpose {
                 case .status, .inline: break
-                case .allowance(let token): guard token == operation.target.token else { return nil }
+                // The allowance read uses the token of the status read made a moment ago, which is
+                // newer than the claimed one whenever ChargePoint has re-issued it.
+                case .allowance: break
                 case .charging(let id): guard id == operation.target.sessionID else { return nil }
                 default: return nil
                 }

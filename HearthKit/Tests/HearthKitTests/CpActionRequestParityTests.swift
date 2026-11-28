@@ -37,6 +37,26 @@ final class CpActionRequestParityTests: XCTestCase {
         XCTAssertEqual(try store.snapshot(now: instant).lastAction?.outcome, "Left the waitlist")
     }
 
+    /// Seen on a real account (2026-11-27): the offer token differs on EVERY status read while the
+    /// offer (charger, port, start, deadline) is the same. A button drawn from one read must still
+    /// act after a reload, and the last-second re-read before sending must not call it a new offer.
+    func testLeaveAndAcceptAreSentWhenTheOfferTokenIsReissuedOnEveryRead() async throws {
+        for action in [CpOwnedAction.leave, .accept] {
+            let (store, directory) = try configured()
+            let instant = CpStoreFixture.now
+            let transport = action == .leave ? CpRecordingTransport(status: Self.offer, mutationBody: "")
+                                             : CpRecordingTransport(status: Self.offer)
+            transport.reissuesTokenOnEveryRead = true
+            let runtime = CpOwnedRuntime(store: store, directory: directory, transport: transport, now: { instant })
+            _ = try await runtime.refresh(runAuto: false)                              // widget drawn
+            let origin = try XCTUnwrap(store.snapshot(now: instant).renderedOrigin)
+            _ = try await runtime.refresh(runAuto: false)                              // timeline reload
+            _ = try await runtime.perform(origin: origin, action: action)              // the tap
+            XCTAssertEqual(transport.mutations, 1, "\(action) must be sent for the same offer with a re-issued token")
+            XCTAssertNil(try store.snapshot(now: instant).ownershipFeedback, "\(action) must not report a changed offer")
+        }
+    }
+
     /// The protection still holds: when the state really changed between render and tap, the tap is
     /// refused, nothing is sent, and a visible reason is left behind.
     func testWidgetSequenceRefusesWithReasonWhenStateChanged() async throws {
@@ -117,6 +137,9 @@ private final class CpRecordingTransport: CpOwnedTransport, @unchecked Sendable 
     private var raw: String
     private var reply: String
     private var mutationCount = 0
+    private var statusReads = 0
+    /// Real ChargePoint behaviour: every status read carries a newly issued offer token.
+    var reissuesTokenOnEveryRead = false
     private var recorded: [CpRecordedRequest] = []
 
     init(status: String, mutationBody: String = "{\"result\":true,\"response\":{\"success\":true}}") {
@@ -135,7 +158,10 @@ private final class CpRecordingTransport: CpOwnedTransport, @unchecked Sendable 
         else if path.hasSuffix("/inlinestatus") { body = "{\"positionInline\":3}" }
         else {
             let object = request.httpBody.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-            body = object?["user_status"] != nil ? status : "{}"
+            if object?["user_status"] != nil {
+                let read = lock.withLock { statusReads += 1; return statusReads }
+                body = reissuesTokenOnEveryRead ? status.replacingOccurrences(of: "T0K3N", with: "T0K3N-\(read)") : status
+            } else { body = "{}" }
         }
         if mutates {
             lock.withLock {

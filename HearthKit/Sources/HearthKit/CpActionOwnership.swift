@@ -61,7 +61,7 @@ public struct CpOperationOwner: Codable, Sendable, Equatable {
 public struct CpOwnedOperation: Codable, Sendable, Equatable {
     public let owner: CpOperationOwner
     public let action: CpOwnedAction
-    public let target: CpObservedIdentity
+    public var target: CpObservedIdentity
     public let startedAt: Date
     public let expiresAt: Date
     public var stage: CpOperationStage
