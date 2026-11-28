@@ -62,6 +62,7 @@ public struct ConnectionHero<Side: View>: View {
     private let title: String
     private let detail: String
     private let side: Side
+    private let showsSide: Bool
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
@@ -70,11 +71,13 @@ public struct ConnectionHero<Side: View>: View {
         presentation: HeroPresentation,
         title: String,
         detail: String,
+        showsSide: Bool = true,
         @ViewBuilder side: () -> Side
     ) {
         self.presentation = presentation
         self.title = title
         self.detail = detail
+        self.showsSide = showsSide
         self.side = side()
     }
 
@@ -83,25 +86,26 @@ public struct ConnectionHero<Side: View>: View {
 
         if isCompact {
             // Vertical stack for phone widths
-            VStack(spacing: 0) {
+            VStack(spacing: Self.panelGap) {
                 statusPanel
-                    .padding(20)
-                ctaPanel
-                    .padding(20)
+                // No button, no button area: an empty panel left a blank strip under the status.
+                if showsSide { ctaPanel }
             }
+            .padding(Self.cardPadding)
             .background(HearthColor.card(colorScheme))
             .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
         } else {
             // Horizontal split for wider screens
-            HStack(spacing: 0) {
+            HStack(spacing: Self.panelGap) {
                 statusPanel
-                    .padding(20)
                     .frame(maxWidth: .infinity)
 
-                ctaPanel
-                    .padding(20)
-                    .frame(maxWidth: .infinity)
+                if showsSide {
+                    ctaPanel
+                        .frame(maxWidth: .infinity)
+                }
             }
+            .padding(Self.cardPadding)
             .background(HearthColor.card(colorScheme))
             .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
         }
@@ -129,10 +133,17 @@ public struct ConnectionHero<Side: View>: View {
                     .foregroundStyle(presentation.tone.ink(colorScheme).opacity(0.6))
             }
         }
+        // The text sits inside the tinted panel. Without this inset the panel hugged the text and
+        // its rounded corners cut into the icon and the last line.
+        .padding(Self.panelPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(presentation.tone.bg(colorScheme))
         .clipShape(RoundedRectangle(cornerRadius: HearthMetrics.groupRadius))
     }
+
+    private static var cardPadding: CGFloat { 12 }
+    private static var panelPadding: CGFloat { 16 }
+    private static var panelGap: CGFloat { 12 }
 
     // MARK: - CTA Panel
 
