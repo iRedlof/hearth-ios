@@ -361,6 +361,10 @@ struct CarWidget: Widget {
 struct AlarmEntry: TimelineEntry { let date: Date; let snap: AlarmSnapshot }
 
 struct AlarmProvider: TimelineProvider {
+    private static let refreshInterval: TimeInterval = 15 * 60
+    /// A garage command is expired 90 s after it began. Reload just after that, so "Opening…" and
+    /// its Stop cannot stay on screen until the next ordinary refresh if the command was interrupted.
+    private static let pendingGarageRefreshInterval: TimeInterval = 100
     func placeholder(in context: Context) -> AlarmEntry { AlarmEntry(date: .now, snap: .sample) }
     func getSnapshot(in context: Context, completion: @escaping (AlarmEntry) -> Void) {
         if context.isPreview { completion(AlarmEntry(date: .now, snap: .sample)); return }
@@ -371,7 +375,8 @@ struct AlarmProvider: TimelineProvider {
         nonisolated(unsafe) let completion = completion
         Task {
             let entry = await Self.fetch()
-            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
+            let interval = entry.snap.garage?.pending == true ? Self.pendingGarageRefreshInterval : Self.refreshInterval
+            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(interval))))
         }
     }
     private static func fetch() async -> AlarmEntry {
