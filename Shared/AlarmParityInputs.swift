@@ -11,7 +11,15 @@ enum AlarmParityInputs {
         "door_unknown", "door_unavailable", "panel_unavailable", "panel_unknown",
         "home_only", "away_only", "no_arm_modes", "code_required", "pending_arm", "failed_arm",
         "pending_door", "failed_door", "interrupted", "auth_failed", "door_bad_entity", "old_cache"
+    ] + garageStates.keys.sorted()
+    /// Front door + garage: the cover state behind each `alarm-garage_*` id. `garage_closed` is
+    /// disarmed with the front door locked, `garage_open` is armed away, `garage_offline` is last known.
+    private static let garageStates = [
+        "garage_closed": "closed", "garage_open": "open", "garage_moving": "opening", "garage_offline": "closed"
     ]
+    private static let garageID = "cover.garage"
+    /// Open, close and stop.
+    private static let garageFeatures = 11
     private static let now = ISO8601DateFormatter().date(from: "2026-10-21T16:46:00Z")!
     private static let checked = now.addingTimeInterval(-300)
     private static let zone = TimeZone(identifier: "America/Los_Angeles")!
@@ -26,7 +34,8 @@ enum AlarmParityInputs {
                            "armed_custom_bypass", "arming", "disarming", "pending", "triggered"]
         let panelState = ["historical_triggered", "triggered_pending_door"].contains(state) ? "triggered" : alarmStates.contains(state) ? state
             : state == "panel_unavailable" ? "unavailable" : state == "panel_unknown" ? "unknown"
-            : ["offline", "panel_failed", "pending_door", "failed_door"].contains(state) ? "armed_home" : "disarmed"
+            : state == "garage_open" ? "armed_away"
+            : ["offline", "panel_failed", "pending_door", "failed_door", "garage_offline"].contains(state) ? "armed_home" : "disarmed"
         let doorStates = ["unlocked", "open", "jammed", "locking", "unlocking", "opening", "unknown", "unavailable"]
         let doorState = state.hasPrefix("door_") && doorStates.contains(String(state.dropFirst(5)))
             ? String(state.dropFirst(5)) : "locked"
@@ -47,15 +56,22 @@ enum AlarmParityInputs {
             readings[doorID] = reading(doorID, doorState, ["friendly_name": "Front Door", "supported_features": 0],
                 old: state == "old_cache")
         }
+        let garageState = garageStates[state]
+        if let garageState {
+            readings[garageID] = reading(garageID, garageState, ["friendly_name": "Garage", "device_class": "garage",
+                "supported_features": garageFeatures], old: false)
+        }
         var errors: [String: String] = [:]
-        if ["offline", "first_failure", "panel_failed", "historical_triggered"].contains(state) { errors[panelID] = "Can't reach Home Assistant" }
-        if ["offline", "first_failure", "door_failed", "door_first_failure"].contains(state) {
+        if ["offline", "first_failure", "panel_failed", "historical_triggered", "garage_offline"].contains(state) { errors[panelID] = "Can't reach Home Assistant" }
+        if ["offline", "first_failure", "door_failed", "door_first_failure", "garage_offline"].contains(state) {
             errors[doorID] = "Can't reach Home Assistant"
         }
+        if state == "garage_offline" { errors[garageID] = "Can't reach Home Assistant" }
         if state == "auth_failed" { errors[panelID] = "Signed out: sign in again"; errors[doorID] = errors[panelID] }
         if state == "door_bad_entity" { errors[doorID] = "Not found: check the entity" }
         var result = AlarmFetchResult(entityID: panelID, lockID: state == "no_door" ? "" : doorID,
             lockName: state == "long_names" ? "Main entrance beside the garage" : "Front Door",
+            garageID: garageState == nil ? "" : garageID,
             readings: readings, errors: errors).snapshot(now: now, zone: zone, locale: Locale(identifier: "en_US"))
         if ["pending_arm", "failed_arm", "pending_door", "triggered_pending_door", "failed_door", "interrupted"].contains(state) {
             let isDoor = state.hasSuffix("_door")
