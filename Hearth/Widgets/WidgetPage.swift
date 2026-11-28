@@ -188,12 +188,10 @@ struct WidgetPage: View {
 
         case .car:
             HearthGroup("Uses") {
-                VStack(alignment: .leading, spacing: 8) {
+                groupNote {
                     Text("Your Tesla is auto-discovered from Home Assistant.")
                         .font(HearthFont.rowTitle.font)
                         .foregroundStyle(HearthColor.sub(scheme))
-                        .padding(.horizontal, HearthMetrics.mediumPadding)
-                        .padding(.vertical, HearthMetrics.mediumPadding)
                 }
             }
 
@@ -236,12 +234,10 @@ struct WidgetPage: View {
 
         case .chargePoint:
             HearthGroup("Uses") {
-                VStack(alignment: .leading, spacing: 8) {
+                groupNote {
                     Text("Your ChargePoint account is used for all charging stations.")
                         .font(HearthFont.rowTitle.font)
                         .foregroundStyle(HearthColor.sub(scheme))
-                        .padding(.horizontal, HearthMetrics.mediumPadding)
-                        .padding(.vertical, HearthMetrics.mediumPadding)
                 }
             }
         }
@@ -275,33 +271,36 @@ struct WidgetPage: View {
 
     private var showsGroup: some View {
         HearthGroup("Shows") {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 8) {
-                    ForEach(["Charge", "Range", "Locks"], id: \.self) { label in
-                        Text(label)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(HearthColor.tint(scheme))
-                            .clipShape(Capsule())
-                    }
-                }
-                HStack(spacing: 8) {
-                    ForEach(["Doors", "Cabin", "Tyres"], id: \.self) { label in
-                        Text(label)
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(HearthColor.tint(scheme))
-                            .clipShape(Capsule())
+            groupNote {
+                ForEach(Self.carShows, id: \.self) { labels in
+                    HStack(spacing: HearthMetrics.smallPadding) {
+                        ForEach(labels, id: \.self) { label in
+                            Text(label)
+                                .font(.caption.weight(.medium))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 6)
+                                .background(HearthColor.tint(scheme))
+                                .clipShape(Capsule())
+                        }
                     }
                 }
                 Text("Tap the widget to open the Tesla app.")
                     .font(HearthFont.subtitle.font)
                     .foregroundStyle(HearthColor.sub(scheme))
             }
-            .padding(HearthMetrics.mediumPadding)
         }
+    }
+
+    /// What the Car widget shows, a row of chips each.
+    private static let carShows = [["Charge", "Range", "Locks"], ["Doors", "Cabin", "Tyres"]]
+
+    /// Words or chips in a group where its neighbours have rows: as wide as the group, inset
+    /// like a `HearthRow`, so "Uses" and "Shows" line up with "Look" and the rest of the page.
+    private func groupNote<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        VStack(alignment: .leading, spacing: HearthMetrics.mediumPadding) { content() }
+            .padding(.horizontal, HearthMetrics.rowSidePadding)
+            .padding(.vertical, HearthMetrics.mediumPadding)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var everyDayGroup: some View {
