@@ -23,15 +23,38 @@ public struct CpBeaconView: View {
     public var body: some View {
         GeometryReader { geo in
             let s = beaconSplit(width: geo.size.width)   // Android rail is ~37%, not 50%
-            HStack(spacing: 0) {
-                left.frame(width: s.rail)
-                right(height: geo.size.height).frame(maxWidth: .infinity)
+            // Both halves are pinned to the widget's own height. Left to size itself, a right column
+            // taller than the widget made the row taller, which centred the rail lower: a strip of
+            // body showed above the orange rail and the keys were cut off at the bottom.
+            HStack(alignment: .top, spacing: 0) {
+                left.frame(width: s.rail, height: geo.size.height, alignment: .topLeading)
+                right(height: geo.size.height)
+                    .frame(width: geo.size.width - s.rail, height: geo.size.height, alignment: .topLeading)
             }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
             .background(CardSurfaceView(look.body))
+            .clipped()
         }
     }
 
+    /// The rail. Its extra detail lines give way first when the text is large or the widget short.
     private var left: some View {
+        ViewThatFits(in: .vertical) {
+            leftColumn(showsDetail: true, heroSize: Self.heroSize)
+            leftColumn(showsDetail: true, heroSize: Self.compactHeroSize)
+            leftColumn(showsDetail: false, heroSize: Self.heroSize)
+            leftColumn(showsDetail: false, heroSize: Self.compactHeroSize)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(BeaconRailBackground(fillARGB: snap.tone.fillARGB, fade: 0.85))
+    }
+
+    /// The plug-count hero, and the size it drops to before any detail line is given up.
+    private static let heroSize: CGFloat = 48
+    private static let compactHeroSize: CGFloat = 36
+    private static let longAnswerHeroSize: CGFloat = 30
+
+    private func leftColumn(showsDetail: Bool, heroSize: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 4) {
                 Image("CpLogo").renderingMode(.template).resizable().scaledToFit()
@@ -58,19 +81,23 @@ public struct CpBeaconView: View {
                         .lineLimit(2).minimumScaleFactor(0.85)
                         .accessibilityLabel(snap.statusDescription ?? snap.sub)
                 }
-                ForEach(contextLines, id: \.self) { note in
-                    Text(note).font(HearthFont.caption.font(scale: textScale)).foregroundStyle(ink.opacity(0.8)).lineLimit(1).minimumScaleFactor(0.8)
+                if showsDetail {
+                    ForEach(contextLines, id: \.self) { note in
+                        Text(note).font(HearthFont.caption.font(scale: textScale)).foregroundStyle(ink.opacity(0.8)).lineLimit(1).minimumScaleFactor(0.8)
+                    }
                 }
             } else {
                 // Android parity: a large plug-count hero + the "of 86 plugs / 7 in use / 1 offline" detail.
                 Text(snap.bigAnswer)
-                    .font(.system(size: (snap.bigAnswer.count > 6 ? 30 : 48) * textScale, weight: .heavy)).tracking(-1)
+                    .font(.system(size: (snap.bigAnswer.count > 6 ? min(Self.longAnswerHeroSize, heroSize) : heroSize) * textScale, weight: .heavy)).tracking(-1)
                     .foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.5)
                 if !snap.unit.isEmpty {
                     Text(snap.unit).font(HearthFont.rowTitle.font(scale: textScale).weight(.semibold)).foregroundStyle(ink).lineLimit(1).minimumScaleFactor(0.8)
                 }
-                ForEach(snap.freeDetail, id: \.self) { line in
-                    Text(line).font(HearthFont.caption.font(scale: textScale)).foregroundStyle(ink.opacity(0.78)).lineLimit(1).minimumScaleFactor(0.8)
+                if showsDetail {
+                    ForEach(snap.freeDetail, id: \.self) { line in
+                        Text(line).font(HearthFont.caption.font(scale: textScale)).foregroundStyle(ink.opacity(0.78)).lineLimit(1).minimumScaleFactor(0.8)
+                    }
                 }
                 if !snap.sub.isEmpty {
                     Text(snap.sub).font(HearthFont.caption.font(scale: textScale)).foregroundStyle(ink.opacity(0.8))
@@ -81,8 +108,6 @@ public struct CpBeaconView: View {
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 13).padding(.vertical, HearthMetrics.mediumPadding)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(BeaconRailBackground(fillARGB: snap.tone.fillARGB, fade: 0.85))
     }
 
     private var autoLabel: some View {
@@ -113,7 +138,18 @@ public struct CpBeaconView: View {
         }
     }
 
+    /// The body. It always shows the header and the keys; the floor list shortens to what fits.
     private func right(height: CGFloat) -> some View {
+        ViewThatFits(in: .vertical) {
+            ForEach(Self.floorRowChoices, id: \.self) { rows in rightColumn(height: height, floorRows: rows) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    /// Most floors first; the last choice is used even when it does not fit.
+    private static let floorRowChoices = [5, 4, 3, 2, 1]
+
+    private func rightColumn(height: CGFloat, floorRows: Int) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             // Android parity: site + account on the left, the refresh + "Checked" stamp on the right.
             HStack(alignment: .top, spacing: 6) {
@@ -130,7 +166,7 @@ public struct CpBeaconView: View {
                 }
             }
             Spacer(minLength: 2)
-            detail
+            detail(floorRows: floorRows)
             Spacer(minLength: 2)
             if snap.keys.isEmpty {
                 if snap.offersJoinWithAuto { HStack(spacing: 6) { actionButton; joinAutoKey } }
@@ -138,7 +174,6 @@ public struct CpBeaconView: View {
             } else { keyRow }
         }
         .padding(.horizontal, 13).padding(.top, height < 222 ? 8 : 14).padding(.bottom, 6)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     /// "Join + Auto": join the waitlist and let Hearth accept and snooze. The same control the Auto
@@ -167,7 +202,7 @@ public struct CpBeaconView: View {
 
     /// The middle detail: "Go to <charger>" when offered/held, else per-level floor stats when idle,
     /// else the aggregate plugs-free line (ports Android's CpRight.GoTo / Floors).
-    @ViewBuilder private var detail: some View {
+    @ViewBuilder private func detail(floorRows: Int) -> some View {
         if let goTo = snap.goTo {
             if let level = cpLevelOf(goTo) {
                 ViewThatFits(in: .vertical) {
@@ -204,7 +239,7 @@ public struct CpBeaconView: View {
             }
         } else if !snap.floors.isEmpty {
             VStack(alignment: .leading, spacing: 2) {
-                ForEach(snap.floors.prefix(5), id: \.level) { f in floorRow(f) }
+                ForEach(snap.floors.prefix(floorRows), id: \.level) { f in floorRow(f) }
             }
         } else if let plugs = snap.plugsFree {
             HStack(spacing: 5) {
