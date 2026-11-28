@@ -7,6 +7,12 @@ name: iOS release — TestFlight
 #
 # Required secrets (org- or repo-level), iOS-only — never the shared macOS cert:
 #   IOS_DIST_CERT_P12 / IOS_DIST_CERT_PASSWORD   Apple Distribution .p12 (base64) + password
+#   IOS_DEV_CERT_P12 / IOS_DEV_CERT_PASSWORD     ONE fixed Apple Development .p12 (base64) + password.
+#                                                 Automatic signing needs a development identity while
+#                                                 archiving. Without one in the keychain Xcode creates a
+#                                                 new "Created via API" certificate on EVERY run, until
+#                                                 the account hits its certificate limit and the archive
+#                                                 fails ("Choose a certificate to revoke").
 #   IOS_TEAM_ID                                   Apple team id (5D7M37QQLU)
 #   ASC_KEY_ID / ASC_ISSUER_ID / ASC_API_KEY_P8   App Store Connect API key (+ .p8 base64)
 
@@ -71,14 +77,17 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
-      - name: Install Apple Distribution signing certificate
+      - name: Install signing certificates (Distribution + the fixed Development one)
         env:
           IOS_DIST_CERT_P12: ${{ secrets.IOS_DIST_CERT_P12 }}
           IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+          IOS_DEV_CERT_P12: ${{ secrets.IOS_DEV_CERT_P12 }}
+          IOS_DEV_CERT_PASSWORD: ${{ secrets.IOS_DEV_CERT_PASSWORD }}
           IOS_TEAM_ID: ${{ secrets.IOS_TEAM_ID }}
         run: |
           umask 077
           [ -n "$IOS_DIST_CERT_P12" ] || { echo "::error::IOS_DIST_CERT_P12 missing."; exit 1; }
+          [ -n "$IOS_DEV_CERT_P12" ] || { echo "::error::IOS_DEV_CERT_P12 missing — without it every run creates a new development certificate."; exit 1; }
           [ -n "$IOS_TEAM_ID" ] || { echo "::error::IOS_TEAM_ID missing."; exit 1; }
           CERT="$RUNNER_TEMP/dist.p12"
           KEYCHAIN="$RUNNER_TEMP/hearth-ios-signing.keychain-db"
@@ -94,12 +103,21 @@ jobs:
           security import "$RUNNER_TEMP/AppleRoot.cer" -k "$KEYCHAIN" -T /usr/bin/codesign || true
           security import "$RUNNER_TEMP/AppleWWDRCAG3.cer" -k "$KEYCHAIN" -T /usr/bin/codesign || true
           security import "$CERT" -P "$IOS_DIST_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          # The same development certificate every run, so Xcode never has to create one.
+          DEVCERT="$RUNNER_TEMP/dev.p12"
+          printf '%s' "$IOS_DEV_CERT_P12" | base64 --decode -o "$DEVCERT"
+          security import "$DEVCERT" -P "$IOS_DEV_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+          rm -f "$DEVCERT"
           security set-key-partition-list -S apple-tool:,apple: -k "$KPWD" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(cat "$RUNNER_TEMP/orig-keychains.txt")
           IDENTS=$(security find-identity -v -p codesigning "$KEYCHAIN" || true)
           echo "$IDENTS" | sed -E 's/[0-9A-F]{40}/<sha>/'
           echo "$IDENTS" | grep -q "Apple Distribution: .*(${IOS_TEAM_ID})" || {
             echo "::error::No 'Apple Distribution: … (${IOS_TEAM_ID})' identity in the supplied .p12."; exit 1; }
+          echo "$IDENTS" | grep -q "Apple Development: " || {
+            echo "::error::No 'Apple Development' identity in the supplied IOS_DEV_CERT_P12."; exit 1; }
+          DEV_BEFORE=$(echo "$IDENTS" | grep -c "Apple Development: " || true)
+          printf 'DEV_IDENTITIES_BEFORE=%s\n' "$DEV_BEFORE" >> "$GITHUB_ENV"
           printf 'SIGNING_KEYCHAIN=%s\n' "$KEYCHAIN" >> "$GITHUB_ENV"
           rm -f "$CERT" "$RUNNER_TEMP/AppleRoot.cer" "$RUNNER_TEMP/AppleWWDRCAG3.cer"
 
@@ -147,6 +165,14 @@ jobs:
           codesign -d --entitlements :- "$ARCH_APP" 2>/dev/null | grep -q "group.com.rohit.hearth" \
             || { echo "::error::archived app is MISSING the group.com.rohit.hearth App Group entitlement"; exit 1; }
           echo "✓ archived app carries the App Group entitlement"
+          # Xcode imports any certificate it creates into the keychain. More development identities
+          # than we installed means it made a new one — the leak this pipeline must not have.
+          DEV_AFTER=$(security find-identity -v -p codesigning "$SIGNING_KEYCHAIN" | grep -c "Apple Development: " || true)
+          if [ "$DEV_AFTER" -gt "${DEV_IDENTITIES_BEFORE:-0}" ]; then
+            echo "::error::Xcode created a new Apple Development certificate during archive ($DEV_IDENTITIES_BEFORE -> $DEV_AFTER). Revoke it and fix the fixed-certificate setup before releasing again."
+            exit 1
+          fi
+          echo "✓ no new development certificate was created"
 
       - name: Export signed IPA (App Store)
         env:
@@ -213,6 +239,6 @@ jobs:
           if [ -f "$RUNNER_TEMP/orig-keychains.txt" ]; then
             security list-keychains -d user -s $(cat "$RUNNER_TEMP/orig-keychains.txt") || true
           fi
-          rm -rf "$RUNNER_TEMP/private_keys" "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/export" \
+          rm -rf "$RUNNER_TEMP/private_keys" "$RUNNER_TEMP/dist.p12" "$RUNNER_TEMP/dev.p12" "$RUNNER_TEMP/export" \
                  "$RUNNER_TEMP/Hearth.xcarchive" "$RUNNER_TEMP/dd" "$RUNNER_TEMP/ExportOptions.plist" \
                  "$HOME/.appstoreconnect/private_keys/AuthKey_${ASC_KEY_ID:-unknown}.p8" 2>/dev/null || true
