@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import HearthKit
 
 /// ChargePoint settings page — status-first pushed page re-skinning existing CP logic.
@@ -55,6 +56,9 @@ struct ChargePointPage: View {
                     widgetGroup
                     signOutButton
                 }
+
+                // Always available — the diagnostics the phone needs to explain a ChargePoint failure.
+                diagnosticsGroup
             }
             .padding(.bottom, 20)
         }
@@ -139,7 +143,7 @@ struct ChargePointPage: View {
     // MARK: - Connection Status
 
     private var connectionStatus: CpConnectionStatus {
-        cpConnectionStatus(signedIn: cp.session.isSignedIn, hasAccount: !cp.session.email.isEmpty)
+        cpConnectionStatus(for: cp.session)
     }
 
     private var heroDetail: String {
@@ -486,6 +490,52 @@ struct ChargePointPage: View {
         }
         .padding(.horizontal, HearthMetrics.groupInset)
         .padding(.top, 8)
+    }
+
+    // MARK: - Diagnostics
+
+    private var diagnosticsInput: CpDiagnosticsInput {
+        let session = cp.session
+        let minutesLeft = session.token.isEmpty ? nil : CpToken.minutesLeft(token: session.token, now: Date())
+        let attempt = cp.lastFailure.map { failure in
+            CpDiagnosticsAttempt(at: failure.attemptedAt.formatted(date: .omitted, time: .shortened),
+                                 host: failure.host, status: failure.status,
+                                 reason: failure.presentation.reason)
+        }
+        let info = Bundle.main.infoDictionary
+        return CpDiagnosticsInput(
+            tokenPresent: !session.token.isEmpty,
+            userIDPresent: session.userId != 0,
+            expired: session.expired,
+            minutesLeft: minutesLeft,
+            lastAttempt: attempt,
+            appVersion: info?["CFBundleShortVersionString"] as? String ?? "—",
+            build: info?["CFBundleVersion"] as? String ?? "—"
+        )
+    }
+
+    @ViewBuilder
+    private var diagnosticsGroup: some View {
+        let text = cpDiagnosticsText(diagnosticsInput)
+        HearthGroup("Diagnostics") {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(text)
+                    .font(HearthFont.subtitle.font)
+                    .foregroundStyle(HearthColor.sub(scheme))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Button {
+                    UIPasteboard.general.string = text
+                } label: {
+                    Text("Copy diagnostics")
+                        .font(HearthFont.rowTitle.font)
+                        .foregroundStyle(HearthColor.ink(scheme))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, HearthMetrics.groupInset + 12)
+            .padding(.vertical, 8)
+        }
     }
 
     // MARK: - Edit Helpers

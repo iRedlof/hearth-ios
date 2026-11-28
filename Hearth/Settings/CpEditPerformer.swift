@@ -27,7 +27,10 @@ struct CpEditPerformer {
             catch is CancellationError { return }
             catch {
                 if editID == captured {
-                    editError = friendlyError(error)
+                    // Tell the truth about why: same reason mapping as a failed read. For the
+                    // Auto-waitlist toggle, the bound state is unchanged on failure, so the switch
+                    // returns to off while this reason is shown.
+                    editError = cpActionErrorText(error)
                 }
             }
         }

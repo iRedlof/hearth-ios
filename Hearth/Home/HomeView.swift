@@ -41,8 +41,8 @@ struct HomeView: View {
                 // First-run Get-started OR Sign-in banner
                 let ha = haConnectionStatus(config)
                 let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
-                let cpSession = try? CpSessionStore.context().session
-                let cpHasAccount = (cpSession?.userId ?? 0) != 0 || !(cpSession?.email ?? "").isEmpty
+                // Single source of truth: the stored session drives the Connections row and the tile.
+                let cpStatus = currentCpStatus()
 
                 if ha == .needsSignIn {
                     signInBanner()
@@ -62,7 +62,7 @@ struct HomeView: View {
                 // Connections section
                 ConnectionsSection(
                     ha: ha,
-                    cp: cpConnectionStatus(signedIn: cpSignedIn, hasAccount: cpHasAccount),
+                    cp: cpStatus,
                     onTap: onRoute
                 )
 
@@ -101,6 +101,12 @@ struct HomeView: View {
 
     // MARK: - Helpers
 
+    /// The one ChargePoint status all Home surfaces read, from the current stored session.
+    private func currentCpStatus() -> CpConnectionStatus {
+        guard let session = try? CpSessionStore.context().session else { return .notSetUp }
+        return cpConnectionStatus(for: session)
+    }
+
     private func builtItems() -> [HomeWidgetItem] {
         let kinds = configuredWidgets(config: config, chargePointSignedIn: cpSignedIn)
         var readings: [HomeWidgetKind: WidgetReading] = [:]
@@ -135,8 +141,10 @@ struct HomeView: View {
         }
 
         if let cp {
-            // CP snapshot uses `stale` for error state, no separate error field
-            let health = widgetHealth(stale: cp.stale, error: false, needsSettings: false, needsSignIn: false)
+            // CP snapshot uses `stale` for error state, no separate error field. The tile agrees with
+            // the Connections row and the widget by deriving needs-sign-in from the same status.
+            let needsSignIn = currentCpStatus() == .needsSignIn
+            let health = widgetHealth(stale: cp.stale, error: false, needsSettings: false, needsSignIn: needsSignIn)
             let stateLine = cp.stale ? "Stale data" : cp.bigAnswer
             readings[.chargePoint] = WidgetReading(health: health, stateLine: stateLine)
         }
@@ -200,6 +208,9 @@ struct HomeView: View {
         }
         if loadID == requestID {
             loading = false
+            // A background refresh may have set `expired`; keep the signed-in flag honest so the
+            // Connections row and the widget configuration match what the widget now shows.
+            cpSignedIn = (try? CpSessionStore.context().session.isSignedIn) == true
             // Snapshot widget health when signed out/expired for future comparison
             let currentState = authState(from: config)
             if currentState == .signedOut || currentState == .expired {
