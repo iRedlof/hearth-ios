@@ -14,10 +14,10 @@ final class CpOwnedActionStoreTests: XCTestCase {
     }
 
     private func observation(_ phase: String = "ACCEPT_PENDING", token: String = "private-offer",
-                             ids: [Int64] = [1, 2], allowance: Int? = nil) throws -> CpObservation {
+                             ids: [Int64] = [1, 2], allowance: Int? = nil, device: Int64 = 1) throws -> CpObservation {
         var state: [String: Any] = ["state": phase]
         if !["NOT_QUEUED", "WAITING", "UNKNOWN"].contains(phase) {
-            state.merge(["token": token, "deviceId": 1, "portNo": 2,
+            state.merge(["token": token, "deviceId": device, "portNo": 2,
                 "startTimeUTC": 999, "duration": 301]) { _, new in new }
         }
         let raw = String(decoding: try JSONSerialization.data(withJSONObject:
@@ -188,7 +188,9 @@ final class CpOwnedActionStoreTests: XCTestCase {
         let value = try store()
         let initial = try observed(value, observation())
         let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .accept, now: now))
-        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: observation(token: "new-offer"), now: now))
+        // A replacement offer is a different charger. (A new token alone is the same offer: ChargePoint
+        // re-issues the token on every status read.)
+        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: observation(token: "new-offer", device: 2), now: now))
         XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .mutation(.accept), now: now))
     }
 
@@ -332,13 +334,21 @@ final class CpOwnedActionStoreTests: XCTestCase {
         XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .mutation(.accept), now: now))
     }
 
-    func testForeignQueueCannotBecomeSelectedLocationAuthority() throws {
+    /// OWNERSHIP MODEL CHANGE (match Android): a waitlist entry whose stations are not in this
+    /// phone's saved location — e.g. joined from the Android app or ChargePoint's own app — is the
+    /// account's single live entry and stays fully actionable. Android never checks the saved
+    /// station set for Accept/Leave/Snooze (ChargePointRepository.cpDispatch). It used to be refused
+    /// and have its keys stripped, which is exactly the "Leave does nothing" symptom.
+    func testWaitlistJoinedElsewhereIsActionableLikeAndroid() throws {
         let value = try store(armed: false)
         let foreign = try observed(value, observation("WAITING", ids: [99]))
         let origin = try XCTUnwrap(foreign.renderedOrigin)
-        XCTAssertEqual(try value.claim(origin: origin, action: .leave, now: now), .rejected(.detailsChanged))
+        XCTAssertFalse(try foreign.displaySnapshot(now: now).keys.isEmpty)
+        // Only a person's own tap may act there. Auto-run stays inside the saved location.
         XCTAssertEqual(try value.claimAuto(origin: origin, desired: .resume, now: now), .rejected(.detailsChanged))
-        XCTAssertTrue(try foreign.displaySnapshot(now: now).keys.isEmpty)
+        XCTAssertEqual(try value.claim(origin: origin, action: .leave, cause: .autoStep, now: now), .rejected(.detailsChanged))
+        let again = try XCTUnwrap(try value.snapshot(now: now).renderedOrigin)
+        XCTAssertNotNil(try owner(value.claim(origin: again, action: .leave, now: now)))
     }
 
     func testUnknownPostFenceReadingDoesNotReconcileAdmittedMutation() throws {
@@ -450,11 +460,13 @@ final class CpOwnedActionStoreTests: XCTestCase {
         XCTAssertNil(try value.finishSignIn(owner: attempt, now: now))
     }
 
-    func testOperationDetailRequestsCannotFetchForeignTargetOrRenewCredentials() throws {
+    func testOperationDetailRequestsCannotFetchForeignSessionOrRenewCredentials() throws {
         let value = try store()
         let evidence = try observation(allowance: 1)
         let operation = try owner(value.claim(origin: XCTUnwrap(observed(value, evidence).renderedOrigin), action: .snooze, now: now))
-        XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .allowance("foreign"), now: now))
+        // The allowance read follows the token of the status read made a moment earlier, which
+        // ChargePoint re-issues on every read, so it is not tied to the claimed token.
+        XCTAssertNotNil(try value.requestCredential(authority: .operation(operation), purpose: .allowance("re-issued"), now: now))
         XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .charging(999), now: now))
         XCTAssertNil(try value.requestCredential(authority: .operation(operation), purpose: .renew, now: now))
         XCTAssertNotNil(try value.requestCredential(authority: .operation(operation), purpose: .allowance("private-offer"), now: now))
@@ -489,15 +501,35 @@ final class CpOwnedActionStoreTests: XCTestCase {
         _ = try value.commitOutcome(owner: operation, outcome: .uncertain, now: time)
         let same = try observed(value, evidence, at: time.addingTimeInterval(1))
         XCTAssertNil(try value.autoTick(origin: XCTUnwrap(same.renderedOrigin), now: time.addingTimeInterval(1)))
-        let replacement = try observed(value, observation(token: "B"), at: time.addingTimeInterval(2))
-        XCTAssertNotNil(try value.autoTick(origin: XCTUnwrap(replacement.renderedOrigin), now: time.addingTimeInterval(2)))
+        // ChargePoint re-issues the token on every read: the same charger with a new token is still
+        // the target that failed, so Auto must not try it again on every refresh.
+        let reissued = try observed(value, observation(token: "A-reissued"), at: time.addingTimeInterval(2))
+        XCTAssertNil(try value.autoTick(origin: XCTUnwrap(reissued.renderedOrigin), now: time.addingTimeInterval(2)))
+        let replacement = try observed(value, observation(token: "B", device: 2), at: time.addingTimeInterval(3))
+        XCTAssertNotNil(try value.autoTick(origin: XCTUnwrap(replacement.renderedOrigin), now: time.addingTimeInterval(3)))
+    }
+
+    /// A reason left by an earlier refusal must not use up the one read a later failure is shown for.
+    func testFailureAfterAnEarlierRefusalIsStillShownForOneRead() throws {
+        let value = try store()
+        let evidence = try observation()
+        var origin = try XCTUnwrap(observed(value, evidence).renderedOrigin)
+        try value.recordFeedback(origin: origin, feedback: .detailsChanged, now: now)
+        origin = try XCTUnwrap(observed(value, evidence, at: now.addingTimeInterval(1)).renderedOrigin)   // shown once
+        let operation = try owner(value.claim(origin: origin, action: .accept, now: now.addingTimeInterval(2)))
+        XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: now.addingTimeInterval(2)))
+        _ = try admitted(value, operation, .accept, at: now.addingTimeInterval(2))
+        _ = try value.commitOutcome(owner: operation, outcome: .refused("nope"), now: now.addingTimeInterval(3))
+        let shown = try observed(value, evidence, at: now.addingTimeInterval(4))
+        XCTAssertEqual(shown.ownershipFeedback, .unavailable)
+        XCTAssertNil(try observed(value, evidence, at: now.addingTimeInterval(5)).ownershipFeedback)
     }
 
     func testKnownReplacedOfferHidesOldCountdownAndGoToInstruction() throws {
         let value = try store()
         let initial = try observed(value, observation(token: "A"))
         let operation = try owner(value.claim(origin: XCTUnwrap(initial.renderedOrigin), action: .accept, now: now))
-        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: observation(token: "B"), now: now))
+        XCTAssertFalse(try value.validatePreflight(owner: operation, observation: observation(token: "B", device: 2), now: now))
         let display = try value.snapshot(now: now).displaySnapshot(now: now)
         XCTAssertNil(display.deadline)
         XCTAssertNil(display.goTo)
