@@ -1,5 +1,4 @@
 import SwiftUI
-import WidgetKit
 import HearthKit
 
 /// Per-widget settings page template: pencil-editable title, preview mat, status line, Uses/Safety/Shows/
@@ -20,12 +19,9 @@ struct WidgetPage: View {
     @State private var saveError: String?
     @State private var confirmWithBiometric: Bool
 
-    // Live snapshot state for real health/freshness
-    @State private var car: CarSnapshot?
-    @State private var alarm: AlarmSnapshot?
+    // The widget's own current data: drawn in the preview, and read for health/freshness
+    @StateObject private var preview = CardStylePreviewModel()
     @StateObject private var thermostat = ThermostatLiveModel()
-    @State private var cp: CpSnapshot?
-    @State private var loading = false
 
     @Environment(\.colorScheme) private var scheme
 
@@ -134,25 +130,19 @@ struct WidgetPage: View {
         .padding(.top, 20)
     }
 
+    /// The same live picture the Card style page draws: the person's own widget, in this widget's
+    /// own Card style (else All cards'). A picture only, so its keys do not act from here.
     private var previewMat: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Preview widget
-            HStack {
-                Spacer()
-                widget(for: kind.previewKind)
-                    // As on the home screen: in this widget's own Card style, else All cards'.
-                    .cardStyle(CardStyleStore.effectiveStyle(for: kind))
-                    .frame(width: previewWidth, height: previewHeight)
-                    .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    .redacted(reason: previewSource == .loading ? .placeholder : [])
-                    // A picture of the widget, not the widget: its keys must not act from here.
-                    .allowsHitTesting(false)
-                Spacer()
-            }
-            .padding(.vertical, 24)
-            .background(HearthColor.widgetPreviewBg(scheme))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        HStack {
+            Spacer(minLength: 0)
+            CardStylePreviewCard(kind: kind, data: liveData, thermostat: liveThermostat,
+                                 style: CardStyleStore.effectiveStyle(for: kind))
+                .redacted(reason: previewSource == .loading ? .placeholder : [])
+            Spacer(minLength: 0)
         }
+        .padding(.vertical, 24)
+        .background(HearthColor.widgetPreviewBg(scheme))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, HearthMetrics.pagePadding)
     }
 
@@ -529,48 +519,27 @@ struct WidgetPage: View {
     /// labelled example. A sample under "On your home screen" would read as their real state.
     private var previewSource: WidgetPreviewSource {
         switch kind {
-        case .alarm:
-            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: config?.isComplete == true,
-                                       hasLiveData: alarm != nil)
         case .thermostat:
+            // The Thermostat draws its saved reading; with none saved and none on its way, the sample.
             return widgetPreviewSource(isSetUp: isSetUp,
                                        supportsLive: thermostat.entry != nil || thermostat.checking,
                                        hasLiveData: thermostat.entry != nil)
-        case .chargePoint:
-            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: true, hasLiveData: cp != nil)
         default:
-            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: false, hasLiveData: false)
+            // Every other set-up widget loads its own data on this page (`loadSnapshot`).
+            return widgetPreviewSource(isSetUp: isSetUp, supportsLive: true, hasLiveData: loaded != nil)
         }
     }
 
-    private var liveAlarm: AlarmSnapshot? { previewSource == .live ? alarm : nil }
+    /// What this page has read for its widget.
+    private var loaded: CardStylePreviewData? { preview.data[kind] }
+    private var car: CarSnapshot? { loaded?.car }
+    private var alarm: AlarmSnapshot? { loaded?.alarm }
+    private var cp: CpSnapshot? { loaded?.chargePoint }
+
+    /// What the preview may draw as the person's own: nothing until the preview is live, so a
+    /// widget that is not set up draws the labelled sample.
+    private var liveData: CardStylePreviewData? { previewSource == .live ? loaded : nil }
     private var liveThermostat: ThermostatEntryPayload? { previewSource == .live ? thermostat.entry : nil }
-    private var liveCp: CpSnapshot? { previewSource == .live ? cp : nil }
-
-    @ViewBuilder
-    private func widget(for kind: WidgetPreviewKind) -> some View {
-        // NOTE: Duplicates WidgetGalleryView.widget(for:) — shared-helper extraction deferred (Phase 6 M1)
-        switch kind {
-        case .car:
-            CarWidgetPresentation(payload: CarReadingsEntryPayload(entryID: UUID(), date: .now,
-                snapshot: .sample, destination: .inert, primary: .battery(72)))
-        case .alarm:
-            AlarmBeaconView(liveAlarm ?? AlarmParityInputs.snapshot("disarmed"))
-        case .thermostat:
-            if let entry = liveThermostat {
-                ThermostatBeaconView(entry)
-            } else {
-                ThermostatBeaconView(.sample)
-            }
-        case .chargepoint: CpBeaconView(liveCp ?? .sample)
-        case .battery: BatteryView(.sample, layoutFamily: .systemMedium)
-        case .activity: ActivityView(.sample)
-        case .lights: LightTileView(.sample)
-        case .quick: QuickView(.sample)
-        case .favourites: FavouritesView(.sample)
-        case .doors: DoorsView(.sample)
-        }
-    }
 
     // MARK: - Helpers
 
@@ -699,15 +668,6 @@ struct WidgetPage: View {
         }
     }
 
-    private var previewWidth: CGFloat { 329 }
-
-    private var previewHeight: CGFloat {
-        switch kind.previewKind.family {
-        case .medium: 155
-        case .large: 345
-        }
-    }
-
     private func loadNames() async {
         guard let config, config.hasAuth, entityNames.isEmpty,
               let discovery = try? await runtime.discoverHa(
@@ -732,27 +692,14 @@ struct WidgetPage: View {
         onChange(next)
     }
 
+    /// Reads the widget's own current data, again whenever its settings change.
     private func loadSnapshot() async {
         guard isSetUp else { return }
-        loading = true
-        let now = Date()
-
-        switch kind {
-        case .car:
-            car = await CarLiveSnapshot.fetch(now: now)
-        case .alarm:
-            if let config, config.isComplete {
-                alarm = AlarmLiveSnapshot.currentFeedback(await AlarmLiveSnapshot.fetch(now: now))
-            }
-        case .thermostat:
+        if kind == .thermostat {
             thermostat.loadCache()
-        case .chargePoint:
-            cp = await CpLiveSnapshot.fetch(now: now)
-        default:
-            break
+        } else {
+            await preview.reload(kind, config: config)
         }
-
-        loading = false
     }
 
     private func encodeIds(_ ids: [String]) -> String {
