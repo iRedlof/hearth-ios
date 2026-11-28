@@ -39,7 +39,7 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 | Lights | 🔍 | 🔍 | 🔍 | not yet diffed |
 | Quick | 🔍 | 🔍 | 🔍 | not yet diffed |
 | Favourites | 🔍 | 🔍 | 🔍 | not yet diffed |
-| Doors | 🔍 | ✅ (garage in place) | 🔍 | not yet diffed |
+| Doors | — | — | — | removed on iOS (owner decision 2026-11-28); the garage is a row on the Alarm card |
 
 **Cross-cutting copy gap:** Android freshness stamp reads **"Last check"**; iOS reads **"Checked"** (all beacon widgets).
 
@@ -48,7 +48,7 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 |------|--------|
 | Entity rows show friendly names | ✅ parity |
 | ChargePoint section (account/location/name/auto/alerts/sign-out) | ✅ parity |
-| All pickers present (alarm/lock/confirm/climate/resume/sensors/lights/scripts/fav/doors) | 🔍 |
+| All pickers present (alarm/lock/garage/confirm/climate/resume/sensors/lights/scripts/fav/doors) | 🔍 |
 
 ## D. Auto-engine (ChargePoint)
 | Item | Status |
@@ -157,23 +157,32 @@ Side-by-side (iOS Simulator vs Android design renders): **`docs/parity-compariso
 
 **Status:** ✅ Shipped (Add-a-widget gallery, per-widget settings pages, Card style page)
 
-**10 widgets, one size each** (Car, Alarm, Thermostat, ChargePoint, Quick actions and Battery are
-medium; Doors, Lights, Favourites and Activity are large):
+**9 widgets, one size each** (Car, Alarm, Thermostat, ChargePoint, Quick actions and Battery are
+medium; Lights, Favourites and Activity are large):
 1. Car
-2. Alarm
+2. Alarm (front door + garage)
 3. Thermostat
-4. Doors
-5. Quick actions
-6. Lights
-7. Favourites
-8. Activity
-9. Battery
-10. ChargePoint
+4. Quick actions
+5. Lights
+6. Favourites
+7. Activity
+8. Battery
+9. ChargePoint
 
 **Removed (owner decision 2026-11-27):** the small sizes of Alarm, Thermostat and Car, and the
 small-only **Glance** summary widget. The Alarm readings screen, which only the small Alarm opened,
 went with them. Values saved for them are ignored: a Glance card style is dropped when read, and an
 old `hearth://alarm-readings/…` link opens nothing.
+
+**Removed (owner decision 2026-11-28):** the **Doors** widget, which duplicated the Alarm card's
+front door. The garage moved into the Alarm card as a second row under the front door: its state
+and one button (Open when closed, Close when open, Stop while moving, none when unavailable or
+last known). The button runs the same guarded door command the Doors card used
+(`DoorActionIntent` → `DoorActionRuntime` → `HaStateStore.beginDoorOperation` / `executeDoorAction`),
+one tap with no confirmation, as before. Settings → Home Assistant → Devices has a single
+**Garage door** picker (`HaConfig.garageId`); with nothing saved, the one `cover.*` in the old
+Doors selection is used (`garageSelectedID`). The **Doors** picker stays: Activity and the
+Goodnight key still read `doorIds`. A Doors card style saved earlier is dropped when read.
 
 **Surfaces built:**
 - **AddWidgetGallery** — Categorized widget picker with Added/Needs-HA/Needs-CP status chips
@@ -337,7 +346,7 @@ old `hearth://alarm-readings/…` link opens nothing.
 - **No-abort semantics:** A garage or lights failure still proceeds to lock + arm (see G3 ruling)
 - **Per-entity best-effort:** One flaky light/cover doesn't skip the rest (see G1 ruling)
 - Arm-mode is **Night with Home fallback** when the panel lacks Night capability (see G2 ruling)
-- Garage covers sourced from the **Doors widget config** (`haConfig.doorIds` filtered to `cover.*`)
+- Garage covers sourced from the **Doors selection** in Settings (`haConfig.doorIds` filtered to `cover.*`)
 - **No auto-run:** Only explicit intent invocation + window gate (no scheduled triggers)
 
 **Reachability:**
@@ -353,7 +362,7 @@ old `hearth://alarm-readings/…` link opens nothing.
 
 **Integration:**
 - Reuses `AlarmActionRuntime` for lock + arm (benefits from existing confirmation/safety behavior)
-- Garage close uses `HaClient.closeCover` (same path as Doors widget)
+- Garage close uses `HaClient.closeCover`
 - Lights off uses `HaClient.turnOffLights` with keep-on exclusion list
 
 **States implemented:**

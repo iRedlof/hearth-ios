@@ -44,18 +44,21 @@ keeps the widget's state colour and its own ink** (ChargePoint keeps its orange 
 | Black | `#000000` under Android's body glaze | light |
 
 Chips, the Disarm pill, setpoint colours, the locked/unlocked door colour and Sentry-on follow the
-body (light or dark), with Android's values.
+body (light or dark), with Android's values. The Alarm card's Garage row takes the body's fill,
+inks and text size exactly as the front-door row does (closed is the locked colour, open the
+unlocked one).
 
-**The other cards (Doors, Lights, Quick actions, Favourites, Activity, Batteries)** follow
+**The other cards (Lights, Quick actions, Favourites, Activity, Batteries)** follow
 Android's `cardLook`: Status is the card exactly as it was; a colour or black replaces the whole
 card's background with white inks (dark inks on Snow). On a chosen background a card that needs
-you shows it as an amber headline and a strip on the leading edge; a door open too long (Doors)
-keeps its own alert colours whatever the style.
+you shows it as an amber headline and a strip on the leading edge.
 
 **Text size** multiplies every text in the card (icons keep their size, as on Android). Collection
-cards (Doors, Activity, Batteries) feed the scale into their row planning, so rows still fit.
+cards (Activity, Batteries) feed the scale into their row planning, so rows still fit. The Alarm
+card's two door rows (front door + garage) lower their own text only as far as needed to fit the
+medium widget (`alarmDoorRowsLayout`).
 
-**Small print off** hides what Android hides: the "Checked …" stamp (Beacon cards, Doors, Lights,
+**Small print off** hides what Android hides: the "Checked …" stamp (Beacon cards, Lights,
 Favourites, Batteries), ChargePoint's context lines under the rail's answer, and Activity's
 "by …". Android also hides Quick's last-run line; the iOS Quick card does not show one.
 
@@ -90,7 +93,7 @@ saves at once and reloads the widgets.
 | The page | `Hearth/Widgets/CardStylePage.swift`, `CardStyleControls.swift`, `CardStylePreview.swift` |
 
 Styles saved by the first iOS port still load: its `byState` background decodes as Status. An own
-style saved for the removed Glance widget is dropped when the stored styles are read
+style saved for a removed widget (Glance, Doors) is dropped when the stored styles are read
 (`cardStyleOverrides(fromStored:)`).
 
 ## Checking a style without an account (DEBUG builds)
