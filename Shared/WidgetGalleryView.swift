@@ -154,7 +154,7 @@ struct WidgetGalleryView: View {
         case .alarm: AlarmBeaconView(AlarmParityInputs.snapshot("disarmed"))
         case .thermostat: ThermostatBeaconView(.sample)
         case .chargepoint: CpBeaconView(.sample)
-        case .battery: BatteryView(.sample, layoutFamily: kind.widgetKitFamily)
+        case .battery: BatteriesPanelView(.sample)
         case .activity: ActivityPanelView(.sample)
         case .lights: LightsPanelView(.sample)
         case .quick: QuickPanelView(.sample)

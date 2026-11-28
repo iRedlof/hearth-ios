@@ -56,8 +56,8 @@ struct BatteryProvider: TimelineProvider {
 struct BatteryWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.battery", provider: BatteryProvider()) { entry in
-            CardStyledContent(kind: .battery, statusARGB: entry.snap.summary.tone.fillARGB) {
-                ParityWidgetContent(prefix: "battery") { BatteryView(entry.snap) }
+            CardStyledContent(beacon: .battery) {
+                ParityWidgetContent(prefix: "battery") { BatteriesPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Batteries")

@@ -121,9 +121,9 @@ struct ParityWidgetSelection: Sendable {
                 payload: CarParityInputs.productionPayload("mixed_open",
                     destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)))))
         ]
-        return alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + activity() + collections() + readable + nativeReadable + productionCar + disclosureCar
+        return alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + activity() + batteries() + readable + nativeReadable + productionCar + disclosureCar
         #else
-        alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + activity() + collections()
+        alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + activity() + batteries()
         #endif
     }
 
@@ -150,9 +150,10 @@ struct ParityWidgetSelection: Sendable {
         }
     }
 
-    private static func collections() -> [(String, AnyView)] {
+    // MARK: Batteries
+    private static func batteries() -> [(String, AnyView)] {
         CollectionParityInputs.batteryStates.map {
-            ("battery-" + $0, AnyView(BatteryView(CollectionParityInputs.batteries($0))))
+            ("battery-" + $0, AnyView(BatteriesPanelView(CollectionParityInputs.batteries($0))))
         }
     }
     // MARK: Alarm

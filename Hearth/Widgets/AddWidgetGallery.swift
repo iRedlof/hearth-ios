@@ -137,7 +137,7 @@ struct AddWidgetGallery: View {
             CpBeaconView(.sample)
                 .widgetThumbnail()
         case .battery:
-            BatteryView(.sample, layoutFamily: .systemMedium)
+            BatteriesPanelView(.sample)
                 .widgetThumbnail()
         case .activity:
             ActivityPanelView(.sample)

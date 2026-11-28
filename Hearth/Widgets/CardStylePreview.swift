@@ -99,7 +99,7 @@ struct CardStylePreviewCard: View {
         case .alarm: AlarmBeaconView(data?.alarm ?? AlarmParityInputs.snapshot("disarmed"))
         case .thermostat: thermostatWidget
         case .chargePoint: CpBeaconView(data?.chargePoint ?? .sample)
-        case .battery: BatteryView(data?.battery ?? .sample, layoutFamily: .systemMedium)
+        case .battery: BatteriesPanelView(data?.battery ?? .sample)
         case .activity: ActivityPanelView(data?.activity ?? .sample)
         case .lights: LightsPanelView(data?.lights ?? .sample)
         case .quick: QuickPanelView(data?.quick ?? .sample)
