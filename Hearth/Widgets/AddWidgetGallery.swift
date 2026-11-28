@@ -149,7 +149,7 @@ struct AddWidgetGallery: View {
             QuickPanelView(.sample)
                 .widgetThumbnail()
         case .favourites:
-            FavouritesView(.sample)
+            FavouritesPanelView(.sample)
                 .widgetThumbnail()
         }
     }

@@ -121,9 +121,9 @@ struct ParityWidgetSelection: Sendable {
                 payload: CarParityInputs.productionPayload("mixed_open",
                     destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)))))
         ]
-        return alarm() + thermostat() + car() + chargePoint() + lights() + quick() + tiles() + collections() + readable + nativeReadable + productionCar + disclosureCar
+        return alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + collections() + readable + nativeReadable + productionCar + disclosureCar
         #else
-        alarm() + thermostat() + car() + chargePoint() + lights() + quick() + tiles() + collections()
+        alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + collections()
         #endif
     }
 
@@ -137,9 +137,10 @@ struct ParityWidgetSelection: Sendable {
         TileParityInputs.quickStates.map { ("quick-" + $0, AnyView(QuickPanelView(TileParityInputs.quick($0)))) }
     }
 
-    private static func tiles() -> [(String, AnyView)] {
-        TileParityInputs.states.map {
-            ("favourites-" + $0, AnyView(FavouritesView(TileParityInputs.favourites($0))))
+    // MARK: Favourites
+    private static func favourites() -> [(String, AnyView)] {
+        TileParityInputs.favouriteStates.map {
+            ("favourites-" + $0, AnyView(FavouritesPanelView(TileParityInputs.favourites($0))))
         }
     }
     private static func collections() -> [(String, AnyView)] {

@@ -220,8 +220,8 @@ struct FavouritesProvider: TimelineProvider {
 struct FavouritesWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.favourites", provider: FavouritesProvider()) { entry in
-            CardStyledContent(kind: .favourites, statusARGB: BeaconSurfaceColors.graphiteARGB) {
-                ParityWidgetContent(prefix: "favourites") { FavouritesView(entry.snap) }
+            CardStyledContent(beacon: .favourites) {
+                ParityWidgetContent(prefix: "favourites") { FavouritesPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Favourites")

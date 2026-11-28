@@ -3,8 +3,6 @@ import HearthKit
 
 /// Explicit raw replies feed the same mappers as the live providers. The catalog blocks all input.
 enum TileParityInputs {
-    static let states = ["setup", "loading", "empty", "ready", "unavailable", "failed", "overflow",
-                         "long_names", "pinned_overflow", "pins_only", "one_pin", "overflow_error"]
     private static let now = Date(timeIntervalSince1970: 1_793_379_600)
     private static let base = HaConfig(baseUrl: "https://example.com", token: "inert", entityId: "")
 
@@ -23,16 +21,23 @@ enum TileParityInputs {
         return String(data: try! JSONSerialization.data(withJSONObject: object), encoding: .utf8)!
     }
 
+    /// Favourites fixtures: two of four on (warm), all off (calm), twelve ("+8 more"), long names,
+    /// not set up, and unreachable with every favourite kept as Unavailable.
+    static let favouriteStates = ["ready", "off", "overflow", "long_names", "setup", "failed"]
+    private static let favouriteNames = ["Coffee maker", "Bedroom fan", "Corner lamp", "Guest mode"]
+    private static let longFavouriteName = "Upstairs primary bedroom reading lamp"
+    private static let overflowFavouriteCount = 12
+
     static func favourites(_ state: String) -> FavSnapshot {
-        if state == "loading" { return .loading }
+        precondition(favouriteStates.contains(state))
         var config = base
-        let count = state == "overflow" || state == "overflow_error" ? 12 : 4
-        let ids = (1...count).map { "switch.fixture_\($0)" }
-        config.favouriteIdsJson = state == "empty" ? "[]" : String(data: try! JSONEncoder().encode(ids), encoding: .utf8)!
+        let ids = fixtureIDs(domain: "switch", names: favouriteNames,
+                             count: state == "overflow" ? overflowFavouriteCount : favouriteNames.count)
+        config.favouriteIdsJson = String(data: try! JSONEncoder().encode(ids), encoding: .utf8)!
         let replies = Dictionary(uniqueKeysWithValues: ids.enumerated().map { index, id in
-            (id, state == "failed" || state == "overflow_error" && index == 0 ? Result<String, HaError>.failure(HaError("Can't reach Home Assistant")) :
-                .success(raw(id, name: state == "long_names" ? "Upstairs primary bedroom reading lamp" : ["Coffee maker", "Bedroom fan", "Corner lamp", "Guest mode"][index % 4],
-                             state: state == "unavailable" && index == 1 ? "unavailable" : index % 2 == 0 ? "on" : "off")))
+            (id, state == "failed" ? Result<String, HaError>.failure(HaError(unreachable)) :
+                .success(raw(id, name: state == "long_names" ? longFavouriteName : favouriteNames[index % favouriteNames.count],
+                             state: state != "off" && [0, 2].contains(index) ? "on" : "off")))
         })
         return mapFavouritesSnapshot(state == "setup" ? nil : config, replies: replies, now: now)
     }

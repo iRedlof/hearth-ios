@@ -106,7 +106,7 @@ struct CardStylePreviewCard: View {
         case .activity: ActivityView(data?.activity ?? .sample)
         case .lights: LightsPanelView(data?.lights ?? .sample)
         case .quick: QuickPanelView(data?.quick ?? .sample)
-        case .favourites: FavouritesView(data?.favourites ?? .sample)
+        case .favourites: FavouritesPanelView(data?.favourites ?? .sample)
         }
     }
 
