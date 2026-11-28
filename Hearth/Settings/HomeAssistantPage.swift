@@ -367,7 +367,7 @@ struct HomeAssistantPage: View {
                     doorsOnly: true,
                     runtime: runtime
                 ) { ids in
-                    try apply { $0.doorIdsJson = encodeIds(ids); $0.doorsChosen = true }
+                    try apply { $0 = settingDoorSelection($0, doorIdsJson: encodeIds(ids)) }
                 }
             } label: {
                 HearthRow(

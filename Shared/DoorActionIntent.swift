@@ -39,6 +39,10 @@ enum DoorActionRuntime {
                         replacingOperation: String = "") async throws {
         guard !scope.isEmpty, !revision.isEmpty, !entityID.isEmpty,
               let store = HaConfigStore.store else { return }
+        // The Alarm card's garage is the only door a widget shows a control for. The store's own
+        // selection, revision and pending checks still follow; a selection change between this
+        // read and theirs rotates the revision this tap carries.
+        guard garageCommandTarget(HaConfigStore.context()?.config, entityID: entityID) else { return }
         _ = try store.expireDoorOperation()
         guard let started = try store.beginDoorOperation(expectedScope: scope, expectedRevision: revision,
                 entityID: entityID, action: action,
@@ -49,7 +53,7 @@ enum DoorActionRuntime {
         let isCurrent: @Sendable () -> Bool = {
             guard let current = HaConfigStore.context(), current.scope == scope,
                   current.doorActionRevision == operation.actionRevision, haSameConnection(current.config, config),
-                  current.config.map({ doorsSelectedIDs($0).contains(entityID) }) == true,
+                  garageCommandTarget(current.config, entityID: entityID),
                   let active = current.doorOperation, active.id == operation.id, active.pending else { return false }
             let age = Date().timeIntervalSince(active.startedAt)
             return age >= 0 && age <= 90

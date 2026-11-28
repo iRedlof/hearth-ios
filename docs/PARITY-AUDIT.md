@@ -179,10 +179,13 @@ front door. The garage moved into the Alarm card as a second row under the front
 and one button (Open when closed, Close when open, Stop while moving, none when unavailable or
 last known). The button runs the same guarded door command the Doors card used
 (`DoorActionIntent` → `DoorActionRuntime` → `HaStateStore.beginDoorOperation` / `executeDoorAction`),
-one tap with no confirmation, as before. Settings → Home Assistant → Devices has a single
-**Garage door** picker (`HaConfig.garageId`); with nothing saved, the one `cover.*` in the old
-Doors selection is used (`garageSelectedID`). The **Doors** picker stays: Activity and the
-Goodnight key still read `doorIds`. A Doors card style saved earlier is dropped when read.
+one tap with no confirmation, as before, and now only for the garage selected at that moment
+(`garageCommandTarget`). Settings → Home Assistant → Devices has a single **Garage door** picker
+(`HaConfig.garageId`); with nothing saved, the one `cover.*` in the old Doors selection is used
+(`garageSelectedID`), and editing Doors saves that garage first (`settingDoorSelection`) so the
+edit cannot add or remove the Alarm card's row. The **Doors** picker stays: Activity and the
+Goodnight key still read `doorIds`, not the new garage setting. A Doors card style saved earlier
+is dropped when read.
 
 **Surfaces built:**
 - **AddWidgetGallery** — Categorized widget picker with Added/Needs-HA/Needs-CP status chips

@@ -91,6 +91,41 @@ struct GarageSelectionTests {
         #expect(!haCollectionSelectionChanged(before, renamed))
     }
 
+    @Test("A widget door command is accepted only for the garage selected right now")
+    func onlyTheSelectedGarageIsACommandTarget() {
+        let config = HaConfig(baseUrl: "https://home.example", token: "t", entityId: "", lockId: "lock.front",
+                              doorIdsJson: #"["cover.gate","lock.front"]"#, doorsChosen: true, garageId: "cover.garage")
+        #expect(garageCommandTarget(config, entityID: "cover.garage"))
+        #expect(!garageCommandTarget(config, entityID: "cover.gate"))
+        #expect(!garageCommandTarget(config, entityID: "lock.front"))
+        #expect(!garageCommandTarget(config, entityID: ""))
+        #expect(!garageCommandTarget(nil, entityID: "cover.garage"))
+        var none = config; none.garageId = ""
+        #expect(!garageCommandTarget(none, entityID: "cover.garage"))
+    }
+
+    @Test("Editing Doors saves the garage first, so it cannot add or remove the Alarm card's garage row")
+    func doorsEditPinsTheGarage() throws {
+        let migrated = try decodeSaved(doors: #"["lock.front","cover.garage"]"#)
+        let added = settingDoorSelection(migrated, doorIdsJson: #"["lock.front","cover.garage","cover.gate"]"#)
+        #expect(added.garageId == "cover.garage")
+        #expect(garageSelectedID(added) == "cover.garage")
+        #expect(added.doorIds == ["lock.front", "cover.garage", "cover.gate"])
+        #expect(added.doorsChosen)
+        let removed = settingDoorSelection(migrated, doorIdsJson: #"["lock.front"]"#)
+        #expect(garageSelectedID(removed) == "cover.garage")
+
+        let ambiguous = try decodeSaved(doors: #"["cover.garage","cover.gate"]"#)
+        let narrowed = settingDoorSelection(ambiguous, doorIdsJson: #"["cover.gate"]"#)
+        #expect(narrowed.garageId == "")
+        #expect(garageSelectedID(narrowed) == nil)
+
+        let chosen = try decodeSaved(doors: #"["cover.gate"]"#, garage: "cover.garage")
+        #expect(settingDoorSelection(chosen, doorIdsJson: "[]").garageId == "cover.garage")
+        let none = try decodeSaved(doors: "[]", garage: "")
+        #expect(settingDoorSelection(none, doorIdsJson: #"["cover.gate"]"#).garageId == "")
+    }
+
     @Test("The garage picker offers garage and gate covers only, by name")
     func pickerOffersGaragesOnly() {
         let states = #"[{"entity_id":"cover.side","state":"closed","attributes":{"device_class":"gate","friendly_name":"Side Gate"}},"#

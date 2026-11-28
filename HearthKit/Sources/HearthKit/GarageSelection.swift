@@ -10,6 +10,23 @@ public func garageSelectedID(_ config: HaConfig) -> String? {
     return covers.count == 1 ? covers.first : nil
 }
 
+/// The Alarm card's garage button is the only door control a widget renders, so a widget door
+/// command is accepted only for the garage selected right now, not for every door in `doorIds`.
+public func garageCommandTarget(_ config: HaConfig?, entityID: String) -> Bool {
+    !entityID.isEmpty && config.flatMap(garageSelectedID) == entityID
+}
+
+/// `config` with a new Doors selection. The garage in effect before the edit is saved first (None
+/// when there was none), so editing Doors can never add or remove the Alarm card's garage row and
+/// its one-tap Open button.
+public func settingDoorSelection(_ config: HaConfig, doorIdsJson: String) -> HaConfig {
+    var edited = config
+    edited.garageId = config.garageId ?? garageSelectedID(config) ?? ""
+    edited.doorIdsJson = doorIdsJson
+    edited.doorsChosen = true
+    return edited
+}
+
 /// Covers that can be the garage: `device_class` garage or gate, the eligibility the reader and
 /// the command path apply. Sorted by name for the Settings picker. Like `parseEntities`, a body
 /// that is not a state list (an HA error, an HTML 502) offers nothing.
