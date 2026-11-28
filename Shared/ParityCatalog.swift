@@ -154,6 +154,10 @@ struct ParityWidgetSelection: Sendable {
         } + ThermostatParityInputs.readableStates.map {
             ("thermostat-small-production-" + $0,
              AnyView(ThermostatBeaconView(ThermostatParityInputs.payload($0), family: .systemSmall)))
+        } + ThermostatParityInputs.pickerStates.map {
+            ("thermostat-" + $0, AnyView(ThermostatBeaconView(
+                ThermostatParityInputs.snapshot(ThermostatParityInputs.pickerBaseState),
+                inlineChoices: ThermostatParityInputs.inlineChoices($0))))
         }
     }
 

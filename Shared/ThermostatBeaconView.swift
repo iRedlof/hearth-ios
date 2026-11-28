@@ -12,22 +12,32 @@ public struct ThermostatBeaconView: View {
     private let payload: ThermostatEntryPayload?
     private let family: WidgetFamily
     private let style: CardStyle
+    /// The opened Mode/Fan choices for this exact entry; nil draws the ordinary Mode / Fan / Resume row.
+    private let inlineChoices: ThermostatInlineChoices?
+    /// Only the Home Screen widget opens choices in its own row; in-app hosts keep the in-app picker.
+    private let inlinePicker: Bool
     @Environment(\.dynamicTypeSize) private var dynamicType
     @Environment(\.colorScheme) private var scheme
 
     public init(_ snap: ThermostatSnapshot, family: WidgetFamily = .systemMedium,
-                style: CardStyle = .default) {
+                style: CardStyle = .default, inlineChoices: ThermostatInlineChoices? = nil,
+                inlinePicker: Bool = false) {
         self.snap = snap
         self.payload = nil
         self.family = family
         self.style = style
+        self.inlineChoices = inlineChoices
+        self.inlinePicker = inlinePicker
     }
     public init(_ payload: ThermostatEntryPayload, family: WidgetFamily = .systemMedium,
-                style: CardStyle = .default) {
+                style: CardStyle = .default, inlineChoices: ThermostatInlineChoices? = nil,
+                inlinePicker: Bool = false) {
         self.snap = payload.snapshot
         self.payload = payload
         self.family = family
         self.style = style
+        self.inlineChoices = inlineChoices
+        self.inlinePicker = inlinePicker
     }
 
     private var fill: Color {
@@ -159,23 +169,21 @@ public struct ThermostatBeaconView: View {
         }
     }
 
-    /// The Mode / Fan / Resume chip row (shared by the normal and off layouts).
-    private var controlRow: some View {
-        HStack(spacing: 6) {
+    /// The Mode / Fan / Resume chip row (shared by the normal and off layouts), or the opened choices.
+    @ViewBuilder private var controlRow: some View {
+        if let inlineChoices { choiceRow(inlineChoices) } else { ordinaryControlRow }
+    }
+
+    private var ordinaryControlRow: some View {
+        HStack(spacing: ControlChip.spacing) {
             if snap.canPickMode {
-                Button(intent: ClimatePickerIntent("mode", entityID: snap.entityID, scope: snap.requestScope,
-                    revision: snap.climateRevision, selectionRevision: selectionRevision, expectedMode: observedMode)) {
-                    chip("Mode", snap.mode, enabled: true)
-                }.buttonStyle(.plain)
+                pickerButton("mode", label: "Mode", value: snap.mode)
             } else {
                 chip("Mode", snap.mode, enabled: snap.canPickMode)
             }
             if snap.hasFanControl {
                 if snap.canPickFan {
-                    Button(intent: ClimatePickerIntent("fan", entityID: snap.entityID, scope: snap.requestScope,
-                        revision: snap.climateRevision, selectionRevision: selectionRevision, expectedMode: observedMode)) {
-                        chip("Fan", snap.fan ?? "—", enabled: true)
-                    }.buttonStyle(.plain)
+                    pickerButton("fan", label: "Fan", value: snap.fan ?? "—")
                 } else {
                     chip("Fan", snap.fan ?? "—", enabled: false)
                 }
@@ -192,6 +200,48 @@ public struct ThermostatBeaconView: View {
                 }
             }
         }
+    }
+
+    /// Mode/Fan: the widget swaps this row for the choices; elsewhere the choices open in the app.
+    @ViewBuilder private func pickerButton(_ kind: String, label: String, value: String) -> some View {
+        if inlinePicker {
+            Button(intent: ClimateInlinePickerIntent(kind, entityID: snap.entityID, scope: snap.requestScope,
+                revision: snap.climateRevision, selectionRevision: selectionRevision, expectedMode: observedMode)) {
+                chip(label, value, enabled: true)
+            }.buttonStyle(.plain)
+        } else {
+            Button(intent: ClimatePickerIntent(kind, entityID: snap.entityID, scope: snap.requestScope,
+                revision: snap.climateRevision, selectionRevision: selectionRevision, expectedMode: observedMode)) {
+                chip(label, value, enabled: true)
+            }.buttonStyle(.plain)
+        }
+    }
+
+    /// One equal-width chip per option; the option in effect wears the card's tone and closes the row.
+    private func choiceRow(_ choices: ThermostatInlineChoices) -> some View {
+        HStack(spacing: ControlChip.spacing) {
+            ForEach(choices.options) { option in
+                Button(intent: ClimateInlineChoiceIntent(choices.kind, option: option.value,
+                    entityID: snap.entityID, scope: snap.requestScope, revision: snap.climateRevision,
+                    selectionRevision: selectionRevision)) {
+                    choiceChip(option, kind: choices.kind)
+                }.buttonStyle(.plain)
+            }
+        }
+        .accessibilityIdentifier("thermostat.inline-\(choices.kind)-choices")
+    }
+
+    private func choiceChip(_ option: ThermostatInlineOption, kind: String) -> some View {
+        Text(option.label).font(HearthFont.footnote.font.weight(.semibold))
+            .foregroundStyle(option.isCurrent ? ink : surfaceInk)
+            .lineLimit(1).minimumScaleFactor(ControlChip.choiceScale)
+            .padding(.horizontal, ControlChip.choiceInset)
+            .frame(maxWidth: .infinity).frame(height: ControlChip.height)
+            .background(option.isCurrent ? fill : Color.white.opacity(ControlChip.enabledFill),
+                        in: RoundedRectangle(cornerRadius: ControlChip.radius))
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(thermostatInlineAccessibilityLabel(kind: kind, option: option))
+            .accessibilityAddTraits(option.isCurrent ? .isSelected : [])
     }
 
     /// Setup middle CTA — a large recessed "Set up thermostat" button filling the mid-region (Android parity).
@@ -253,11 +303,24 @@ public struct ThermostatBeaconView: View {
                 .foregroundStyle(surfaceInk.opacity(enabled ? 1 : 0.82))
                 .lineLimit(1).minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity).frame(height: 34)
-        .background(Color.white.opacity(enabled ? 0.1 : 0.06), in: RoundedRectangle(cornerRadius: 9))
+        .frame(maxWidth: .infinity).frame(height: ControlChip.height)
+        .background(Color.white.opacity(enabled ? ControlChip.enabledFill : ControlChip.disabledFill),
+                    in: RoundedRectangle(cornerRadius: ControlChip.radius))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(label.map { $0 + ", " } ?? "")\(value)\(enabled ? "" : ", control unavailable")")
     }
+}
+
+/// The shared geometry of the bottom-row chips (Mode / Fan / Resume and the opened choices).
+private enum ControlChip {
+    static let spacing: CGFloat = 6
+    static let height: CGFloat = 34
+    static let radius: CGFloat = 9
+    static let enabledFill = 0.1
+    static let disabledFill = 0.06
+    /// Up to seven modes share the row on one line, so their names may shrink further than a value chip's.
+    static let choiceScale: CGFloat = 0.6
+    static let choiceInset: CGFloat = 3
 }
 
 /// A Small production card, with a single entry-bound link and no mutation or refresh intent.

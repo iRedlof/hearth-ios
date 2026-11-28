@@ -22,6 +22,24 @@ enum ThermostatParityInputs {
         "shared_store_failed", "save_failed", "selection_changed", "auth_retained"
     ]
 
+    /// The opened Mode/Fan row drawn over the "auto" card: `thermostat-picker_mode`, `thermostat-picker_fan`.
+    static let pickerStates = ["picker_mode", "picker_fan"]
+    static let pickerBaseState = "auto"
+    private static let pickerScope = "inert-example"
+    private static let pickerRevision = "inert-revision"
+    private static let pickerSelectionRevision = "00000000-0000-0000-0000-000000000001"
+
+    /// Production decisions over the inert reply: no record is stored and no chip can reach a thermostat.
+    static func inlineChoices(_ state: String) -> ThermostatInlineChoices? {
+        guard pickerStates.contains(state),
+              let climate = ClimateState.fromJson(reading(entityID, raw: reply(pickerBaseState)).json) else { return nil }
+        let record = thermostatInlinePicker(state: climate, kind: state == "picker_fan" ? "fan" : "mode",
+            entityID: entityID, scope: pickerScope, revision: pickerRevision,
+            selectionRevision: pickerSelectionRevision, expectedMode: climate.mode, now: now)
+        return thermostatInlineChoices(record: record, now: now, entityID: entityID, scope: pickerScope,
+            revision: pickerRevision, selectionRevision: pickerSelectionRevision)
+    }
+
     /// Uses the real typed mapper, with no durable origin, saved ticket, or executable actions.
     static func payload(_ state: String) -> ThermostatEntryPayload {
         var readings: [String: HaStateReading] = [:]

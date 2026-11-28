@@ -20,7 +20,7 @@ public func thermostatSnapshot(_ s: ClimateState?, name: String, now: Date, stal
         tone: beaconClimatePair(s?.mode, stale: historical),
         heatSetpoint: heat,
         coolSetpoint: cool,
-        mode: s.map { modeDisplay($0.mode) } ?? "—",
+        mode: s.map { climateModeDisplay($0.mode) } ?? "—",
         fan: s?.fanMode?.capitalizedFirst,
         canResume: canResume && !historical && s?.isAvailable == true,
         sensors: sensors)
@@ -46,7 +46,8 @@ private func setpoints(_ s: ClimateState?) -> (heat: String?, cool: String?) {
     return (nil, nil)
 }
 
-private func modeDisplay(_ mode: String) -> String {
+/// The plain mode names the card shows ("heat_cool" reads "Auto"); shared with the inline choice chips.
+func climateModeDisplay(_ mode: String) -> String {
     if let m = CLIMATE_MODES.first(where: { $0.mode == mode }) { return m.name }
     switch mode {
     case "auto": return "Auto"

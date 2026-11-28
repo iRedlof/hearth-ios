@@ -496,8 +496,15 @@ struct ThermostatEntry: TimelineEntry {
     let date: Date
     let snap: ThermostatSnapshot
     let payload: ThermostatEntryPayload?
-    init(date: Date, snap: ThermostatSnapshot) { self.date = date; self.snap = snap; payload = nil }
-    init(payload: ThermostatEntryPayload) { date = payload.date; snap = payload.snapshot; self.payload = payload }
+    /// The opened Mode/Fan choices, only while their record belongs to this entry and has not expired.
+    let inlineChoices: ThermostatInlineChoices?
+    init(date: Date, snap: ThermostatSnapshot) {
+        self.date = date; self.snap = snap; payload = nil; inlineChoices = nil
+    }
+    init(payload: ThermostatEntryPayload, date: Date? = nil, inlineChoices: ThermostatInlineChoices? = nil) {
+        self.date = date ?? payload.date; snap = payload.snapshot; self.payload = payload
+        self.inlineChoices = inlineChoices
+    }
 }
 
 struct ThermostatProvider: TimelineProvider {
@@ -511,8 +518,17 @@ struct ThermostatProvider: TimelineProvider {
         nonisolated(unsafe) let completion = completion
         Task {
             let entry = await Self.fetch()
-            completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(15 * 60))))
+            completion(Timeline(entries: Self.entries(from: entry),
+                                policy: .after(Date().addingTimeInterval(15 * 60))))
         }
+    }
+    /// An opened Mode/Fan row is followed by the same reading with the row closed at the record's expiry,
+    /// so the widget collapses by itself without another reload.
+    private static func entries(from entry: ThermostatEntry, now: Date = .now) -> [ThermostatEntry] {
+        guard let payload = entry.payload,
+              let choices = ThermostatInlinePickerStore.choices(for: payload.snapshot, now: now) else { return [entry] }
+        return [ThermostatEntry(payload: payload, inlineChoices: choices),
+                ThermostatEntry(payload: payload, date: choices.expiresAt)]
     }
     private static func fetch() async -> ThermostatEntry {
         #if DEBUG
@@ -550,8 +566,10 @@ private struct ThermostatWidgetEntryView: View {
     }
     // Kept out of `body` so neither expression exceeds the type-checker's complexity budget.
     @ViewBuilder private var beacon: some View {
-        if let payload = entry.payload { ThermostatBeaconView(payload, family: family, style: style) }
-        else { ThermostatBeaconView(entry.snap, family: family, style: style) }
+        if let payload = entry.payload {
+            ThermostatBeaconView(payload, family: family, style: style,
+                                 inlineChoices: entry.inlineChoices, inlinePicker: true)
+        } else { ThermostatBeaconView(entry.snap, family: family, style: style, inlinePicker: true) }
     }
 }
 
