@@ -6,6 +6,8 @@ import HearthKit
 struct ParityWidgetSelection: Sendable {
     let id: String
     let run: String
+    /// The Card style the fixture draws in (`-parityCardStyle`); nil: the default style.
+    let cardStyle: CardStyle?
 }
 #endif
 
@@ -24,7 +26,18 @@ struct ParityWidgetSelection: Sendable {
         guard let selection = fixtureStore.dictionary(forKey: "parityWidgetSelection"),
               let id = selection["id"] as? String, let run = selection["run"] as? String,
               id.hasPrefix(prefix + "-") else { return nil }
-        return ParityWidgetSelection(id: id, run: run)
+        let style = (selection["cardStyle"] as? String).flatMap(parityCardStyle)
+        return ParityWidgetSelection(id: id, run: run, cardStyle: style)
+    }
+    /// `-parityCardStyle <value>`: the Card style `-parityState` fixtures draw in, so every style can
+    /// be checked without a real account. Syntax: `parityCardStyle(_:)` in HearthKit.
+    nonisolated static func launchCardStyleArgument() -> String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let index = arguments.firstIndex(of: "-parityCardStyle"), index + 1 < arguments.count else { return nil }
+        return arguments[index + 1]
+    }
+    nonisolated static func launchCardStyle() -> CardStyle? {
+        launchCardStyleArgument().flatMap(parityCardStyle)
     }
     nonisolated static func activeWidgetID(prefix: String) -> String? {
         widgetSelection(prefix: prefix)?.id
@@ -49,7 +62,8 @@ struct ParityWidgetSelection: Sendable {
         } else {
             run = ""
         }
-        fixtureStore.set(["id": id, "run": run], forKey: "parityWidgetSelection")
+        fixtureStore.set(["id": id, "run": run, "cardStyle": launchCardStyleArgument() ?? ""],
+                         forKey: "parityWidgetSelection")
         fixtureStore.synchronize()
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.\(prefix)")
     }
@@ -231,7 +245,8 @@ struct ParityWidgetContent<Content: View>: View {
             GeometryReader { geometry in
                 let _ = ParityCatalog.recordWidgetFrame(selection, size: geometry.size, dynamicType: dynamicType,
                     sizeCategory: sizeCategory, family: family, bodyPoints: bodyPoints)
-                fixture.allowsHitTesting(false).accessibilityIdentifier("parity-\(selection.id)")
+                fixture.cardStyle(selection.cardStyle ?? .default)
+                    .allowsHitTesting(false).accessibilityIdentifier("parity-\(selection.id)")
             }
         } else { content() }
         #else
@@ -259,6 +274,9 @@ struct ParityStateScreen: View {
                 .frame(width: width, height: height)
                 .allowsHitTesting(false)
                 .clipped()
+                #if DEBUG
+                .cardStyle(ParityCatalog.launchCardStyle() ?? .default)
+                #endif
                 .padding(.leading, 16).padding(.top, 70)
         }
         .preferredColorScheme(.dark)
