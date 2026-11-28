@@ -343,8 +343,12 @@ final class CpOwnedActionStoreTests: XCTestCase {
         let value = try store(armed: false)
         let foreign = try observed(value, observation("WAITING", ids: [99]))
         let origin = try XCTUnwrap(foreign.renderedOrigin)
-        XCTAssertNotNil(try owner(value.claim(origin: origin, action: .leave, now: now)))
         XCTAssertFalse(try foreign.displaySnapshot(now: now).keys.isEmpty)
+        // Only a person's own tap may act there. Auto-run stays inside the saved location.
+        XCTAssertEqual(try value.claimAuto(origin: origin, desired: .resume, now: now), .rejected(.detailsChanged))
+        XCTAssertEqual(try value.claim(origin: origin, action: .leave, cause: .autoStep, now: now), .rejected(.detailsChanged))
+        let again = try XCTUnwrap(try value.snapshot(now: now).renderedOrigin)
+        XCTAssertNotNil(try owner(value.claim(origin: again, action: .leave, now: now)))
     }
 
     func testUnknownPostFenceReadingDoesNotReconcileAdmittedMutation() throws {
@@ -497,8 +501,28 @@ final class CpOwnedActionStoreTests: XCTestCase {
         _ = try value.commitOutcome(owner: operation, outcome: .uncertain, now: time)
         let same = try observed(value, evidence, at: time.addingTimeInterval(1))
         XCTAssertNil(try value.autoTick(origin: XCTUnwrap(same.renderedOrigin), now: time.addingTimeInterval(1)))
-        let replacement = try observed(value, observation(token: "B"), at: time.addingTimeInterval(2))
-        XCTAssertNotNil(try value.autoTick(origin: XCTUnwrap(replacement.renderedOrigin), now: time.addingTimeInterval(2)))
+        // ChargePoint re-issues the token on every read: the same charger with a new token is still
+        // the target that failed, so Auto must not try it again on every refresh.
+        let reissued = try observed(value, observation(token: "A-reissued"), at: time.addingTimeInterval(2))
+        XCTAssertNil(try value.autoTick(origin: XCTUnwrap(reissued.renderedOrigin), now: time.addingTimeInterval(2)))
+        let replacement = try observed(value, observation(token: "B", device: 2), at: time.addingTimeInterval(3))
+        XCTAssertNotNil(try value.autoTick(origin: XCTUnwrap(replacement.renderedOrigin), now: time.addingTimeInterval(3)))
+    }
+
+    /// A reason left by an earlier refusal must not use up the one read a later failure is shown for.
+    func testFailureAfterAnEarlierRefusalIsStillShownForOneRead() throws {
+        let value = try store()
+        let evidence = try observation()
+        var origin = try XCTUnwrap(observed(value, evidence).renderedOrigin)
+        try value.recordFeedback(origin: origin, feedback: .detailsChanged, now: now)
+        origin = try XCTUnwrap(observed(value, evidence, at: now.addingTimeInterval(1)).renderedOrigin)   // shown once
+        let operation = try owner(value.claim(origin: origin, action: .accept, now: now.addingTimeInterval(2)))
+        XCTAssertTrue(try value.validatePreflight(owner: operation, observation: evidence, now: now.addingTimeInterval(2)))
+        _ = try admitted(value, operation, .accept, at: now.addingTimeInterval(2))
+        _ = try value.commitOutcome(owner: operation, outcome: .refused("nope"), now: now.addingTimeInterval(3))
+        let shown = try observed(value, evidence, at: now.addingTimeInterval(4))
+        XCTAssertEqual(shown.ownershipFeedback, .unavailable)
+        XCTAssertNil(try observed(value, evidence, at: now.addingTimeInterval(5)).ownershipFeedback)
     }
 
     func testKnownReplacedOfferHidesOldCountdownAndGoToInstruction() throws {

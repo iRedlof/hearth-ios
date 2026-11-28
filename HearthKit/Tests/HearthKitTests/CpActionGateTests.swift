@@ -133,20 +133,40 @@ final class CpActionGateTests: XCTestCase {
 
     // MARK: - 5. Refused / failed actions leave a reason that survives one further read
 
-    func testRefusalReasonSurvivesTheNextIdenticalRead() throws {
+    func testRefusalReasonIsShownForOneReadThenClears() throws {
         let value = try store()
         let evidence = try offer()
         let origin = try XCTUnwrap(observed(value, evidence).renderedOrigin)
         try value.recordFeedback(origin: origin, feedback: .unavailable, now: now)   // a remote failure
-        let afterRead = try observed(value, evidence, at: now.addingTimeInterval(3)) // a plain refresh
-        XCTAssertEqual(afterRead.ownershipFeedback, .unavailable, "The reason must survive one further read")
-        // And it clears once the state the user is looking at actually changes.
-        // A re-issued token alone is still the same offer, so the reason stays…
-        let reissued = try observed(value, try offer(token: "offer-2"), at: now.addingTimeInterval(4))
-        XCTAssertEqual(reissued.ownershipFeedback, .unavailable)
-        // …and it clears once the offer itself changes (a different charger).
-        let changed = try observed(value, try offer(device: 13104611, port: 2), at: now.addingTimeInterval(5))
-        XCTAssertNil(changed.ownershipFeedback)
+        // The widget reloads right after the tap: that read must still carry the reason…
+        let shown = try observed(value, evidence, at: now.addingTimeInterval(3))
+        XCTAssertEqual(shown.ownershipFeedback, .unavailable, "The reason must survive the reload that follows the tap")
+        // …and the one after it shows the real state again, so a message never sticks.
+        let cleared = try observed(value, try offer(token: "re-issued"), at: now.addingTimeInterval(60))
+        XCTAssertNil(cleared.ownershipFeedback, "A refusal must not stay on the card forever")
+    }
+
+    func testANewRefusalIsShownAgainAfterAnEarlierOneAged() throws {
+        let value = try store()
+        let evidence = try offer()
+        var origin = try XCTUnwrap(observed(value, evidence).renderedOrigin)
+        try value.recordFeedback(origin: origin, feedback: .unavailable, now: now)
+        origin = try XCTUnwrap(observed(value, evidence, at: now.addingTimeInterval(1)).renderedOrigin)
+        try value.recordFeedback(origin: origin, feedback: .unavailable, now: now.addingTimeInterval(2))
+        let shown = try observed(value, evidence, at: now.addingTimeInterval(3))
+        XCTAssertEqual(shown.ownershipFeedback, .unavailable, "A second refusal gets its own one read")
+    }
+
+    /// "Offer changed" and "Session changed" blank the card and disable its keys, so a fresh idle read
+    /// replaces them at once: that read IS the refresh the message asks for.
+    func testOfferChangedIsReplacedByTheNextRead() throws {
+        for feedback in [CpFeedback.offerChanged, .sessionChanged] {
+            let value = try store()
+            let evidence = try offer()
+            let origin = try XCTUnwrap(observed(value, evidence).renderedOrigin)
+            try value.recordFeedback(origin: origin, feedback: feedback, now: now)
+            XCTAssertNil(try observed(value, evidence, at: now.addingTimeInterval(1)).ownershipFeedback)
+        }
     }
 
     // MARK: - 6. Diagnostics records a sent action and a local drop, without secrets

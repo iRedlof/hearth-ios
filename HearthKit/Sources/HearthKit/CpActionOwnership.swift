@@ -163,6 +163,9 @@ struct CpActionJournal: Codable {
     var lastResponseStatus: Int?
     /// Host of the last provider response, mirrored into the action Diagnostics line. Never a secret.
     var lastResponseHost: String?
+    /// How many idle reads the current `feedback` has already been shown for. Optional so records
+    /// written before this field existed still decode.
+    var feedbackReads: Int?
     var autoFailureTarget: CpObservedIdentity?
 }
 

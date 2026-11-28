@@ -391,13 +391,12 @@ public struct CpStateStore: Sendable {
             guard matches(stored, owner: owner, now: now), observedAt >= owner.startedAt, observedAt <= now else { return nil }
             var journal = stored.journal!
             let old = journal.observation?.identity
-            // A rendered button is bound to the observed identity it was drawn from — the offer,
-            // phase, queue and session — not to the instant of the read. Rotate the identity nonces
-            // ONLY when that identity actually changes, so a plain status refresh between drawing a
-            // button and tapping it does not invalidate the button. This mirrors Android, where a
-            // button rendered from an earlier read still acts and only a genuinely different offer
-            // refuses a stale tap (ChargePointControl.CpCommandEpoch advances on dispatch, never on
-            // a read). The matching freshness gate is `claim` below.
+            // A rendered button is bound to WHICH offer or queue entry it was drawn from (phase,
+            // stations, charger, port, start, deadline, session) — not to the instant of the read and
+            // not to the offer token, which ChargePoint re-issues on every read. The nonces rotate
+            // only when that target changes, so a refresh between drawing a button and tapping it
+            // does not invalidate the button, while a different offer still refuses a stale tap.
+            // (Android has no such freshness check for a manual tap at all; this is stricter.)
             let identityChanged = old?.sameTargetKey != observation.identity.sameTargetKey
             if old?.stationIDs != observation.identity.stationIDs || old?.queued != observation.identity.queued {
                 journal.queueRevision = UUID().uuidString
@@ -413,13 +412,25 @@ public struct CpStateStore: Sendable {
             journal.actionable = journal.operation == nil &&
                 ((observation.identity.queueKnown && selectedQueue(stored, observation: observation)) ||
                     observation.provider.charging?.canStop == true)
-            // When idle (no pending operation), roll the action nonce and clear the last refusal
-            // reason only if the thing the user is acting on changed. Keeping them stable across an
-            // unchanged read is what lets a drawn button still claim, and lets a refusal reason
-            // survive the next read until the state changes or the user acts again.
-            if journal.operation == nil, identityChanged {
-                journal.actionRevision = UUID().uuidString
-                journal.feedback = nil
+            // When idle (no pending operation), roll the action nonce only if the thing the user is
+            // acting on changed: keeping it stable across an unchanged read is what lets a drawn
+            // button still claim.
+            if journal.operation == nil {
+                if identityChanged {
+                    journal.actionRevision = UUID().uuidString
+                    journal.feedback = nil; journal.feedbackReads = nil
+                } else if let feedback = journal.feedback {
+                    // A refusal reason is shown for exactly one read — the widget reload that follows
+                    // the tap — and the next read shows the real state again, so it can never stick.
+                    // "Offer changed" / "Session changed" blank the card and disable its keys; a
+                    // fresh idle read is the refresh they ask for, so it replaces them at once.
+                    let reads = (journal.feedbackReads ?? 0) + 1
+                    if feedback == .offerChanged || feedback == .sessionChanged || reads > 1 {
+                        journal.feedback = nil; journal.feedbackReads = nil
+                    } else {
+                        journal.feedbackReads = reads
+                    }
+                }
             }
             stored.journal = journal
             stored.reading = CpStoredReading(provider: observation.provider, observedAt: observedAt)
@@ -591,7 +602,7 @@ public struct CpStateStore: Sendable {
                     stored.rotate(mode: true)
                 }
                 stored.runWire = cpRunToWire(run)
-                stored.journal!.operation = nil; stored.journal!.feedback = nil
+                stored.journal!.operation = nil; stored.journal!.feedback = nil; stored.journal!.feedbackReads = nil
                 stored.journal!.autoFailureTarget = nil
             case .refused:
                 stored.journal!.operation = nil; stored.journal!.feedback = .unavailable
@@ -632,11 +643,12 @@ public struct CpStateStore: Sendable {
             var stored = try read()
             guard sameMode(stored.context, origin.context), stored.session.isSignedIn, !stored.session.joinExpired,
                   stored.journal!.operation == nil, stored.journal!.actionable,
-                  stored.snapshot.renderedOrigin == origin, let observation = stored.journal!.observation else { return nil }
+                  stored.snapshot.renderedOrigin == origin, let observation = stored.journal!.observation,
+                  withinSavedLocation(stored, observation: observation) else { return nil }
             var run = cpRunFromWire(stored.runWire)
             guard run.armed else { return nil }
             if let failedTarget = stored.journal!.autoFailureTarget {
-                if failedTarget == observation.identity { return nil }
+                if failedTarget.sameTargetKey == observation.identity.sameTargetKey { return nil }
                 stored.journal!.autoFailureTarget = nil
                 run = cpAfterManual(run, .accept, true)
             }
@@ -686,7 +698,7 @@ public struct CpStateStore: Sendable {
         try locked {
             var stored = try read()
             guard sameScope(stored.context, origin.context) else { return }
-            stored.journal!.feedback = feedback
+            stored.journal!.feedback = feedback; stored.journal!.feedbackReads = nil
             try write(stored)
         }
     }
@@ -712,7 +724,10 @@ public struct CpStateStore: Sendable {
             recordClaimDrop(&stored, origin: origin, action: action, cause: cause, now: now); return .rejected(.detailsChanged)
         }
         if cause != .manual {
-            guard sameMode(stored.context, origin.context), cause != .autoStep || cpRunFromWire(stored.runWire).armed else {
+            // Only a person's own tap may act on a waitlist entry made elsewhere. Anything Hearth
+            // does by itself stays inside the location saved on this phone.
+            guard sameMode(stored.context, origin.context), cause != .autoStep || cpRunFromWire(stored.runWire).armed,
+                  action == .stop || withinSavedLocation(stored, observation: observation) else {
                 recordClaimDrop(&stored, origin: origin, action: action, cause: cause, now: now); return .rejected(.detailsChanged)
             }
         }
@@ -724,7 +739,7 @@ public struct CpStateStore: Sendable {
             context: stored.context, cause: cause)
         stored.journal!.actionRevision = UUID().uuidString
         stored.journal!.actionable = false
-        stored.journal!.feedback = nil
+        stored.journal!.feedback = nil; stored.journal!.feedbackReads = nil
         stored.journal!.operation = CpOwnedOperation(owner: owner, action: action, target: observation.identity,
             startedAt: now, expiresAt: now.addingTimeInterval(120), stage: .claimed)
         return .claimed(owner)
@@ -842,6 +857,17 @@ public struct CpStateStore: Sendable {
             return ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN"].contains(identity.phase) &&
                 (observation.provider.snoozesLeft ?? 0) > 0
         }
+    }
+
+    /// The stricter rule for automatic steps: the queue must be the saved location's own.
+    private func withinSavedLocation(_ stored: Stored, observation: CpObservation) -> Bool {
+        guard let location = stored.location else { return false }
+        let identity = observation.identity
+        if identity.phase == "NOT_QUEUED" { return identity.stationIDs.isEmpty }
+        let selected = Set(location.deviceIds)
+        guard !identity.stationIDs.isEmpty, Set(identity.stationIDs).isSubset(of: selected) else { return false }
+        if let device = identity.deviceID { return selected.contains(device) && identity.stationIDs.contains(device) }
+        return true
     }
 
     private func selectedQueue(_ stored: Stored, observation: CpObservation) -> Bool {
