@@ -174,6 +174,26 @@ public struct CpStoredReading: Codable, Sendable, Equatable {
 public struct CpStateFailure: Codable, Sendable, Equatable {
     public let message: String
     public let attemptedAt: Date
+    /// What failed, so the display and diagnostics can show a real reason. Optional for backward
+    /// compatibility with records persisted before this field existed (they decode as nil).
+    public let kind: CpReadFailureKind?
+    /// Host that produced the failure, for diagnostics. Never a secret.
+    public let host: String?
+    /// HTTP status if the failure was an HTTP response (nil for transport/parse failures).
+    public let status: Int?
+
+    public init(message: String, attemptedAt: Date, kind: CpReadFailureKind? = nil,
+                host: String? = nil, status: Int? = nil) {
+        self.message = message; self.attemptedAt = attemptedAt
+        self.kind = kind; self.host = host; self.status = status
+    }
+
+    /// How this failure is presented to the user (real reason + whether retrying can help). Falls
+    /// back to the stored message for legacy records that predate `kind`.
+    public var presentation: CpFailurePresentation {
+        if let kind { return cpFailurePresentation(kind) }
+        return CpFailurePresentation(reason: message, canRetry: true)
+    }
 }
 
 public enum CpAlertPreference: String, Codable, Sendable {
@@ -253,10 +273,11 @@ public struct CpStoreSnapshot: Sendable, Equatable {
             display.keys = []
             display.autoControl = run.armed ? .stop : .disabled
         }
-        if failure != nil {
+        if let failure {
+            // Keep what failed: show the real reason instead of a generic "Couldn't check".
             display.stale = true
-            display.sub = "Couldn't check · Refresh to retry"
-            display.statusDescription = "Couldn't check. Refresh to retry."
+            display.sub = failure.presentation.line
+            display.statusDescription = failure.presentation.statusDescription
         }
         if providerActionable != nil, reading?.provider.charging == nil,
            case .inLine(_, _, _, let offer?, _) = reading?.provider.waitlist,

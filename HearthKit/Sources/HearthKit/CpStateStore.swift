@@ -354,12 +354,15 @@ public struct CpStateStore: Sendable {
         }
     }
 
-    public func failRead(owner: CpReadOwner, message: String, now: Date = .now) throws -> CpStoreSnapshot? {
+    public func failRead(owner: CpReadOwner, message: String, now: Date = .now,
+                         kind: CpReadFailureKind? = nil, host: String? = nil,
+                         status: Int? = nil) throws -> CpStoreSnapshot? {
         try requireFinite(now)
         return try locked {
             var stored = try read()
             guard matches(stored, owner: owner, now: now) else { return nil }
-            stored.failure = CpStateFailure(message: message, attemptedAt: now)
+            stored.failure = CpStateFailure(message: message, attemptedAt: now,
+                                            kind: kind, host: host, status: status)
             stored.activeRead = nil
             stored.journal!.actionable = false
             stored.journal!.actionRevision = UUID().uuidString
