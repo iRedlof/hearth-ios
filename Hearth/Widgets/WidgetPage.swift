@@ -661,7 +661,8 @@ struct WidgetPage: View {
     }
 
     private var statusLine: String {
-        widgetPageStatus(health: health, fresh: freshness, isSetUp: isSetUp)
+        widgetPageStatus(health: health, fresh: freshness, isSetUp: isSetUp,
+                         service: kind == .chargePoint ? "ChargePoint" : "Home Assistant")
     }
 
     private var freshness: String? {

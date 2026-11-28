@@ -92,3 +92,43 @@ struct WidgetPreviewSourceTests {
         #expect(widgetPreviewCaption(.loading, status: "Updates paused") == "Updates paused")
     }
 }
+
+@Suite("Widget page status names the right service")
+struct WidgetPageServiceTests {
+    @Test("ChargePoint problems name ChargePoint, not Home Assistant")
+    func chargePoint() {
+        #expect(widgetPageStatus(health: .needsSignIn, fresh: nil, isSetUp: true, service: "ChargePoint")
+            == "Sign in to ChargePoint to update")
+        #expect(widgetPageStatus(health: .error, fresh: nil, isSetUp: true, service: "ChargePoint")
+            == "Couldn't update · check ChargePoint connection")
+        #expect(widgetPageStatus(health: .stale, fresh: nil, isSetUp: true, service: "ChargePoint")
+            == "Hasn't updated in a while · check ChargePoint connection")
+        #expect(widgetPageStatus(health: .offline, fresh: nil, isSetUp: true, service: "ChargePoint")
+            == "ChargePoint is offline")
+    }
+
+    @Test("Home Assistant stays the default")
+    func defaultService() {
+        #expect(widgetPageStatus(health: .needsSignIn, fresh: nil, isSetUp: true) == "Sign in to Home Assistant to update")
+    }
+}
+
+@Suite("ChargePoint Home tile line")
+struct CpTileLineTests {
+    @Test("A number is shown with what it counts")
+    func numberWithUnit() {
+        #expect(cpTileStateLine(bigAnswer: "77", unit: "plugs free", stale: false) == "77 plugs free")
+        #expect(cpTileStateLine(bigAnswer: "Your turn", unit: "to accept", stale: false) == "Your turn to accept")
+    }
+
+    @Test("No unit, no trailing space")
+    func noUnit() {
+        #expect(cpTileStateLine(bigAnswer: "Snoozed", unit: "", stale: false) == "Snoozed")
+        #expect(cpTileStateLine(bigAnswer: "Snoozed", unit: "  ", stale: false) == "Snoozed")
+    }
+
+    @Test("Stale data says so")
+    func stale() {
+        #expect(cpTileStateLine(bigAnswer: "77", unit: "plugs free", stale: true) == "Stale data")
+    }
+}

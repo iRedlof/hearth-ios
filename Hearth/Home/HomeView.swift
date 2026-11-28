@@ -145,7 +145,7 @@ struct HomeView: View {
             // the Connections row and the widget by deriving needs-sign-in from the same status.
             let needsSignIn = currentCpStatus() == .needsSignIn
             let health = widgetHealth(stale: cp.stale, error: false, needsSettings: false, needsSignIn: needsSignIn)
-            let stateLine = cp.stale ? "Stale data" : cp.bigAnswer
+            let stateLine = cpTileStateLine(bigAnswer: cp.bigAnswer, unit: cp.unit, stale: cp.stale)
             readings[.chargePoint] = WidgetReading(health: health, stateLine: stateLine)
         }
 

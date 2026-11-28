@@ -5,7 +5,10 @@ import Foundation
 let widgetPageOnHomeScreen = "On your home screen"
 
 /// Returns the status line for a widget settings page based on health, freshness, and setup state.
-public func widgetPageStatus(health: WidgetHealth, fresh: String?, isSetUp: Bool) -> String {
+/// `service` is what the widget reads from, so a ChargePoint problem does not send the person to
+/// Home Assistant.
+public func widgetPageStatus(health: WidgetHealth, fresh: String?, isSetUp: Bool,
+                             service: String = "Home Assistant") -> String {
     // Not set up case
     if !isSetUp || health == .setup {
         return "Example · yours appears after setup"
@@ -14,13 +17,13 @@ public func widgetPageStatus(health: WidgetHealth, fresh: String?, isSetUp: Bool
     // Health-based warnings (take precedence over freshness)
     switch health {
     case .error:
-        return "Couldn't update · check Home Assistant connection"
+        return "Couldn't update · check \(service) connection"
     case .needsSignIn:
-        return "Sign in to Home Assistant to update"
+        return "Sign in to \(service) to update"
     case .stale:
-        return "Hasn't updated in a while · check Home Assistant connection"
+        return "Hasn't updated in a while · check \(service) connection"
     case .offline:
-        return "Home Assistant is offline"
+        return "\(service) is offline"
     case .paused:
         return "Updates paused"
     case .ok, .setup:
@@ -59,4 +62,12 @@ public func widgetPreviewCaption(_ source: WidgetPreviewSource, status: String) 
     case .loading: return "Loading your widget…"
     case .example: return "Example · your widget shows your own data"
     }
+}
+
+/// The line under "ChargePoint" on the Home tile: the widget's answer together with what it counts,
+/// so "77" reads as "77 plugs free".
+public func cpTileStateLine(bigAnswer: String, unit: String, stale: Bool) -> String {
+    if stale { return "Stale data" }
+    let unit = unit.trimmingCharacters(in: .whitespaces)
+    return unit.isEmpty ? bigAnswer : "\(bigAnswer) \(unit)"
 }
