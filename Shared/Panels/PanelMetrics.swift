@@ -64,7 +64,10 @@ enum PanelMetrics {
     /// Wide enough for a same-day time ("10:30 AM") at the card's Normal text size; a time with
     /// its day ("Yest 9:30 PM") wraps under itself.
     static let activityTimeWidth: CGFloat = 49
-    static let activityGlyphWidth: CGFloat = 14
+    static let activityGlyphWidth: CGFloat = 13
+    static let activityColumnGap: CGFloat = 5
     static let activityTextLines = 2
+    /// An event's text is tried at this size on one line before it wraps.
+    static let activityTextShrink: CGFloat = 0.86
     static let moreGap: CGFloat = 2
 }

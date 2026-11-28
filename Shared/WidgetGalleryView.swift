@@ -105,7 +105,7 @@ struct WidgetGalleryView: View {
     }
 
     private func specimen(_ kind: WidgetPreviewKind, availableWidth: CGFloat) -> some View {
-        let size = reference.size(for: kind.family)
+        let size = reference.size
         let scale = min(1, availableWidth / size.width)
         let percentage = Int((scale * 100).rounded())
         return VStack(alignment: .leading, spacing: 12) {
@@ -155,7 +155,7 @@ struct WidgetGalleryView: View {
         case .thermostat: ThermostatBeaconView(.sample)
         case .chargepoint: CpBeaconView(.sample)
         case .battery: BatteryView(.sample, layoutFamily: kind.widgetKitFamily)
-        case .activity: ActivityView(.sample)
+        case .activity: ActivityPanelView(.sample)
         case .lights: LightsPanelView(.sample)
         case .quick: QuickPanelView(.sample)
         case .favourites: FavouritesPanelView(.sample)
@@ -173,12 +173,11 @@ struct WidgetGalleryView: View {
             case .large: "Large iPhone reference"
             }
         }
-        func size(for family: WidgetPreviewFamily) -> CGSize {
-            switch (self, family) {
-            case (.small, .medium): CGSize(width: 329, height: 155)
-            case (.small, .large): CGSize(width: 329, height: 345)
-            case (.large, .medium): CGSize(width: 364, height: 170)
-            case (.large, .large): CGSize(width: 364, height: 382)
+        /// The medium widget's size on this phone; every widget is medium.
+        var size: CGSize {
+            switch self {
+            case .small: CGSize(width: 329, height: 155)
+            case .large: CGSize(width: 364, height: 170)
             }
         }
     }
@@ -222,7 +221,6 @@ extension WidgetPreviewFamily {
     var widgetKitFamily: WidgetFamily {
         switch self {
         case .medium: .systemMedium
-        case .large: .systemLarge
         }
     }
 }

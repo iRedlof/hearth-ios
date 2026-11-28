@@ -72,10 +72,7 @@ struct CardStylePreviewCard: View {
     /// preview is the same box the real widget has to fit.
     private var size: CGSize {
         let real = homeScreenWidgetSize(screenWidth: Double(UIScreen.main.bounds.width))
-        switch kind.previewKind.family {
-        case .medium: return CGSize(width: real.medium.width, height: real.medium.height)
-        case .large: return CGSize(width: real.large.width, height: real.large.height)
-        }
+        return CGSize(width: real.width, height: real.height)
     }
 
     var body: some View {
@@ -103,7 +100,7 @@ struct CardStylePreviewCard: View {
         case .thermostat: thermostatWidget
         case .chargePoint: CpBeaconView(data?.chargePoint ?? .sample)
         case .battery: BatteryView(data?.battery ?? .sample, layoutFamily: .systemMedium)
-        case .activity: ActivityView(data?.activity ?? .sample)
+        case .activity: ActivityPanelView(data?.activity ?? .sample)
         case .lights: LightsPanelView(data?.lights ?? .sample)
         case .quick: QuickPanelView(data?.quick ?? .sample)
         case .favourites: FavouritesPanelView(data?.favourites ?? .sample)

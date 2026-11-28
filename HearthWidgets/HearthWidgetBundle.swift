@@ -97,8 +97,8 @@ struct ActivityProvider: TimelineProvider {
 struct ActivityWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.activity", provider: ActivityProvider()) { entry in
-            CardStyledContent(kind: .activity, statusARGB: DoorsTone.unknown.fillARGB) {
-                ParityWidgetContent(prefix: "activity") { ActivityView(entry.snap) }
+            CardStyledContent(beacon: .activity) {
+                ParityWidgetContent(prefix: "activity") { ActivityPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Activity")

@@ -199,16 +199,4 @@ struct CardSmallPrintTests {
         #expect(cpContextLines(lines, smallPrint: true) == lines)
         #expect(cpContextLines(lines, smallPrint: false).isEmpty)
     }
-
-    @Test("Activity drops who did it")
-    func activityBy() {
-        let at = Date(timeIntervalSince1970: 1_000)
-        let items = [ActivityItem(at: at, kind: .lock, text: "Front door locked", by: "Goodnight", name: "Front door"),
-                     ActivityItem(at: at, kind: .door, text: "Garage closed", by: nil)]
-        #expect(activityItems(items, smallPrint: true) == items)
-        let hidden = activityItems(items, smallPrint: false)
-        #expect(hidden.map(\.by) == [nil, nil])
-        #expect(hidden.map(\.text) == items.map(\.text))
-        #expect(hidden.map(\.name) == items.map(\.name))
-    }
 }

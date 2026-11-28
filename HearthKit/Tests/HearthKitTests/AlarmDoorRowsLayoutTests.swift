@@ -70,7 +70,7 @@ struct AlarmDoorRowsLayoutTests {
     @Test("Every iPhone's medium widget fits both rows, at Normal and Larger",
           arguments: [320.0, 375, 390, 414, 430], [1.0, 1.12])
     func everyHomeScreenSize(screenWidth: Double, textScale: Double) {
-        let card = homeScreenWidgetSize(screenWidth: screenWidth).medium.height
+        let card = homeScreenWidgetSize(screenWidth: screenWidth).height
         let available = Self.available(card: card, textScale: textScale)
         let layout = alarmDoorRowsLayout(availableHeight: available, textScale: textScale)
         #expect(layout.contentHeight + 2 * Metrics.margin <= available + 0.001)

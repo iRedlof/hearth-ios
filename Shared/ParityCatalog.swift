@@ -121,9 +121,9 @@ struct ParityWidgetSelection: Sendable {
                 payload: CarParityInputs.productionPayload("mixed_open",
                     destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)))))
         ]
-        return alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + collections() + readable + nativeReadable + productionCar + disclosureCar
+        return alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + activity() + collections() + readable + nativeReadable + productionCar + disclosureCar
         #else
-        alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + collections()
+        alarm() + thermostat() + car() + chargePoint() + lights() + quick() + favourites() + activity() + collections()
         #endif
     }
 
@@ -143,10 +143,15 @@ struct ParityWidgetSelection: Sendable {
             ("favourites-" + $0, AnyView(FavouritesPanelView(TileParityInputs.favourites($0))))
         }
     }
-    private static func collections() -> [(String, AnyView)] {
+    // MARK: Activity
+    private static func activity() -> [(String, AnyView)] {
         CollectionParityInputs.activityStates.map {
-            ("activity-" + $0, AnyView(ActivityView(CollectionParityInputs.activity($0), now: CollectionParityInputs.now)))
-        } + CollectionParityInputs.batteryStates.map {
+            ("activity-" + $0, AnyView(ActivityPanelView(CollectionParityInputs.activity($0), now: CollectionParityInputs.now)))
+        }
+    }
+
+    private static func collections() -> [(String, AnyView)] {
+        CollectionParityInputs.batteryStates.map {
             ("battery-" + $0, AnyView(BatteryView(CollectionParityInputs.batteries($0))))
         }
     }
