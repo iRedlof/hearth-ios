@@ -8,13 +8,17 @@ public struct QuickView: View {
     public let snap: QuickSnapshot
     public init(_ snap: QuickSnapshot) { self.snap = snap }
 
-    private let ink = Color(argb: BeaconSurfaceColors.inkARGB)
+    @Environment(\.cardStyle) private var cardStyle
+    /// Status is this card's own graphite; a colour or black replaces it (Android `CardLook.kt`).
+    private var look: CardLook { cardLook(cardStyle, warn: false, emergency: false) }
+    private var textScale: CGFloat { look.textScale }
+    private var ink: Color { look.inkColor(status: BeaconSurfaceColors.inkARGB) }
     private let columns = [GridItem(.flexible(), spacing: 7), GridItem(.flexible(), spacing: 7)]
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
-                Text("Quick").font(HearthFont.rowTitle.font.weight(.bold)).foregroundStyle(ink)
+                Text("Quick").font(HearthFont.rowTitle.font(scale: textScale).weight(.bold)).foregroundStyle(ink)
                 Spacer()
                 Button(intent: WidgetRefreshIntent("com.rohit.hearth.quick")) {
                     Image(systemName: "arrow.clockwise").font(HearthFont.caption.font.weight(.semibold)).foregroundStyle(ink.opacity(0.7))
@@ -22,35 +26,35 @@ public struct QuickView: View {
             }
             if snap.keys.isEmpty {
                 TileStatusContent(state: snap.state, error: snap.error, choice: "Choose your scripts",
-                                  empty: "No scripts found")
+                                  empty: "No scripts found", ink: ink)
             } else {
                 LazyVGrid(columns: columns, spacing: 7) {
                     ForEach(snap.keys.prefix(4), id: \.id) { key($0) }
                 }
                 if let error = snap.error {
                     HStack(spacing: 6) {
-                        Text(error).font(HearthFont.footnote.font).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                        Text(error).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
                         if snap.keys.count > 4 {
                             Spacer(minLength: 0)
-                            TileMoreContent(count: snap.keys.count - 4)
+                            TileMoreContent(count: snap.keys.count - 4, ink: ink)
                         }
                     }
-                } else if snap.keys.count > 4 { TileMoreContent(count: snap.keys.count - 4) }
+                } else if snap.keys.count > 4 { TileMoreContent(count: snap.keys.count - 4, ink: ink) }
             }
             Spacer(minLength: 0)
         }
         .padding(13)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
+        .cardBackground(look) { Color(argb: BeaconSurfaceColors.graphiteARGB) }
     }
 
     private func key(_ k: QuickKey) -> some View {
         let label = HStack(spacing: 6) {
                 Image(systemName: "play.circle.fill").font(HearthFont.callout.font).foregroundStyle(ink.opacity(0.85))
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(k.name).font(HearthFont.callout.font.weight(.semibold)).foregroundStyle(ink).lineLimit(1)
+                    Text(k.name).font(HearthFont.callout.font(scale: textScale).weight(.semibold)).foregroundStyle(ink).lineLimit(1)
                     if !k.available {
-                        Text("Unavailable").font(HearthFont.caption.font).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
+                        Text("Unavailable").font(HearthFont.caption.font(scale: textScale)).foregroundStyle(ink.opacity(0.8)).lineLimit(1)
                     }
                 }
                 Spacer(minLength: 0)

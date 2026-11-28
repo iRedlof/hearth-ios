@@ -9,14 +9,22 @@ public struct DoorsView: View {
     @ScaledMetric(relativeTo: .body) private var scaledNameSize: CGFloat = 14
     @ScaledMetric(relativeTo: .body) private var scaledSecondarySize: CGFloat = 12
     @ScaledMetric(relativeTo: .title2) private var scaledHeadlineSize: CGFloat = 22
+    @Environment(\.cardStyle) private var cardStyle
     public init(_ snap: DoorsSnapshot) { self.snap = snap }
 
     private var presentation: DoorsSummary { doorsCommandPresentation(snap.summary, operation: snap.operation) }
     private var tone: DoorsTone { presentation.tone }
+    /// Status is the tone card; a colour or black shows "something open" as an accent, and a door
+    /// open too long stays red whatever the style (Android `DoorsWidget.kt:121`).
+    private var look: CardLook { cardLook(cardStyle, warn: tone == .warn, emergency: tone == .alert) }
+    private var textScale: CGFloat { look.textScale }
     private var fill: Color { Color(argb: tone.fillARGB) }
-    private var ink: Color { Color(argb: tone.inkARGB) }
-    private var nameSize: CGFloat { max(14, scaledNameSize) }
-    private var secondarySize: CGFloat { max(12, scaledSecondarySize) }
+    private var ink: Color { look.inkColor(status: tone.inkARGB) }
+    private var headlineInk: Color { look.statusColours ? ink : Color(argb: look.headline) }
+    // The card's text size rides on the sizes the layout plans with, so rows still fit.
+    private var nameSize: CGFloat { max(14, scaledNameSize) * textScale }
+    private var secondarySize: CGFloat { max(12, scaledSecondarySize) * textScale }
+    private var headlineSize: CGFloat { max(22, scaledHeadlineSize) * textScale }
     private var fontScale: CGFloat { nameSize / 14 }
 
     public var body: some View {
@@ -88,18 +96,21 @@ public struct DoorsView: View {
             .padding(CGFloat(budget.padding))
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .cardBackground(look) {
+            LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
     }
 
     private var header: some View {
         HStack(alignment: .center, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Doors").font(.system(size: secondarySize, weight: .medium)).foregroundStyle(ink.opacity(0.7))
-                Text(headline).font(.system(size: max(22, scaledHeadlineSize), weight: .heavy))
-                    .foregroundStyle(ink).lineLimit(1)
+                Text(headline).font(.system(size: headlineSize, weight: .heavy))
+                    .foregroundStyle(headlineInk).lineLimit(1)
             }
             Spacer(minLength: 2)
-            if !snap.checkedAt.isEmpty {
+            // "Checked …" is small print (Android `DoorsWidget.kt:248`).
+            if !snap.checkedAt.isEmpty && cardShowsCheckedStamp(smallPrint: look.smallPrint) {
                 VStack(alignment: .trailing, spacing: 0) {
                     Text(snap.error == nil ? "Checked" : "Last checked")
                     Text(snap.checkedAt).invalidatableContent()

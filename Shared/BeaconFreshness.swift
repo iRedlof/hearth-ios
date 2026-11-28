@@ -28,14 +28,17 @@ struct BeaconFreshness: View {
     var ink: Color
     var interactionsEnabled: Bool = true
     var thermostatSelection: ThermostatSelectionOrigin? = nil
-    var showSmallPrint: Bool = true  // CardStyle small-print control
+    @Environment(\.cardStyle) private var cardStyle
+
+    private var textScale: CGFloat { cardStyle.textSize.scale }
 
     var body: some View {
         HStack(spacing: 6) {
-            if showSmallPrint {
+            // "Checked …" is small print: Card style can hide it (Android `BeaconChrome.kt:248`).
+            if cardShowsCheckedStamp(smallPrint: cardStyle.smallPrint) {
                 VStack(alignment: .trailing, spacing: -1) {
-                    Text("Checked").font(HearthFont.caption.font)
-                    Text(checkedAt).font(HearthFont.caption.font)
+                    Text("Checked").font(HearthFont.caption.font(scale: textScale))
+                    Text(checkedAt).font(HearthFont.caption.font(scale: textScale))
                 }
                 .foregroundStyle(ink.opacity(0.78))
                 .invalidatableContent()

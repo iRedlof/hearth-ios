@@ -16,25 +16,21 @@ public struct CarBeaconView: View {
     public let snap: CarSnapshot
     public let interactionMode: CarInteractionMode
     private let readingsDestination: CarReadingsDestination
-    private let style: CardStyle
-    @Environment(\.colorScheme) private var scheme
+    @Environment(\.cardStyle) private var cardStyle
 
     public init(_ snap: CarSnapshot, interactionMode: CarInteractionMode = .live,
-                readingsDestination: CarReadingsDestination = .inert,
-                style: CardStyle = .default) {
+                readingsDestination: CarReadingsDestination = .inert) {
         self.snap = snap
         self.interactionMode = interactionMode
         self.readingsDestination = readingsDestination
-        self.style = style
     }
 
-    private var fill: Color {
-        Color(argb: cardContentFillARGB(style.background, tone: snap.tone.fillARGB, scheme))
-    }
-    private var ink: Color { Color(argb: snap.tone.inkARGB) }                       // dark text on light mint
-    private var surfaceInk: Color { Color(argb: BeaconSurfaceColors.inkARGB) }       // bright text on graphite
-    private var sentryInk: Color { snap.sentry == .on && !snap.stale ? Color(argb: BeaconSurfaceColors.sentryOnARGB) : surfaceInk }
-    private var textScale: CGFloat { style.textSize.scale }
+    /// The Card style paints the body; the rail keeps the car's state colour and its own ink.
+    private var look: BeaconLook { beaconLook(cardStyle) }
+    private var ink: Color { Color(argb: snap.tone.inkARGB) }       // the rail's own ink
+    private var surfaceInk: Color { Color(argb: look.ink) }         // the body's ink, for the chosen style
+    private var sentryInk: Color { snap.sentry == .on && !snap.stale ? Color(argb: look.alert) : surfaceInk }
+    private var textScale: CGFloat { look.textScale }
 
     public var body: some View {
         GeometryReader { geo in
@@ -47,10 +43,11 @@ public struct CarBeaconView: View {
                     .frame(width: geo.size.width - s.rail, height: geo.size.height, alignment: .topLeading)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .background(CardSurfaceView(look.body))
         }
     }
 
-    // MARK: Left — light mint status panel
+    // MARK: Left — the rail, in the car's state colour
     private func left(compact: Bool) -> some View {
         // At 155pt: 41 hero + 15 range + 3 divider + 5×16 readings + 14 padding = 153pt.
         let rowHeight: CGFloat = compact ? 16 : 17
@@ -64,7 +61,7 @@ public struct CarBeaconView: View {
                 Image(systemName: "car.fill").font(HearthFont.groupLabel.font).foregroundStyle(ink.opacity(0.9))
             }
             .foregroundStyle(ink).frame(height: 41, alignment: .leading)
-            Text(snap.range).font(HearthFont.footnote.font.weight(.medium)).foregroundStyle(ink)
+            Text(snap.range).font(HearthFont.footnote.font(scale: textScale).weight(.medium)).foregroundStyle(ink)
                 .lineLimit(1).frame(height: compact ? 15 : 16, alignment: .leading)
             Rectangle().fill(ink.opacity(0.26)).frame(height: 1)
                 .padding(.vertical, compact ? 1 : 2)
@@ -81,14 +78,14 @@ public struct CarBeaconView: View {
         }
         .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, compact ? 7 : 10)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(LinearGradient(colors: [fill, fill.opacity(0.9)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .background(BeaconRailBackground(fillARGB: snap.tone.fillARGB, fade: 0.9))
     }
 
     private func statusRow(_ key: String, _ value: String, _ warn: Bool, height: CGFloat) -> some View {
         HStack(spacing: 1) {
-            Text(key).font(HearthFont.groupLabel.font).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
+            Text(key).font(HearthFont.groupLabel.font(scale: textScale)).foregroundStyle(ink.opacity(0.82)).lineLimit(1)
             Spacer(minLength: 0)
-            Text(value).font(HearthFont.groupLabel.font.weight(warn ? .heavy : .bold)).foregroundStyle(ink)
+            Text(value).font(HearthFont.groupLabel.font(scale: textScale).weight(warn ? .heavy : .bold)).foregroundStyle(ink)
                 .underline(warn).lineLimit(1).minimumScaleFactor(0.9)
         }.frame(height: height)
             .accessibilityElement(children: .ignore)
@@ -107,7 +104,7 @@ public struct CarBeaconView: View {
             Text(hasSavedReadings ? "Open · Details" : "Open")
                 .fixedSize(horizontal: true, vertical: true)
         }
-        .font(HearthFont.groupLabel.font.weight(.heavy))
+        .font(HearthFont.groupLabel.font(scale: textScale).weight(.heavy))
         .foregroundStyle(ink).underline()
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: height)
@@ -116,18 +113,17 @@ public struct CarBeaconView: View {
         .accessibilityHint(hasSavedReadings ? "Open saved Car readings." : "")
     }
 
-    // MARK: Right — dark graphite panel
+    // MARK: Right — the body, painted by the Card style
     private func right(compact: Bool) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top, spacing: 6) {
                 Text(snap.name).font(.system(size: 18 * textScale, weight: .bold)).foregroundStyle(surfaceInk).lineLimit(1)
                 Spacer(minLength: 2)
                 BeaconFreshness(checkedAt: snap.checkedAt, kind: "com.rohit.hearth.car",
-                    ink: surfaceInk, interactionsEnabled: interactionMode == .live,
-                    showSmallPrint: style.smallPrint)
+                    ink: surfaceInk, interactionsEnabled: interactionMode == .live)
             }
             .frame(height: 26, alignment: .top)
-            Text(snap.place).font(HearthFont.subtitle.font).foregroundStyle(surfaceInk)
+            Text(snap.place).font(HearthFont.subtitle.font(scale: textScale)).foregroundStyle(surfaceInk)
                 .lineLimit(1).minimumScaleFactor(0.72).frame(height: 15, alignment: .leading).padding(.top, 2)
             // The photo takes the remaining height; readings and the footer retain their own rows.
             Image("CarPremium").resizable().scaledToFit()
@@ -136,20 +132,19 @@ public struct CarBeaconView: View {
             chargeBar.frame(height: 7)
             // Unplugged (left) + Sentry on/off (right-aligned) share one line — frees a row for the photo.
             HStack(spacing: 6) {
-                Text(snap.chargeLine).font(HearthFont.footnote.font).foregroundStyle(surfaceInk)
+                Text(snap.chargeLine).font(HearthFont.footnote.font(scale: textScale)).foregroundStyle(surfaceInk)
                     .lineLimit(1).minimumScaleFactor(0.8)
                     .accessibilityLabel(snap.error ?? snap.chargeLine)
                 Spacer(minLength: 4)
                 HStack(spacing: 4) {
                     Image(systemName: "lock.shield.fill").font(HearthFont.caption.font)
-                    Text(sentryText).font(HearthFont.footnote.font.weight(.medium))
+                    Text(sentryText).font(HearthFont.footnote.font(scale: textScale).weight(.medium))
                 }.foregroundStyle(sentryInk).lineLimit(1).minimumScaleFactor(0.85).fixedSize()
             }.frame(height: 16).padding(.top, 3)
             openTesla.padding(.top, 5)
         }
         .padding(.horizontal, 13).padding(.top, compact ? 8 : 10).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
     }
 
     private var sentryText: String {
@@ -159,7 +154,7 @@ public struct CarBeaconView: View {
     private var chargeBar: some View {
         GeometryReader { g in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.white.opacity(0.13))
+                Capsule().fill(Color(argb: look.chip))
                 Capsule()
                     .fill(Color(argb: snap.tone == .mint ? 0xFF8FF0C4 : snap.tone.fillARGB))
                     .frame(width: g.size.width * CGFloat(min(max(snap.battery ?? 0, 0), 100)) / 100)
@@ -189,11 +184,11 @@ public struct CarBeaconView: View {
     private func actionLabel(_ title: String) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "arrow.right").font(HearthFont.groupLabel.font.weight(.semibold))
-            Text(title).font(HearthFont.groupLabel.font.weight(.semibold))
+            Text(title).font(HearthFont.groupLabel.font(scale: textScale).weight(.semibold))
         }
             .foregroundStyle(surfaceInk)
             .frame(maxWidth: .infinity).frame(height: 36)
-            .background(Color.white.opacity(0.11), in: RoundedRectangle(cornerRadius: 11))
+            .background(Color(argb: look.chip), in: RoundedRectangle(cornerRadius: 11))
     }
 }
 
@@ -201,7 +196,6 @@ public struct CarBeaconView: View {
 struct CarWidgetPresentation: View {
     let payload: CarReadingsEntryPayload
     let family: WidgetFamily
-    var style: CardStyle = .default
     @Environment(\.dynamicTypeSize) private var dynamicType
 
     var body: some View {
@@ -215,8 +209,7 @@ struct CarWidgetPresentation: View {
                 CarBeaconView(payload.snapshot,
                     interactionMode: payload.destination == .inert ? .inert : .live,
                     readingsDestination: payload.readingsUnavailable
-                        ? .storageUnavailable : payload.destination,
-                    style: style)
+                        ? .storageUnavailable : payload.destination)
             }
         }
         .widgetURL(destination)
@@ -367,7 +360,12 @@ private struct CarReadableSummary: View {
     let destination: URL?
     @Environment(\.dynamicTypeSize) private var dynamicType
     @ScaledMetric(relativeTo: .caption) private var identitySize: CGFloat = 13
+    @Environment(\.cardStyle) private var cardStyle
 
+    private var look: BeaconLook { beaconLook(cardStyle) }
+    private var textScale: CGFloat { look.textScale }
+    /// Status keeps this summary's own raised graphite; any other style paints the body.
+    private var keepsOwnBody: Bool { cardStyle.background == .status }
     private var saveFailed: Bool { payload.readingsUnavailable }
 
     private var title: String {
@@ -451,20 +449,39 @@ private struct CarReadableSummary: View {
             .padding(.horizontal, HearthMetrics.mediumPadding).padding(.vertical, 8)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         }
-        .foregroundStyle(Color(argb: BeaconSurfaceColors.inkARGB))
-        .background(LinearGradient(colors: [Color(argb: 0xFF303A32), Color(argb: 0xFF202722)],
-            startPoint: .topLeading, endPoint: .bottomTrailing))
+        .foregroundStyle(Color(argb: look.ink))
+        .background { summaryBody }
         .overlay(ContainerRelativeShape().strokeBorder(.white.opacity(0.2), lineWidth: 1))
         .accessibilityIdentifier("car.readable-summary")
+    }
+
+    @ViewBuilder private var summaryBody: some View {
+        if keepsOwnBody {
+            LinearGradient(colors: [Color(argb: 0xFF303A32), Color(argb: 0xFF202722)],
+                startPoint: .topLeading, endPoint: .bottomTrailing)
+        } else {
+            CardSurfaceView(look.body)
+        }
+    }
+
+    @ViewBuilder private var navigationKey: some View {
+        let shape = RoundedRectangle(cornerRadius: 13)
+        if keepsOwnBody {
+            shape.fill(LinearGradient(colors: [Color(argb: 0xFF465249), Color(argb: 0xFF2D372F)],
+                startPoint: .top, endPoint: .bottom))
+                .overlay(shape.strokeBorder(.white.opacity(0.16), lineWidth: 1))
+        } else {
+            shape.fill(Color(argb: look.chip))
+        }
     }
 
     private func content(showIdentity: Bool) -> some View {
         VStack(alignment: .leading, spacing: dynamicType.isAccessibilitySize ? 6 : 8) {
             if showIdentity {
                 Text(payload.snapshot.name)
-                    .font(.system(size: identitySize, weight: .semibold))
+                    .font(.system(size: identitySize * textScale, weight: .semibold))
                     .fixedSize(horizontal: false, vertical: true)
-                    .foregroundStyle(Color(argb: BeaconSurfaceColors.softARGB))
+                    .foregroundStyle(Color(argb: look.soft))
             }
             Text(title).font(primaryFont)
                 .fixedSize(horizontal: false, vertical: true)
@@ -487,20 +504,18 @@ private struct CarReadableSummary: View {
             Text(saveFailed ? "Details" : "Readings")
             Image(systemName: "chevron.right").accessibilityHidden(true)
         }
-        .font(scaledFont(size: 15, weight: .semibold, style: .subheadline))
+        .font(scaledFont(size: 15 * textScale, weight: .semibold, style: .subheadline))
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 10).padding(.vertical, 6)
         .frame(maxWidth: .infinity, minHeight: 44)
-        .background(LinearGradient(colors: [Color(argb: 0xFF465249), Color(argb: 0xFF2D372F)],
-            startPoint: .top, endPoint: .bottom), in: RoundedRectangle(cornerRadius: 13))
-        .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(.white.opacity(0.16), lineWidth: 1))
+        .background { navigationKey }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(payload.snapshot.name). \(context)")
     }
 
     private var primaryFont: Font {
-        let base = numeric ? UIFont.monospacedDigitSystemFont(ofSize: 20, weight: .bold)
-            : UIFont.systemFont(ofSize: 17, weight: .bold)
+        let base = numeric ? UIFont.monospacedDigitSystemFont(ofSize: 20 * textScale, weight: .bold)
+            : UIFont.systemFont(ofSize: 17 * textScale, weight: .bold)
         return Font(UIFontMetrics(forTextStyle: numeric ? .title3 : .body).scaledFont(for: base,
             compatibleWith: UITraitCollection(preferredContentSizeCategory: contentSizeCategory)))
     }

@@ -8,22 +8,29 @@ import HearthKit
 public struct ActivityView: View {
     public let snap: ActivitySnapshot
     private let referenceNow: Date?
-    @ScaledMetric(relativeTo: .body) private var textScale: CGFloat = 1
+    @ScaledMetric(relativeTo: .body) private var dynamicScale: CGFloat = 1
+    @Environment(\.cardStyle) private var cardStyle
     public init(_ snap: ActivitySnapshot, now: Date? = nil) { self.snap = snap; self.referenceNow = now }
 
+    private var look: CardLook { cardLook(cardStyle, warn: false, emergency: false) }
+    /// The phone's font size times the card's own text size: the layout plans with both.
+    private var textScale: CGFloat { dynamicScale * look.textScale }
     private var fill: Color { Color(argb: DoorsTone.unknown.fillARGB) }
-    private var ink: Color { Color(argb: DoorsTone.unknown.inkARGB) }
+    private var ink: Color { look.inkColor(status: DoorsTone.unknown.inkARGB) }
 
     public var body: some View {
         GeometryReader { geometry in
             content(width: geometry.size.width, height: geometry.size.height, now: referenceNow ?? Date())
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(LinearGradient(colors: [fill, fill.opacity(0.92)], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .cardBackground(look) {
+            LinearGradient(colors: [fill, fill.opacity(0.92)], startPoint: .topLeading, endPoint: .bottomTrailing)
+        }
     }
 
     private func content(width: CGFloat, height: CGFloat, now: Date) -> some View {
-        let items = activityInWindow(snap.items, now: now)
+        // Who did it ("by …") is small print (Android `ActivityWidget.kt:77`).
+        let items = activityItems(activityInWindow(snap.items, now: now), smallPrint: look.smallPrint)
         let headline = activitySnapshotHeadline(snap, now: now)
         let checked = snap.checkedAt.isEmpty ? nil :
             "\(snap.error != nil ? "Last checked" : "Checked") \(snap.checkedAt)"
