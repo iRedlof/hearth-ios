@@ -12,7 +12,6 @@ enum CardStylePreviewData {
     case lights(LightsSnapshot)
     case quick(QuickSnapshot)
     case favourites(FavSnapshot)
-    case doors(DoorsSnapshot)
 
     var car: CarSnapshot? { if case .car(let value) = self { value } else { nil } }
     var alarm: AlarmSnapshot? { if case .alarm(let value) = self { value } else { nil } }
@@ -22,7 +21,6 @@ enum CardStylePreviewData {
     var lights: LightsSnapshot? { if case .lights(let value) = self { value } else { nil } }
     var quick: QuickSnapshot? { if case .quick(let value) = self { value } else { nil } }
     var favourites: FavSnapshot? { if case .favourites(let value) = self { value } else { nil } }
-    var doors: DoorsSnapshot? { if case .doors(let value) = self { value } else { nil } }
 }
 
 /// Reads a widget's current data with the same live helpers the widgets use, for the previews on
@@ -55,7 +53,6 @@ final class CardStylePreviewModel: ObservableObject {
         case .chargePoint: return .chargePoint(await CpLiveSnapshot.fetch(now: now))
         case .battery: return .battery(await CollectionLiveSnapshots.batteries(now: now))
         case .activity: return .activity(await CollectionLiveSnapshots.activity(now: now))
-        case .doors: return .doors(await CollectionLiveSnapshots.doors(now: now))
         case .lights: return .lights(await fetchLightsSnapshot(config, now: now))
         case .quick: return .quick(await fetchQuickSnapshot(config, now: now))
         case .favourites: return .favourites(await fetchFavouritesSnapshot(config, now: now))
@@ -110,7 +107,6 @@ struct CardStylePreviewCard: View {
         case .lights: LightTileView(data?.lights ?? .sample)
         case .quick: QuickView(data?.quick ?? .sample)
         case .favourites: FavouritesView(data?.favourites ?? .sample)
-        case .doors: DoorsView(data?.doors ?? .sample)
         }
     }
 

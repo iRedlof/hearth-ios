@@ -1,6 +1,6 @@
 import Foundation
 
-/// Everything a non-Beacon card (Doors, Lights, Quick actions, Favourites, Activity, Batteries)
+/// Everything a non-Beacon card (Lights, Quick actions, Favourites, Activity, Batteries)
 /// needs to draw a style. Ported from Android's `cardLook` in `CardLook.kt`.
 ///
 /// On iOS the Status style is each widget's existing state card, with that card's own inks: when

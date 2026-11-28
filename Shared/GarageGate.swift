@@ -32,7 +32,7 @@ import HearthKit
         guard let config = HaConfigStore.load() else { return }
         do {
             try await HaClient(config).callService(domain: "cover", service: "open_cover", entityId: id)
-            WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.doors")
+            WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.alarm")
         } catch {
             print("Hearth: open garage failed — \(friendlyError(error))")
         }

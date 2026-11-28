@@ -21,7 +21,23 @@ struct RemovedWidgetStorageTests {
                                   sensorsJson: "[\"sensor.one\"]", doorIdsJson: "[\"door.one\"]",
                                   scriptIdsJson: "[\"script.one\"]", lightPinsJson: "[\"light.one\"]",
                                   favouriteIdsJson: "[\"fav.one\"]", doorsChosen: true)
-        #expect(configuredWidgets(config: everything, chargePointSignedIn: true).count == 10)
+        #expect(configuredWidgets(config: everything, chargePointSignedIn: true).count == 9)
+    }
+
+    @Test("A stored Doors kind is not a widget any more")
+    func doorsKindIsUnknown() {
+        #expect(HomeWidgetKind(rawValue: "doors") == nil)
+        #expect(WidgetPreviewKind(rawValue: "doors") == nil)
+    }
+
+    @Test("Doors is not offered on Home, in Add a widget or in the catalog, even with doors chosen")
+    func doorsIsNotListed() {
+        #expect(!HomeWidgetKind.allCases.map(\.displayName).contains("Doors"))
+        #expect(!WidgetPreviewKind.allCases.map(\.title).contains("Doors"))
+        let doorsOnly = HaConfig(baseUrl: "https://example.com", token: "token", entityId: "",
+                                 doorIdsJson: "[\"cover.garage\",\"lock.front\"]", doorsChosen: true,
+                                 garageId: "cover.garage")
+        #expect(configuredWidgets(config: doorsOnly, chargePointSignedIn: false) == [.car])
     }
 
     @Test("A stored small size is not a widget size any more")

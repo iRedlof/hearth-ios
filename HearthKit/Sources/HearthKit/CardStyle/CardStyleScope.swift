@@ -21,7 +21,7 @@ public func cardStyleSaveTarget(kind: HomeWidgetKind?, follows: Bool) -> CardSty
 }
 
 /// Each widget's own style as stored, keyed by `HomeWidgetKind` raw value. A key that is no longer
-/// a widget kind (Glance was removed) is dropped, so the other cards keep their styles and the next
+/// a widget kind (Glance and Doors were removed) is dropped, so the other cards keep their styles and the next
 /// save forgets it.
 public func cardStyleOverrides(fromStored data: Data) throws -> [String: CardStyle] {
     try JSONDecoder().decode([String: CardStyle].self, from: data)

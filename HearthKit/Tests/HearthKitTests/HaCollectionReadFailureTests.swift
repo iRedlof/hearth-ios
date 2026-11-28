@@ -18,11 +18,7 @@ final class HaCollectionReadFailureTests: XCTestCase {
         let failed = try XCTUnwrap(store.failCollectionRead(owner, error: "Can't connect", now: now))
         XCTAssertEqual(failed.collectionCaches["doors"]?.error, "Can't connect")
         XCTAssertNil(failed.collectionCaches["doors"]?.observedAt)
-        let display = mapDoorsSnapshot(config: failed.config, readings: [:], errors: [:], now: now,
-            collectionError: failed.collectionCaches["doors"]?.error)
-        XCTAssertEqual(display.state, .failed)
-        XCTAssertEqual(display.error, "Can't connect")
-        XCTAssertTrue(display.doors.isEmpty)
+        XCTAssertNil(failed.collectionCaches["doors"]?.payload)
     }
 
     func testOldAccountFailureCannotAttachToCurrentDoorsBatteriesOrActivity() throws {

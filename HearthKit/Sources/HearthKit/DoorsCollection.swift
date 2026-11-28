@@ -57,12 +57,3 @@ public func doorsSelectedIDs(_ config: HaConfig) -> [String] {
     var seen = Set<String>()
     return ids.filter { seen.insert($0).inserted }
 }
-
-/// Pending delivery changes the heading, never the last observed rows or check time.
-public func doorsCommandPresentation(_ observed: DoorsSummary, operation: DoorOperation?) -> DoorsSummary {
-    guard let operation, operation.pending, operation.error == nil,
-          DoorAction(rawValue: operation.action) != nil else { return observed }
-    return DoorsSummary(headline: "Updating doors…",
-        tone: observed.tone == .calm ? .unknown : observed.tone,
-        lockLine: observed.lockLine, rows: observed.rows)
-}

@@ -30,7 +30,6 @@ struct DoorActionIntent: AppIntent {
 
 enum DoorActionRuntime {
     private static func notify() async {
-        WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.doors")
         // The garage row lives on the Alarm card.
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.alarm")
         await MainActor.run { RefreshSignal.shared.bump() }

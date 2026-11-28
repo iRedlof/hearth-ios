@@ -209,14 +209,6 @@ struct WidgetPage: View {
                 }
             }
 
-        case .doors:
-            HearthGroup("Uses") {
-                multiEntityRow("Doors", domains: ["cover", "binary_sensor", "lock"], selected: config?.doorIds ?? [],
-                               doorsOnly: true) { ids in
-                    try apply { $0.doorIdsJson = encodeIds(ids); $0.doorsChosen = true }
-                }
-            }
-
         case .activity, .battery:
             HearthGroup("Uses") {
                 multiEntityRow("Sensors", domains: ["sensor", "binary_sensor"], selected: config?.sensorIds ?? []) { ids in
@@ -476,7 +468,6 @@ struct WidgetPage: View {
         _ title: String,
         domains: [String],
         selected: [String],
-        doorsOnly: Bool = false,
         limit: Int? = nil,
         onPick: @escaping ([String]) throws -> Void
     ) -> some View {
@@ -487,7 +478,6 @@ struct WidgetPage: View {
                 domains: domains,
                 title: title,
                 selected: selected,
-                doorsOnly: doorsOnly,
                 limit: limit,
                 runtime: runtime,
                 onChange: onPick
@@ -560,7 +550,6 @@ struct WidgetPage: View {
         case .lights: return !config.lightPins.isEmpty
         case .quick: return !config.scriptIds.isEmpty
         case .favourites: return !config.favouriteIds.isEmpty
-        case .doors: return config.doorsChosen
         case .activity, .battery: return !config.sensorIds.isEmpty
         case .chargePoint: return (try? CpSessionStore.context().session.isSignedIn) == true
         }
@@ -642,7 +631,6 @@ struct WidgetPage: View {
         case .lights: 1  // Always show
         case .quick: 1  // Scripts
         case .favourites: 1  // Tiles
-        case .doors: 1  // Doors
         case .activity, .battery: 1  // Sensors
         case .chargePoint: 1  // Sign in
         }
@@ -666,7 +654,6 @@ struct WidgetPage: View {
         case .lights: "Choose which lights to always show."
         case .quick: "Choose up to 6 scripts for quick actions."
         case .favourites: "Choose up to 12 tiles for favourites."
-        case .doors: "Choose which doors to monitor."
         case .activity, .battery: "Choose which sensors to monitor."
         case .chargePoint: "Sign in to ChargePoint to get started."
         }

@@ -18,7 +18,6 @@ struct HearthWidgetBundle: WidgetBundle {
         LightsWidget()
         QuickWidget()
         FavouritesWidget()
-        DoorsWidget()
         #if DEBUG
         ReadableConceptWidget()
         CarReadingsRouteProbeWidget(slot: .a)
@@ -232,47 +231,6 @@ struct FavouritesWidget: Widget {
     }
 }
 
-// MARK: - Doors
-
-struct DoorsEntry: TimelineEntry { let date: Date; let snap: DoorsSnapshot }
-
-struct DoorsProvider: TimelineProvider {
-    func placeholder(in context: Context) -> DoorsEntry { DoorsEntry(date: .now, snap: .sample) }
-    func getSnapshot(in context: Context, completion: @escaping (DoorsEntry) -> Void) {
-        if context.isPreview { completion(DoorsEntry(date: .now, snap: .sample)); return }
-        nonisolated(unsafe) let completion = completion
-        Task { completion(DoorsEntry(date: .now, snap: await Self.fetch())) }
-    }
-    func getTimeline(in context: Context, completion: @escaping (Timeline<DoorsEntry>) -> Void) {
-        nonisolated(unsafe) let completion = completion
-        Task {
-            let snap = await DoorsProvider.fetch()
-            completion(Timeline(entries: [DoorsEntry(date: .now, snap: snap)],
-                                policy: .after(Date().addingTimeInterval(10 * 60))))
-        }
-    }
-    private static func fetch() async -> DoorsSnapshot {
-        #if DEBUG
-        if ParityCatalog.activeWidgetID(prefix: "doors") != nil { return .loading }
-        #endif
-        return await CollectionLiveSnapshots.doors()
-    }
-}
-
-struct DoorsWidget: Widget {
-    var body: some WidgetConfiguration {
-        StaticConfiguration(kind: "com.rohit.hearth.doors", provider: DoorsProvider()) { entry in
-            CardStyledContent(kind: .doors, statusARGB: entry.snap.summary.tone.fillARGB) {
-                ParityWidgetContent(prefix: "doors") { DoorsView(entry.snap) }
-            }
-        }
-        .configurationDisplayName("Doors")
-        .description("Doors, garages and the front-door lock.")
-        .supportedFamilies([WidgetPreviewKind.doors.widgetKitFamily])
-        .contentMarginsDisabled()
-    }
-}
-
 // MARK: - Car
 
 struct CarEntry: TimelineEntry {
@@ -432,7 +390,7 @@ struct AlarmWidget: Widget {
             }
         }
         .configurationDisplayName("Home Alarm")
-        .description("Your alarm state and front door at a glance.")
+        .description("Your alarm state, front door and garage at a glance.")
         .supportedFamilies([WidgetPreviewKind.alarm.widgetKitFamily])
         .contentMarginsDisabled()
     }

@@ -95,6 +95,14 @@ struct CardStyleTests {
         #expect(overrides == ["car": CardStyle(background: .colour(.rose), textSize: .larger, smallPrint: false)])
     }
 
+    @Test("A style saved for the removed Doors widget is dropped, the others are kept")
+    func removedDoorsOverrideIsDropped() throws {
+        let stored = #"{"doors":{"background":{"black":{}},"textSize":"larger","smallPrint":false},"#
+            + #""alarm":{"background":{"colour":{"_0":"rose"}},"textSize":"larger","smallPrint":false}}"#
+        let overrides = try cardStyleOverrides(fromStored: Data(stored.utf8))
+        #expect(overrides == ["alarm": CardStyle(background: .colour(.rose), textSize: .larger, smallPrint: false)])
+    }
+
     @Test("Stored own styles survive for every current widget kind", arguments: HomeWidgetKind.allCases)
     func currentKindOverrideIsKept(kind: HomeWidgetKind) throws {
         let style = CardStyle(background: .black, textSize: .smaller, smallPrint: false)
