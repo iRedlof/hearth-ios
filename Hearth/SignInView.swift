@@ -15,7 +15,7 @@ struct SignInView: View {
     var onSignedIn: () -> Void
 
     @StateObject private var auth = AuthCoordinator()
-    @State private var urlText = "https://ha.iredlof-nas.synology.me/"
+    @State private var urlText = ""
 
     init(initialURL: String? = nil, onSignedIn: @escaping () -> Void) {
         self.onSignedIn = onSignedIn
@@ -41,7 +41,7 @@ struct SignInView: View {
                 Text("HOME ASSISTANT URL")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
-                TextField("https://home.example.com", text: $urlText)
+                TextField("https://homeassistant.local:8123", text: $urlText)
                     .textFieldStyle(.roundedBorder)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
