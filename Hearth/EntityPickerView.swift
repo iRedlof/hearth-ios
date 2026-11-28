@@ -14,6 +14,8 @@ struct EntityPickerView: View {
     let title: String
     let allowNone: Bool
     let selected: String
+    /// Offer only covers that can be the garage (garage / gate), not every blind and shade.
+    let garagesOnly: Bool
     let runtime: any SettingsRuntime
     let onPick: (HaEntity) throws -> Void
     private let requestScope: String?
@@ -27,10 +29,12 @@ struct EntityPickerView: View {
     private enum Phase: Equatable { case loading, loaded, failed(String) }
 
     init(config: HaConfig, domain: String, title: String, allowNone: Bool,
-         selected: String, runtime: any SettingsRuntime = LiveSettingsRuntime.shared,
+         selected: String, garagesOnly: Bool = false,
+         runtime: any SettingsRuntime = LiveSettingsRuntime.shared,
          onPick: @escaping (HaEntity) throws -> Void) {
         self.config = config; self.domain = domain; self.title = title
         self.allowNone = allowNone; self.selected = selected; self.onPick = onPick
+        self.garagesOnly = garagesOnly
         self.runtime = runtime
         let current = runtime.loadHa()
         requestScope = haSameConnection(current?.config, config) ? current?.scope : nil
@@ -106,7 +110,7 @@ struct EntityPickerView: View {
         do {
             let discovery = try await runtime.discoverHa(config: config, scope: requestScope,
                                                          purpose: .entity(domain))
-            entities = entitiesInDomain(discovery.entities, domain)
+            entities = entitiesInDomain(garagesOnly ? garageDoorEntities(discovery.statesJSON) : discovery.entities, domain)
             phase = .loaded
         } catch is CancellationError {
             return

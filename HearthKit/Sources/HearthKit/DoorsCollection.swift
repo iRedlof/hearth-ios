@@ -47,10 +47,13 @@ public func doorFallbackName(_ id: String) -> String {
     return name.isEmpty ? id : name
 }
 
-/// A chosen empty collection is intentional. Legacy defaults may include the configured front lock.
+/// The entities the guarded door-command path may address: the Doors selection (an empty chosen
+/// one is intentional; legacy defaults may include the configured front lock) and the Alarm
+/// card's garage.
 public func doorsSelectedIDs(_ config: HaConfig) -> [String] {
     var ids = config.doorIds
     if !config.doorsChosen && !config.lockId.isEmpty && !ids.contains(config.lockId) { ids.append(config.lockId) }
+    if let garage = garageSelectedID(config) { ids.append(garage) }
     var seen = Set<String>()
     return ids.filter { seen.insert($0).inserted }
 }

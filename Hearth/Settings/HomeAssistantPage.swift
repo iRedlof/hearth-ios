@@ -246,6 +246,18 @@ struct HomeAssistantPage: View {
                 try apply { $0.lockId = e.id; $0.lockName = e.id.isEmpty ? "" : e.name }
             }
 
+            // The Alarm card's second row. With nothing saved, the one cover in the old Doors
+            // selection shows here as the garage (`garageSelectedID`).
+            entityRow(
+                "Garage door",
+                domain: "cover",
+                allowNone: true,
+                selection: garageSelectedID(config) ?? "",
+                garagesOnly: true
+            ) { e in
+                try apply { $0.garageId = e.id }
+            }
+
             entityRow(
                 "Thermostat",
                 domain: "climate",
@@ -377,6 +389,7 @@ struct HomeAssistantPage: View {
         domain: String,
         allowNone: Bool,
         selection: String,
+        garagesOnly: Bool = false,
         onPick: @escaping (HaEntity) throws -> Void
     ) -> some View {
         let (icon, hue) = iconAndHue(for: domain)
@@ -387,6 +400,7 @@ struct HomeAssistantPage: View {
                 title: title,
                 allowNone: allowNone,
                 selected: selection,
+                garagesOnly: garagesOnly,
                 runtime: runtime,
                 onPick: onPick
             )
@@ -411,6 +425,8 @@ struct HomeAssistantPage: View {
             return ("thermometer", .orange)
         case "button":
             return ("button.programmable", .purple)
+        case "cover":
+            return ("door.garage.closed", .blue)
         default:
             return ("circle", .neutral)
         }

@@ -162,6 +162,10 @@ struct WidgetPage: View {
                 entityRow("Front door", domain: "lock", allowNone: true, selection: config?.lockId ?? "") { e in
                     try apply { $0.lockId = e.id; $0.lockName = e.id.isEmpty ? "" : e.name }
                 }
+                entityRow("Garage door", domain: "cover", allowNone: true,
+                          selection: config.flatMap(garageSelectedID) ?? "", garagesOnly: true) { e in
+                    try apply { $0.garageId = e.id }
+                }
             }
 
         case .thermostat:
@@ -439,6 +443,7 @@ struct WidgetPage: View {
         domain: String,
         allowNone: Bool = false,
         selection: String,
+        garagesOnly: Bool = false,
         onPick: @escaping (HaEntity) throws -> Void
     ) -> some View {
         let (icon, hue) = iconAndHue(for: domain)
@@ -450,6 +455,7 @@ struct WidgetPage: View {
                 title: title,
                 allowNone: allowNone,
                 selected: selection,
+                garagesOnly: garagesOnly,
                 runtime: runtime,
                 onPick: onPick
             )
@@ -630,7 +636,7 @@ struct WidgetPage: View {
 
     private var requiredSteps: Int {
         switch kind {
-        case .alarm: 2  // Alarm panel + Front door
+        case .alarm: 2  // Alarm panel + Front door (the garage is optional)
         case .thermostat: 1  // Thermostat
         case .car: 0  // Auto-discovered from Home Assistant — no manual step
         case .lights: 1  // Always show
