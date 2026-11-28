@@ -533,9 +533,15 @@ struct CpProvider: TimelineProvider {
         nonisolated(unsafe) let completion = completion
         Task {
             let snap = await CpProvider.fetch()
-            completion(Timeline(entries: [CpEntry(date: .now, snap: snap)],
-                                policy: .after(Date().addingTimeInterval(15 * 60))))
+            completion(Timeline(entries: [CpEntry(date: .now, snap: snap)], policy: .after(CpProvider.nextReload())))
         }
+    }
+
+    /// When to ask WidgetKit for the next refresh: auto-run's next action time when there is one,
+    /// instead of a flat interval that can miss a two-minute window (`cpNextReload`).
+    private static func nextReload(now: Date = .now) -> Date {
+        do { return try CpSessionStore.repository().store.snapshot(now: now).nextReload(now: now) }
+        catch { return now.addingTimeInterval(CP_RELOAD_IDLE_SECONDS) }   // no stored state: idle pace
     }
 
     private static func fetch(advanceAuto: Bool = true) async -> CpSnapshot {
