@@ -71,17 +71,13 @@ struct CardStylePreviewCard: View {
     let thermostat: ThermostatEntryPayload?
     let style: CardStyle
 
-    private enum Size {
-        static let width: CGFloat = 329
-        static let mediumHeight: CGFloat = 155
-        static let largeHeight: CGFloat = 345
-    }
-
-    /// The size the widget is drawn at: its one Home Screen size.
+    /// The size the widget is drawn at: the size this iPhone gives it on the Home Screen, so the
+    /// preview is the same box the real widget has to fit.
     private var size: CGSize {
+        let real = homeScreenWidgetSize(screenWidth: Double(UIScreen.main.bounds.width))
         switch kind.previewKind.family {
-        case .medium: CGSize(width: Size.width, height: Size.mediumHeight)
-        case .large: CGSize(width: Size.width, height: Size.largeHeight)
+        case .medium: return CGSize(width: real.medium.width, height: real.medium.height)
+        case .large: return CGSize(width: real.large.width, height: real.large.height)
         }
     }
 
