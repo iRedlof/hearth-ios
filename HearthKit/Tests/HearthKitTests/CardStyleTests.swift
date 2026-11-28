@@ -1,149 +1,178 @@
 import Testing
 import Foundation
-import SwiftUI
 @testable import HearthKit
 
 @Suite("CardStyle Model")
 struct CardStyleTests {
-    @Test("resolveStyle returns override when present")
-    func resolveStyleReturnsOverride() {
-        let global = CardStyle(background: .byState, textSize: .normal, smallPrint: true)
-        let override = CardStyle(background: .colour(.ocean), textSize: .larger, smallPrint: false)
-        let result = resolveStyle(global: global, override: override)
-        #expect(result == override)
+    @Test("Default is Status, normal text, small print on (Glass is not available on iOS)")
+    func defaultValues() {
+        #expect(CardStyle.default.background == .status)
+        #expect(CardStyle.default.textSize == .normal)
+        #expect(CardStyle.default.smallPrint)
     }
 
-    @Test("resolveStyle returns global when no override")
-    func resolveStyleReturnsGlobal() {
-        let global = CardStyle(background: .black, textSize: .smaller, smallPrint: false)
-        let result = resolveStyle(global: global, override: nil)
-        #expect(result == global)
-    }
-
-    @Test("CardTextSize scale values are correct")
+    @Test("Text sizes scale 0.9 / 1.0 / 1.12, as on Android")
     func textSizeScales() {
         #expect(CardTextSize.smaller.scale == 0.9)
         #expect(CardTextSize.normal.scale == 1.0)
         #expect(CardTextSize.larger.scale == 1.12)
+        #expect(CardTextSize.allCases.map(\.label) == ["Smaller", "Normal", "Larger"])
     }
 
-    @Test("CardStyle Codable round-trip with byState")
-    func codableByState() throws {
-        let style = CardStyle(background: .byState, textSize: .normal, smallPrint: true)
-        let encoded = try JSONEncoder().encode(style)
-        let decoded = try JSONDecoder().decode(CardStyle.self, from: encoded)
+    @Test("The eight colours keep Android's order, names and gradient stops")
+    func colourStops() {
+        let expected: [(CardColour, String, UInt32, UInt32)] = [
+            (.ocean, "Ocean", 0xFF1D8FB4, 0xFF0A3C58), (.night, "Night", 0xFF2B3A67, 0xFF121A33),
+            (.plum, "Plum", 0xFF5B4B8A, 0xFF2A1F4A), (.rose, "Rose", 0xFFB4536E, 0xFF5A1E33),
+            (.forest, "Forest", 0xFF4F7A3A, 0xFF1F3519), (.slate, "Slate", 0xFF5A6474, 0xFF262B33),
+            (.graphite, "Graphite", 0xFF3A3C42, 0xFF18191C), (.snow, "Snow", 0xFFF4F5F7, 0xFFD9DDE3)
+        ]
+        #expect(CardColour.allCases == expected.map(\.0))
+        for (colour, name, top, bottom) in expected {
+            #expect(colour.label == name)
+            #expect(colour.topARGB == top)
+            #expect(colour.bottomARGB == bottom)
+        }
+        #expect(CardColour.allCases.filter(\.isLight) == [.snow])
+    }
+
+    @Test("resolveStyle prefers the card's own style")
+    func resolveStylePrefersOwn() {
+        let global = CardStyle(background: .black, textSize: .smaller, smallPrint: false)
+        let own = CardStyle(background: .colour(.ocean), textSize: .larger, smallPrint: true)
+        #expect(resolveStyle(global: global, override: own) == own)
+        #expect(resolveStyle(global: global, override: nil) == global)
+    }
+
+    @Test("Copies change one axis and leave the original alone")
+    func copies() {
+        let base = CardStyle.default
+        #expect(base.with(background: .black).background == .black)
+        #expect(base.with(textSize: .larger).textSize == .larger)
+        #expect(base.with(smallPrint: false).smallPrint == false)
+        #expect(base == .default)
+    }
+
+    @Test("Every background round-trips through storage", arguments: [
+        CardBackground.status, .black, .colour(.ocean), .colour(.snow)
+    ])
+    func codableRoundTrip(background: CardBackground) throws {
+        let style = CardStyle(background: background, textSize: .larger, smallPrint: false)
+        let decoded = try JSONDecoder().decode(CardStyle.self, from: JSONEncoder().encode(style))
         #expect(decoded == style)
     }
 
-    @Test("CardStyle Codable round-trip with colour")
-    func codableColour() throws {
-        let style = CardStyle(background: .colour(.ocean), textSize: .larger, smallPrint: false)
-        let encoded = try JSONEncoder().encode(style)
-        let decoded = try JSONDecoder().decode(CardStyle.self, from: encoded)
-        #expect(decoded == style)
+    @Test("Styles saved by the first iOS port still decode: byState becomes Status")
+    func legacyByStateMigrates() throws {
+        let legacy = #"{"background":{"byState":{}},"textSize":"larger","smallPrint":false}"#
+        let decoded = try JSONDecoder().decode(CardStyle.self, from: Data(legacy.utf8))
+        #expect(decoded == CardStyle(background: .status, textSize: .larger, smallPrint: false))
     }
 
-    @Test("CardStyle Codable round-trip with black")
-    func codableBlack() throws {
-        let style = CardStyle(background: .black, textSize: .smaller, smallPrint: true)
-        let encoded = try JSONEncoder().encode(style)
-        let decoded = try JSONDecoder().decode(CardStyle.self, from: encoded)
-        #expect(decoded == style)
+    @Test("Legacy colour and black payloads keep their meaning")
+    func legacyColourAndBlack() throws {
+        let colour = #"{"background":{"colour":{"_0":"plum"}},"textSize":"normal","smallPrint":true}"#
+        let black = #"{"background":{"black":{}},"textSize":"smaller","smallPrint":true}"#
+        #expect(try JSONDecoder().decode(CardStyle.self, from: Data(colour.utf8)).background == .colour(.plum))
+        #expect(try JSONDecoder().decode(CardStyle.self, from: Data(black.utf8))
+            == CardStyle(background: .black, textSize: .smaller, smallPrint: true))
     }
 
-    @Test("CardColour.fillARGB light differs from dark for ocean")
-    func oceanLightDarkDiffer() {
-        let light = CardColour.ocean.fillARGB(.light)
-        let dark = CardColour.ocean.fillARGB(.dark)
-        #expect(light != dark)
-        #expect(light == 0xFF1D8FB4)
-        #expect(dark == 0xFF0A3C58)
+    @Test("A legacy overrides dictionary decodes kind by kind")
+    func legacyOverridesDictionary() throws {
+        let legacy = #"{"alarm":{"background":{"byState":{}},"textSize":"normal","smallPrint":true},"#
+            + #""car":{"background":{"colour":{"_0":"rose"}},"textSize":"larger","smallPrint":false}}"#
+        let decoded = try JSONDecoder().decode([String: CardStyle].self, from: Data(legacy.utf8))
+        #expect(decoded["alarm"] == .default)
+        #expect(decoded["car"] == CardStyle(background: .colour(.rose), textSize: .larger, smallPrint: false))
     }
 
-    @Test("CardColour.fillARGB light differs from dark for plum")
-    func plumLightDarkDiffer() {
-        let light = CardColour.plum.fillARGB(.light)
-        let dark = CardColour.plum.fillARGB(.dark)
-        #expect(light != dark)
-        #expect(light == 0xFF5B4B8A)
-        #expect(dark == 0xFF2A1F4A)
+    @Test("Unknown or missing fields fall back the way Android's fromJson does")
+    func lenientDecoding() throws {
+        let unknown = #"{"background":{"glass":{"_0":76}},"textSize":"huge"}"#
+        #expect(try JSONDecoder().decode(CardStyle.self, from: Data(unknown.utf8)) == .default)
+        let unknownColour = #"{"background":{"colour":{"_0":"teal"}},"textSize":"normal","smallPrint":false}"#
+        #expect(try JSONDecoder().decode(CardStyle.self, from: Data(unknownColour.utf8))
+            == CardStyle(background: .status, textSize: .normal, smallPrint: false))
     }
 
-    @Test("CardStyle.default has expected values")
-    func defaultValues() {
-        let def = CardStyle.default
-        #expect(def.background == .byState)
-        #expect(def.textSize == .normal)
-        #expect(def.smallPrint == true)
+    @Test("Summary reads like Android's settings row")
+    func summary() {
+        #expect(CardStyle.default.summary == "Status colours")
+        #expect(CardStyle(background: .colour(.plum), textSize: .larger, smallPrint: true).summary == "Plum · Larger")
+        #expect(CardStyle(background: .black, textSize: .smaller, smallPrint: false).summary
+            == "Black · Smaller · no small print")
+        #expect(CardStyle(background: .colour(.snow), textSize: .normal, smallPrint: false).summary
+            == "Snow · no small print")
+    }
+}
+
+@Suite("CardStyle scope")
+struct CardStyleScopeTests {
+    @Test("Only the All-cards page opens editing the shared style")
+    func opensOnJustThisCard() {
+        #expect(cardStyleFollowsAll(forKind: nil))
+        #expect(!cardStyleFollowsAll(forKind: .alarm))
     }
 
-    @Test("CardBackground equality works")
-    func backgroundEquality() {
-        #expect(CardBackground.byState == .byState)
-        #expect(CardBackground.black == .black)
-        #expect(CardBackground.colour(.ocean) == .colour(.ocean))
-        #expect(CardBackground.colour(.ocean) != .colour(.night))
-        #expect(CardBackground.byState != .black)
+    @Test("The per-widget row says whose style the card uses")
+    func entrySubtitle() {
+        #expect(cardStyleEntrySubtitle(own: nil) == "Follows All cards")
+        #expect(cardStyleEntrySubtitle(own: CardStyle(background: .colour(.plum), textSize: .larger, smallPrint: true))
+            == "Its own: Plum · Larger")
     }
 
-    @Test("cardTextScale returns correct values")
-    func textScaleHelper() {
-        #expect(cardTextScale(.smaller) == 0.9)
-        #expect(cardTextScale(.normal) == 1.0)
-        #expect(cardTextScale(.larger) == 1.12)
+    @Test("Helper text names the card being styled")
+    func scopeHelper() {
+        #expect(cardStyleScopeHelper(follows: true, name: "Alarm")
+            == "Changes below restyle all your cards. Pick \"Just this card\" to style Alarm on its own.")
+        #expect(cardStyleScopeHelper(follows: false, name: "Alarm") == "Changes below restyle only Alarm.")
     }
 
-    @Test("cardContentFillARGB byState uses tone fill")
-    func contentFillByState() {
-        let toneFill: UInt32 = 0xFFB6D9C1  // mint tone
-        let lightResult = cardContentFillARGB(.byState, tone: toneFill, .light)
-        let darkResult = cardContentFillARGB(.byState, tone: toneFill, .dark)
-        #expect(lightResult == toneFill)
-        #expect(darkResult == toneFill)
+    @Test("The All-cards page writes the shared style")
+    func allCardsTarget() {
+        #expect(cardStyleSaveTarget(kind: nil, follows: true) == .allCards)
     }
 
-    @Test("cardContentFillARGB colour uses CardColour fill")
-    func contentFillColour() {
-        let toneFill: UInt32 = 0xFFB6D9C1  // ignored when colour is chosen
-        let lightResult = cardContentFillARGB(.colour(.ocean), tone: toneFill, .light)
-        let darkResult = cardContentFillARGB(.colour(.ocean), tone: toneFill, .dark)
-        #expect(lightResult == CardColour.ocean.fillARGB(.light))
-        #expect(darkResult == CardColour.ocean.fillARGB(.dark))
-        #expect(lightResult != toneFill)  // doesn't use tone
+    @Test("A widget page on Just this card never writes the shared style")
+    func ownTarget() {
+        #expect(cardStyleSaveTarget(kind: .car, follows: false) == .own(.car))
+        #expect(cardStyleSaveTarget(kind: .car, follows: true) == .allCards)
     }
 
-    @Test("A non-default style changes every rendered axis a beacon consumes")
-    func nonDefaultStyleChangesRenderedContent() {
-        // The three values the production beacon views (Car/Alarm/Thermostat) actually read:
-        //   fill  = cardContentFillARGB(style.background, tone:, scheme)
-        //   scale = style.textSize.scale
-        //   small = style.smallPrint
-        // A non-default style must move all three away from .default so the on-screen card differs.
-        let styled = CardStyle(background: .black, textSize: .larger, smallPrint: false)
-        let toneFill: UInt32 = 0xFFB6D9C1  // a widget's by-state tone
+    @Test("The stepper wraps around the added widgets")
+    func stepperWraps() {
+        #expect(cardStylePreviewIndex(0, step: -1, count: 3) == 2)
+        #expect(cardStylePreviewIndex(2, step: 1, count: 3) == 0)
+        #expect(cardStylePreviewIndex(1, step: 1, count: 3) == 2)
+        #expect(cardStylePreviewIndex(5, step: 0, count: 3) == 2)
+        #expect(cardStylePreviewIndex(0, step: 1, count: 0) == 0)
+    }
+}
 
-        let defaultFill = cardContentFillARGB(CardStyle.default.background, tone: toneFill, .dark)
-        let styledFill = cardContentFillARGB(styled.background, tone: toneFill, .dark)
-        #expect(defaultFill == toneFill)            // .default is by-state → pixel-identical to today
-        #expect(styledFill != defaultFill)          // styled background actually changes the fill
-
-        #expect(styled.textSize.scale != CardStyle.default.textSize.scale)
-        #expect(styled.smallPrint != CardStyle.default.smallPrint)
-
-        // An override resolves ahead of the global, so a per-widget style reaches the renderer.
-        let resolved = resolveStyle(global: .default, override: styled)
-        #expect(resolved == styled)
-        #expect(cardContentFillARGB(resolved.background, tone: toneFill, .dark) == styledFill)
+@Suite("CardStyle parity argument")
+struct CardStyleParityArgumentTests {
+    @Test("Backgrounds parse", arguments: [
+        ("status", CardBackground.status), ("black", .black), ("colour:plum", .colour(.plum)),
+        ("colour:snow", .colour(.snow)), ("color:Ocean", .colour(.ocean)), (" Black ", .black)
+    ])
+    func backgrounds(argument: String, expected: CardBackground) {
+        #expect(parityCardStyle(argument) == CardStyle.default.with(background: expected))
     }
 
-    @Test("cardContentFillARGB black uses near-black")
-    func contentFillBlack() {
-        let toneFill: UInt32 = 0xFFB6D9C1  // ignored when black is chosen
-        let lightResult = cardContentFillARGB(.black, tone: toneFill, .light)
-        let darkResult = cardContentFillARGB(.black, tone: toneFill, .dark)
-        // Near-black values: lighter in light mode, darker in dark mode
-        #expect(lightResult == 0xFF1A1A1A)
-        #expect(darkResult == 0xFF0D0D0D)
-        #expect(lightResult != toneFill)  // doesn't use tone
+    @Test("Text size and small print ride behind semicolons or commas")
+    func options() {
+        #expect(parityCardStyle("colour:plum;text=larger;small=off")
+            == CardStyle(background: .colour(.plum), textSize: .larger, smallPrint: false))
+        #expect(parityCardStyle("black,text=smaller,small=on")
+            == CardStyle(background: .black, textSize: .smaller, smallPrint: true))
+        #expect(parityCardStyle("status;small=off") == CardStyle.default.with(smallPrint: false))
+    }
+
+    @Test("Anything unrecognised is rejected rather than guessed", arguments: [
+        "", "glass", "colour", "colour:teal", "black;text=huge", "black;small=maybe", "black;corners=square"
+    ])
+    func rejects(argument: String) {
+        #expect(parityCardStyle(argument) == nil)
     }
 }

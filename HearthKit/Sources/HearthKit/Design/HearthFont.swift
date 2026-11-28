@@ -44,14 +44,22 @@ public enum HearthFont {
     case iconMedium
 
     /// Returns a SwiftUI Font configured for this token.
-    public var font: Font {
-        let spec = Self.spec(self)
-        return Font.custom(
+    public var font: Font { font(scale: 1) }
+
+    /// This token at `scale` times its size: a widget card's own text size (Card style), on top of
+    /// Dynamic Type.
+    public func font(scale: CGFloat) -> Font {
+        Font.custom(
             "Roboto Flex",
-            size: spec.size,
+            size: Self.scaledSize(self, scale: scale),
             relativeTo: textStyle
         )
         .weight(approximateWeight)
+    }
+
+    /// The declared size of `token` times `scale`.
+    static func scaledSize(_ token: HearthFont, scale: CGFloat) -> CGFloat {
+        spec(token).size * scale
     }
 
     // MARK: - Internal Specifications

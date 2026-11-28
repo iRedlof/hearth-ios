@@ -1,8 +1,7 @@
 import Foundation
-import SwiftUI
 
-/// Named gradient colours for card backgrounds (iOS-portable subset).
-/// Each maps to a gradient fill with light/dark variants.
+/// The card colours, in Android's order (`CARD_COLOURS` / `CARD_COLOUR_NAMES` in `CardStyle.kt`).
+/// Each is a vertical two-stop gradient; Snow, the last, is the only light one.
 public enum CardColour: String, CaseIterable, Sendable, Codable {
     case ocean
     case night
@@ -13,104 +12,156 @@ public enum CardColour: String, CaseIterable, Sendable, Codable {
     case graphite
     case snow
 
-    /// Returns the ARGB fill colour for this card colour in the given colour scheme.
-    /// Uses the top gradient colour from Android CardStyle.kt.
-    public func fillARGB(_ scheme: ColorScheme) -> UInt32 {
-        switch (self, scheme) {
-        case (.ocean, .light): return 0xFF1D8FB4
-        case (.ocean, .dark): return 0xFF0A3C58
-        case (.night, .light): return 0xFF2B3A67
-        case (.night, .dark): return 0xFF121A33
-        case (.plum, .light): return 0xFF5B4B8A
-        case (.plum, .dark): return 0xFF2A1F4A
-        case (.rose, .light): return 0xFFB4536E
-        case (.rose, .dark): return 0xFF5A1E33
-        case (.forest, .light): return 0xFF4F7A3A
-        case (.forest, .dark): return 0xFF1F3519
-        case (.slate, .light): return 0xFF5A6474
-        case (.slate, .dark): return 0xFF262B33
-        case (.graphite, .light): return 0xFF3A3C42
-        case (.graphite, .dark): return 0xFF18191C
-        case (.snow, .light): return 0xFFF4F5F7
-        case (.snow, .dark): return 0xFFD9DDE3
-        @unknown default: return 0xFF3A3C42 // fallback to graphite light
+    /// The name shown under its swatch and in the summary.
+    public var label: String { rawValue.capitalized }
+
+    /// Top of the gradient (ARGB).
+    public var topARGB: UInt32 { stops.top }
+
+    /// Bottom of the gradient (ARGB).
+    public var bottomARGB: UInt32 { stops.bottom }
+
+    /// A light card takes dark inks.
+    public var isLight: Bool { self == .snow }
+
+    private var stops: (top: UInt32, bottom: UInt32) {
+        switch self {
+        case .ocean: (0xFF1D8FB4, 0xFF0A3C58)
+        case .night: (0xFF2B3A67, 0xFF121A33)
+        case .plum: (0xFF5B4B8A, 0xFF2A1F4A)
+        case .rose: (0xFFB4536E, 0xFF5A1E33)
+        case .forest: (0xFF4F7A3A, 0xFF1F3519)
+        case .slate: (0xFF5A6474, 0xFF262B33)
+        case .graphite: (0xFF3A3C42, 0xFF18191C)
+        case .snow: (0xFFF4F5F7, 0xFFD9DDE3)
         }
     }
 }
 
-/// Card background choice (iOS-portable subset: no Glass/Wallpaper).
-public enum CardBackground: Sendable, Codable, Equatable {
-    /// Use the widget's state colour (default beacon tone).
-    case byState
-    /// Use a specific named colour.
+/// What a card's background is. Android also has Glass and Wallpaper; an iPhone widget cannot draw
+/// either, so they are left out (owner decision 2026-11-27, see docs/CARD-STYLE-IOS.md).
+public enum CardBackground: Sendable, Equatable {
+    /// The widget's own state colours.
+    case status
     case colour(CardColour)
-    /// Solid black background.
     case black
+
+    /// The name the summary uses (`CardBackground.label()` in `CardStylePage.kt`).
+    public var label: String {
+        switch self {
+        case .status: "Status colours"
+        case .colour(let colour): colour.label
+        case .black: "Black"
+        }
+    }
 }
 
-/// Text size scale for card content (on top of system dynamic type).
+extension CardBackground: Codable {
+    /// `byState` is what the first iOS port stored for today's `status`.
+    private enum CodingKeys: String, CodingKey { case status, byState, colour, black }
+    private enum ColourKeys: String, CodingKey { case value = "_0" }
+
+    /// Lenient like Android's `fromJson`: anything unrecognised is Status.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        if container.contains(.black) {
+            self = .black
+        } else if container.contains(.colour) {
+            let nested = try container.nestedContainer(keyedBy: ColourKeys.self, forKey: .colour)
+            let name = try nested.decodeIfPresent(String.self, forKey: .value)
+            self = name.flatMap(CardColour.init(rawValue:)).map(CardBackground.colour) ?? .status
+        } else {
+            self = .status
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .status:
+            _ = container.nestedContainer(keyedBy: ColourKeys.self, forKey: .status)
+        case .black:
+            _ = container.nestedContainer(keyedBy: ColourKeys.self, forKey: .black)
+        case .colour(let colour):
+            var nested = container.nestedContainer(keyedBy: ColourKeys.self, forKey: .colour)
+            try nested.encode(colour.rawValue, forKey: .value)
+        }
+    }
+}
+
+/// Text size, on top of the phone's own font size (`CardText` in `CardStyle.kt`).
 public enum CardTextSize: String, CaseIterable, Sendable, Codable {
     case smaller
     case normal
     case larger
 
-    /// Scale factor applied to base font sizes.
+    /// What every text in the card is multiplied by.
     public var scale: CGFloat {
         switch self {
-        case .smaller: return 0.9
-        case .normal: return 1.0
-        case .larger: return 1.12
+        case .smaller: 0.9
+        case .normal: 1.0
+        case .larger: 1.12
         }
     }
+
+    public var label: String { rawValue.capitalized }
 }
 
-/// Card styling preferences (iOS-portable axes only).
-/// Omits Corners/Glass/Wallpaper — WidgetKit controls the container shape+background.
-public struct CardStyle: Sendable, Codable, Equatable {
-    public var background: CardBackground
-    public var textSize: CardTextSize
-    /// Whether to show small print (secondary lines like "Checked 9:41 AM").
-    public var smallPrint: Bool
+/// How a card looks: chosen for all cards or for one, in Card style.
+public struct CardStyle: Sendable, Equatable {
+    public let background: CardBackground
+    public let textSize: CardTextSize
+    /// "Checked 9:41 AM" and the other small print.
+    public let smallPrint: Bool
 
-    /// Default style: by-state background, normal text, small print on.
-    public static let `default` = CardStyle(
-        background: .byState,
-        textSize: .normal,
-        smallPrint: true
-    )
+    /// Every card's look until you choose. Android starts on Glass; iOS cannot draw it, so Status.
+    public static let `default` = CardStyle(background: .status, textSize: .normal, smallPrint: true)
 
     public init(background: CardBackground, textSize: CardTextSize, smallPrint: Bool) {
         self.background = background
         self.textSize = textSize
         self.smallPrint = smallPrint
     }
+
+    public func with(background: CardBackground) -> CardStyle {
+        CardStyle(background: background, textSize: textSize, smallPrint: smallPrint)
+    }
+
+    public func with(textSize: CardTextSize) -> CardStyle {
+        CardStyle(background: background, textSize: textSize, smallPrint: smallPrint)
+    }
+
+    public func with(smallPrint: Bool) -> CardStyle {
+        CardStyle(background: background, textSize: textSize, smallPrint: smallPrint)
+    }
+
+    /// "Plum · Larger": the style in a few words, for the settings rows (`CardStyle.summary()`).
+    public var summary: String {
+        let parts: [String?] = [
+            background.label,
+            textSize == .normal ? nil : textSize.label,
+            smallPrint ? nil : "no small print"
+        ]
+        return parts.compactMap { $0 }.joined(separator: " · ")
+    }
 }
 
-/// Pure resolution logic for effective style (global + optional override).
-/// Used by CardStyleStore; testable without UserDefaults.
+extension CardStyle: Codable {
+    private enum CodingKeys: String, CodingKey { case background, textSize, smallPrint }
+
+    /// Each field falls back on its default alone, so one unreadable value never resets the rest.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let fallback = CardStyle.default
+        let text = try container.decodeIfPresent(String.self, forKey: .textSize)
+        self.init(
+            background: try container.decodeIfPresent(CardBackground.self, forKey: .background) ?? fallback.background,
+            textSize: text.flatMap(CardTextSize.init(rawValue:)) ?? fallback.textSize,
+            smallPrint: try container.decodeIfPresent(Bool.self, forKey: .smallPrint) ?? fallback.smallPrint)
+    }
+}
+
+/// The style a card draws with: its own when it has one, else All cards' (`effectiveStyle`).
 public func resolveStyle(global: CardStyle, override: CardStyle?) -> CardStyle {
     override ?? global
-}
-
-/// Returns the text scale factor for the given text size.
-/// Convenience wrapper for `CardTextSize.scale`.
-public func cardTextScale(_ size: CardTextSize) -> CGFloat {
-    size.scale
-}
-
-/// Returns the ARGB content fill color for the given background choice.
-/// - Parameters:
-///   - background: The card background choice (.byState, .colour, or .black).
-///   - toneFill: The fallback tone fill color (used when background is .byState).
-///   - scheme: The current color scheme (light or dark).
-/// - Returns: The resolved ARGB color for the content background.
-public func cardContentFillARGB(_ background: CardBackground, tone toneFill: UInt32, _ scheme: ColorScheme) -> UInt32 {
-    switch background {
-    case .byState:
-        return toneFill  // Use the widget's state/tone color
-    case .colour(let c):
-        return c.fillARGB(scheme)
-    case .black:
-        return scheme == .dark ? 0xFF0D0D0D : 0xFF1A1A1A  // Near-black in both schemes
-    }
 }
