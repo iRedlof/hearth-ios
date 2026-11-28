@@ -67,7 +67,7 @@ struct SignInBanner: View {
 #Preview("Sign-in banner — Light") {
     SignInBanner(
         title: "Home Assistant needs sign-in",
-        detail: "Home alarm, Hallway thermostat, Lights and Stargate are paused",
+        detail: "Home alarm, Hallway thermostat, Lights and My car are paused",
         onFix: {}
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -78,7 +78,7 @@ struct SignInBanner: View {
 #Preview("Sign-in banner — Dark") {
     SignInBanner(
         title: "Home Assistant needs sign-in",
-        detail: "Home alarm, Hallway thermostat, Lights and Stargate are paused",
+        detail: "Home alarm, Hallway thermostat, Lights and My car are paused",
         onFix: {}
     )
     .frame(maxWidth: .infinity, maxHeight: .infinity)

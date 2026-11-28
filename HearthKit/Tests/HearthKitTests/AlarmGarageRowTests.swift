@@ -236,24 +236,109 @@ struct AlarmGarageRowTests {
         #expect(garage.action == nil)
     }
 
-    @Test("A failed command leaves the row last-known with no button until a newer reading")
+    // MARK: A failed command
+
+    private static let commandEnded = checked.addingTimeInterval(60)
+    private static func failedOperation(_ action: String = "open",
+                                        error: String = "Couldn't confirm · Refresh to check") -> DoorOperation {
+        DoorOperation(entityID: garageID, action: action, startedAt: checked, endedAt: commandEnded,
+                      error: error, delivered: true)
+    }
+
+    @Test("A failed command says why in the status line and keeps the button, until a newer reading")
     func failedCommand() throws {
-        let ended = Self.checked.addingTimeInterval(60)
-        let failed = DoorOperation(entityID: Self.garageID, action: "open", startedAt: Self.checked,
-            endedAt: ended, error: "Couldn't confirm · Refresh to check", delivered: true)
+        let failed = Self.failedOperation()
         let garage = try #require(Self.stored(Self.context(operation: failed)).garage)
         #expect(garage.stale)
-        #expect(garage.action == nil)
+        #expect(garage.action == .open)
+        #expect(garage.actionRevision == "door-rev")
         #expect(garage.error == "Couldn't confirm · Refresh to check")
+        #expect(garage.commandNotice == "Couldn't open · try again")
+        #expect(alarmGarageStatusLines(garage) == ["Couldn't open · try again", "Couldn't open"])
 
         var context = Self.context(operation: failed)
         context = HaStoreSnapshot(config: context.config, scope: context.scope,
-            readings: context.readings.merging([Self.garageID: Self.reading("closed", at: ended.addingTimeInterval(1))]) { $1 },
+            readings: context.readings.merging([Self.garageID: Self.reading("closed", at: Self.commandEnded.addingTimeInterval(1))]) { $1 },
             alarmRevision: context.alarmRevision, doorOperation: failed, doorActionRevision: context.doorActionRevision)
         let refreshed = try #require(Self.stored(context).garage)
         #expect(!refreshed.stale)
         #expect(refreshed.action == .open)
         #expect(refreshed.error == nil)
+        #expect(refreshed.commandNotice == nil)
+        #expect(alarmGarageStatusLines(refreshed) == ["Closed · since 9:20 AM", "Closed · 9:20 AM", "Closed"])
+    }
+
+    @Test("The reason names the command that failed and the retry is the row's own button", arguments: [
+        ("open", "closed", "Couldn't open · try again", DoorAction.open),
+        ("close", "open", "Couldn't close · try again", DoorAction.close),
+        ("stop", "opening", "Couldn't stop · try again", DoorAction.stop),
+    ])
+    func failedCommandNamesTheAction(action: String, state: String, line: String, retry: DoorAction) throws {
+        let context = Self.context(garage: state, operation: Self.failedOperation(action, error: "Can't reach Home Assistant"))
+        let garage = try #require(Self.stored(context).garage)
+        #expect(garage.action == retry)
+        #expect(alarmGarageStatusLines(garage).first == line)
+        #expect(garage.error == "Can't reach Home Assistant")
+    }
+
+    @Test("A command refused for sign-in or setup points there instead of offering a retry", arguments: [
+        ("Signed out: sign in again", "Couldn't open · sign in"),
+        ("Not found: check the entity", "Couldn't open · check Settings"),
+    ])
+    func failedCommandNeedingSetup(error: String, line: String) throws {
+        let garage = try #require(Self.stored(Self.context(operation: Self.failedOperation(error: error))).garage)
+        #expect(garage.action == nil)
+        #expect(garage.error == error)
+        #expect(alarmGarageStatusLines(garage) == [line, "Couldn't open"])
+    }
+
+    @Test("With the reading failed too there is no button, and the line says to refresh")
+    func failedCommandAndFailedRead() throws {
+        let failure = HaStateFailure(message: "Can't reach Home Assistant", checkedAt: Self.now, reason: .transport)
+        let context = Self.context(operation: Self.failedOperation(), failures: [Self.garageID: failure])
+        let garage = try #require(Self.stored(context).garage)
+        #expect(garage.stale)
+        #expect(garage.action == nil)
+        #expect(alarmGarageStatusLines(garage) == ["Couldn't open · refresh to check", "Couldn't open"])
+    }
+
+    @Test("A failed command on a garage with no reading stays Unavailable with no button")
+    func failedCommandWithoutReading() throws {
+        let context = HaStoreSnapshot(config: Self.config(), scope: "scope",
+            readings: [Self.panelID: Self.panelReading(), Self.lockID: Self.lockReading()],
+            doorOperation: Self.failedOperation(), doorActionRevision: "door-rev")
+        let garage = try #require(Self.stored(context).garage)
+        #expect(garage.state == "Unavailable")
+        #expect(garage.action == nil)
+        #expect(alarmGarageStatusLines(garage) == ["Couldn't open · refresh to check", "Couldn't open"])
+    }
+
+    @Test("A retry in flight replaces the reason with the command's progress")
+    func retryInFlight() throws {
+        let retry = DoorOperation(entityID: Self.garageID, action: "open", startedAt: Self.commandEnded.addingTimeInterval(5))
+        let garage = try #require(Self.stored(Self.context(operation: retry)).garage)
+        #expect(garage.pending)
+        #expect(garage.commandNotice == nil)
+        #expect(alarmGarageStatusLines(garage) == ["Opening…"])
+    }
+
+    @Test("Another door's failed command leaves the garage row alone")
+    func otherDoorsFailure() throws {
+        let other = DoorOperation(entityID: "cover.side_gate", action: "open", startedAt: Self.checked,
+            endedAt: Self.commandEnded, error: "Couldn't confirm · Refresh to check", delivered: true)
+        let garage = try #require(Self.stored(Self.context(operation: other)).garage)
+        #expect(garage.commandNotice == nil)
+        #expect(garage.error == nil)
+        #expect(garage.action == .open)
+    }
+
+    @Test("A row saved before the reason existed still decodes, with no reason")
+    func decodesOlderRow() throws {
+        let older = #"{"entityID":"cover.garage","name":"Garage","state":"Closed","moving":false,"stale":false,"#
+            + #""pending":false,"actionRevision":"","replacingOperation":""}"#
+        let row = try JSONDecoder().decode(AlarmGarageRow.self, from: Data(older.utf8))
+        #expect(row.commandNotice == nil)
+        #expect(alarmGarageStatusLines(row) == ["Closed"])
     }
 
     @Test("A confirmed command leaves no trace on the row")

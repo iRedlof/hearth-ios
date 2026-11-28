@@ -114,7 +114,7 @@ enum CollectionLiveSnapshots {
 
     private static func clock(_ date: Date?) -> String {
         guard let date else { return "" }
-        let format = DateFormatter(); format.dateFormat = "h:mm a"; return format.string(from: date)
+        return HearthTimeFormatter.shortTime(date)
     }
     private static func storedBatteries(_ context: HaStoreSnapshot? = HaConfigStore.context(), now: Date) -> BatterySnapshot {
         let cache = context?.collectionCaches["batteries"]

@@ -6,7 +6,7 @@ public enum SentryState: String, Sendable { case on, off, unknown }
 /// raw `Car` + Home Assistant readings onto this; the SwiftUI view stays dumb. Mirrors the Android
 /// car widget's displayed fields (v1.4.28).
 public struct CarSnapshot: Sendable, Equatable {
-    public var name: String          // header, e.g. "Stargate"
+    public var name: String          // header, e.g. "My car"
     public var checkedAt: String     // "3:47 PM"
     public var battery: Int?         // 72  (nil → "—")
     public var limit: Int?           // actual charge limit; nil → no marker
@@ -45,7 +45,7 @@ public struct CarSnapshot: Sendable, Equatable {
 
     /// Realistic sample for previews / the gallery — matches the on-device v1.4.28 screenshot.
     public static let sample = CarSnapshot(
-        name: "Stargate", checkedAt: "3:47 PM", battery: 72, range: "219 mi range",
+        name: "My car", checkedAt: "3:47 PM", battery: 72, range: "219 mi range",
         lock: "Locked", lockWarn: false, doors: "All shut", doorsWarn: false,
         cabin: "68°F", outside: "52.7°F", tires: "38–39 psi", tiresWarn: false,
         place: "Home · asleep since 10:59 PM", sentry: .on, chargeLine: "Unplugged", tone: .mint, limit: 80)

@@ -7,7 +7,7 @@ final class CarFetchTests: XCTestCase {
     private static func reply(_ battery: String = "79", prefix: String = "stargate",
                        limit: String = "90", sentry: String = "on") -> String {
         """
-        {"found":true,"prefix":"\(prefix)","name":"Stargate","unit":"mi","s":{
+        {"found":true,"prefix":"\(prefix)","name":"My car","unit":"mi","s":{
         "sensor.battery_level":"\(battery)","number.charge_limit":"\(limit)",
         "switch.sentry_mode":"\(sentry)","lock.lock":"locked"}}
         """

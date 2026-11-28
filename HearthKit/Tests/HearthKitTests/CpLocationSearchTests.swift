@@ -11,7 +11,7 @@ final class CpLocationSearchTests: XCTestCase {
     }
 
     func testJoinBodyFromLocation() {
-        let loc = CpLocation(name: "SEA41", address: "A", deviceIds: [1, 2, 3],
+        let loc = CpLocation(name: "MG", address: "A", deviceIds: [1, 2, 3],
                              bounds: CpBounds(swLat: 1, swLon: 2, neLat: 3, neLon: 4))
         let body = cpJoinBody(loc)
         XCTAssertEqual(body["neLat"] as? Double, 3)
@@ -21,7 +21,7 @@ final class CpLocationSearchTests: XCTestCase {
     }
 
     func testLocationRoundTripsThroughJSON() throws {
-        let loc = CpLocation(name: "SEA41", address: "400 Fairview", deviceIds: [9],
+        let loc = CpLocation(name: "MG", address: "400 Fairview", deviceIds: [9],
                              bounds: CpBounds(swLat: 1, swLon: 2, neLat: 3, neLon: 4), city: "Seattle", state: "WA", label: "Work")
         let data = try JSONEncoder().encode(loc)
         XCTAssertEqual(try JSONDecoder().decode(CpLocation.self, from: data), loc)

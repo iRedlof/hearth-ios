@@ -13,8 +13,8 @@ final class CpParseParityTests: XCTestCase {
         let raw = """
         {"user_status":{"waitlist":{"state":{"state":"ACCEPT_PENDING","regionId":0,\
         "currentTimeUTC":1792372115,"startTimeUTC":1792372024,"deviceId":16235001,"duration":1200,\
-        "token":"T0K3N","portNo":1},"stations":[{"deviceId":13104611,"name":"SEA41 SEA41-7 P2"},\
-        {"deviceId":16235001,"name":"SEA41 SEA41-29 P3"}]}}}
+        "token":"T0K3N","portNo":1},"stations":[{"deviceId":13104611,"name":"MG MG-7 P2"},\
+        {"deviceId":16235001,"name":"MG MG-29 P3"}]}}}
         """
         let value = try cpOwnedObservation(statusJson: raw)
         XCTAssertEqual(value.identity.phase, "ACCEPT_PENDING")
@@ -57,10 +57,10 @@ final class CpParseParityTests: XCTestCase {
     func testRealisticMultiPortStationCountsMatchAndroid() throws {
         let raw = """
         {"map_data":{"stations":[
-        {"device_id":1,"address1":"2121 7th Ave","name1":"SEA41","name2":"SEA41 - 1 P3","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"},{"status_v2":"in_use"}]},
-        {"device_id":2,"address1":"2121 7th Ave","name1":"SEA41","name2":"SEA41-15 P3","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"},{"status_v2":"available"}]},
-        {"device_id":3,"address1":"2121 7th Ave","name1":"SEA41","name2":"SEA41 - 2 P4","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"unavailable"},{"status_v2":"in_use"}]},
-        {"device_id":9,"address1":"2250 7th Ave","name1":"SEA43","name2":"SEA43 - 1 P1","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"}]}
+        {"device_id":1,"address1":"2121 7th Ave","name1":"MG1","name2":"MG1 - 1 P3","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"},{"status_v2":"in_use"}]},
+        {"device_id":2,"address1":"2121 7th Ave","name1":"MG1","name2":"MG1-15 P3","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"},{"status_v2":"available"}]},
+        {"device_id":3,"address1":"2121 7th Ave","name1":"MG1","name2":"MG1 - 2 P4","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"unavailable"},{"status_v2":"in_use"}]},
+        {"device_id":9,"address1":"2250 7th Ave","name1":"MG2","name2":"MG2 - 1 P1","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"}]}
         ]}}
         """
         let viaOwned = try cpOwnedStations(raw)   // the strict gate must accept the real shape

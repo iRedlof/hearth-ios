@@ -619,8 +619,7 @@ struct WidgetPage: View {
     }
 
     private func formatCheckedAt(_ date: Date) -> String {
-        // Thread-safe Date.FormatStyle (project rule A7.5 / gotchas) — no per-call DateFormatter.
-        date.formatted(.dateTime.hour().minute())
+        HearthTimeFormatter.shortTime(date)
     }
 
     private var requiredSteps: Int {

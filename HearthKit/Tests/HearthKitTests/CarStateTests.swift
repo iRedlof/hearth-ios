@@ -27,7 +27,7 @@ final class CarStateTests: XCTestCase {
         ]
     }
 
-    func reply(_ overrides: [String: String] = [:], name: String = "Stargate", unit: String = "mi",
+    func reply(_ overrides: [String: String] = [:], name: String = "My car", unit: String = "mi",
                tempUnit: String = "°F", pressureUnit: String = "psi",
                statusSince: String? = "2026-10-14T05:33:23.678473+00:00") -> String {
         var s = baselineS()
@@ -185,7 +185,7 @@ final class CarStateTests: XCTestCase {
             var states = baselineS()
             states["cover.charge_port_door"] = "open"
             states["binary_sensor.charge_cable"] = cable
-            let payload: [String: Any] = ["found": true, "name": "Stargate", "unit": "mi", "s": states]
+            let payload: [String: Any] = ["found": true, "name": "My car", "unit": "mi", "s": states]
             let data = try JSONSerialization.data(withJSONObject: payload)
             let parsed = try XCTUnwrap(carFromTemplate(String(decoding: data, as: UTF8.self)))
             let context = cable ?? "missing cable"

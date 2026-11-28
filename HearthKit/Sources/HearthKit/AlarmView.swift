@@ -22,8 +22,9 @@ public func sinceLabel(_ changed: Date?, now: Date, zone: TimeZone = .current, l
     guard let changed else { return nil }
     var cal = Calendar(identifier: .gregorian); cal.timeZone = zone
     let days = cal.dateComponents([.day], from: cal.startOfDay(for: changed), to: cal.startOfDay(for: now)).day ?? 0
-    let pattern = days == 0 ? "h:mm a" : (days >= 1 && days <= 6 ? "EEE h:mm a" : "MMM d")
-    let fmt = DateFormatter(); fmt.locale = locale; fmt.timeZone = zone; fmt.dateFormat = pattern
+    if days == 0 { return "since " + HearthTimeFormatter.shortTime(changed, locale: locale, timeZone: zone) }
+    if days >= 1 && days <= 6 { return "since " + HearthTimeFormatter.weekdayTime(changed, locale: locale, timeZone: zone) }
+    let fmt = DateFormatter(); fmt.locale = locale; fmt.timeZone = zone; fmt.dateFormat = "MMM d"
     return "since " + fmt.string(from: changed)
 }
 

@@ -149,10 +149,7 @@ public func thermostatSavedObservation(_ presentation: ThermostatPresentation) -
     presentation.room.checkedAt.flatMap { $0.timeIntervalSince1970.isFinite ? $0 : nil }
 }
 public func thermostatObservationText(_ date: Date, locale: Locale = .current, zone: TimeZone = .current) -> String {
-    let formatter = DateFormatter()
-    formatter.locale = locale; formatter.timeZone = zone
-    formatter.dateStyle = .medium; formatter.timeStyle = .medium
-    return formatter.string(from: date)
+    HearthTimeFormatter.dateWithTime(date, locale: locale, timeZone: zone)
 }
 public func thermostatReadingsURL(for destination: ThermostatDestination) -> URL? {
     switch destination {

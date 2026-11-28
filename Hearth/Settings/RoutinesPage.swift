@@ -269,8 +269,7 @@ struct RoutinesPage: View {
     }
 
     private func formatTime(_ date: Date) -> String {
-        let formatter = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
-        return date.formatted(formatter)
+        HearthTimeFormatter.shortTime(date)
     }
 
     private func entityName(from entityID: String) -> String {
@@ -458,8 +457,7 @@ private struct RoutinesPagePreview: View {
     }
 
     private func formatTime(_ date: Date) -> String {
-        let formatter = Date.FormatStyle().hour(.defaultDigits(amPM: .abbreviated)).minute(.twoDigits)
-        return date.formatted(formatter)
+        HearthTimeFormatter.shortTime(date)
     }
 
     /// Preview-compatible routine card rendering (N4 fix: reuses real card structure).

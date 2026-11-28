@@ -4,7 +4,7 @@ import XCTest
 final class CpFetchTests: XCTestCase {
     private let session = CpSession(token: "fixture", userId: 1, email: "person@example.com")
     private var location: CpLocation {
-        CpLocation(name: "Amazon Day 1", address: "", deviceIds: [1], bounds: cpBounds(lat: 0, lon: 0))
+        CpLocation(name: "Main garage", address: "", deviceIds: [1], bounds: cpBounds(lat: 0, lon: 0))
     }
 
     private func client(_ status: String?, details: String? = nil) -> CpClient {
@@ -30,14 +30,14 @@ final class CpFetchTests: XCTestCase {
 
     func testStatusFailureRetainsChosenBuildingWithoutClaimingSetup() async {
         let value = await fetchCpSnapshot(session, location: location, client: client(nil))
-        XCTAssertEqual(value.site, "Amazon Day 1")
+        XCTAssertEqual(value.site, "Main garage")
         XCTAssertEqual(value.bigAnswer, "—")
         XCTAssertEqual(value.sub, "Couldn't check · Refresh to retry")
         XCTAssertEqual(value.checkedAt, "—")
     }
 
     func testFailedRefreshKeepsPreviousReadingsAndSuccessfulCheckTime() async {
-        let old = CpSnapshot(site: "Amazon Day 1", account: "person", bigAnswer: "#3",
+        let old = CpSnapshot(site: "Main garage", account: "person", bigAnswer: "#3",
                              unit: "in line", sub: "43 chargers", plugsFree: nil,
                              autoOn: true, actionLabel: "Open", checkedAt: "8:30 AM")
         let value = await fetchCpSnapshot(session, location: location, client: client(nil), previous: old)

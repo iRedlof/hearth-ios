@@ -68,7 +68,7 @@ private func cpSignedOutState(_ session: CpSession, location: CpLocation?, autoO
 }
 
 func cpClockString(_ date: Date) -> String {
-    let f = DateFormatter(); f.dateFormat = "h:mm a"; return f.string(from: date)
+    HearthTimeFormatter.shortTime(date)
 }
 
 /// `response.remainingSnoozeCount` from a `get_notification_detail` body (spec R4).

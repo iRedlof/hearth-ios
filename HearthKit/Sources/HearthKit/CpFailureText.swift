@@ -250,7 +250,7 @@ public func cpDiagnosticsText(_ input: CpDiagnosticsInput) -> String {
         lines.append("Last read: none recorded")
     }
     if let action = input.lastAction {
-        lines.append("Last action: \(action.action) at \(action.at.formatted(date: .omitted, time: .shortened))")
+        lines.append("Last action: \(action.action) at \(HearthTimeFormatter.shortTime(action.at))")
         lines.append("Request sent: \(yesNo(action.requestSent))")
         if action.requestSent {
             lines.append("Action host: \(action.host ?? "unknown")")

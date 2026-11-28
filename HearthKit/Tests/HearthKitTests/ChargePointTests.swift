@@ -5,10 +5,10 @@ final class ChargePointTests: XCTestCase {
     // The map reply from ChargePointStateTest.kt (4 stations at two addresses).
     private let mapJSON = """
     {"map_data":{"stations":[
-      {"device_id":1,"address1":"2121 7th Ave","name1":"SEA41","name2":"SEA41 - 1 P3","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"},{"status_v2":"in_use"}]},
-      {"device_id":2,"address1":"2121 7th Ave","name1":"SEA41","name2":"SEA41-15 P3","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"},{"status_v2":"available"}]},
-      {"device_id":3,"address1":"2121 7th Ave","name1":"SEA41","name2":"SEA41 - 2 P4","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"unavailable"},{"status_v2":"in_use"}]},
-      {"device_id":9,"address1":"2250 7th Ave","name1":"SEA43","name2":"SEA43 - 1 P1","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"}]}
+      {"device_id":1,"address1":"2121 7th Ave","name1":"MG1","name2":"MG1 - 1 P3","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"},{"status_v2":"in_use"}]},
+      {"device_id":2,"address1":"2121 7th Ave","name1":"MG1","name2":"MG1-15 P3","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"},{"status_v2":"available"}]},
+      {"device_id":3,"address1":"2121 7th Ave","name1":"MG1","name2":"MG1 - 2 P4","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"unavailable"},{"status_v2":"in_use"}]},
+      {"device_id":9,"address1":"2250 7th Ave","name1":"MG2","name2":"MG2 - 1 P1","lat":47.6164,"lon":-122.3387,"waitlist_allowed":true,"ports":[{"status_v2":"available"}]}
     ],"waitlist":{"state":"NOT_QUEUED"}}}
     """
 
@@ -24,7 +24,7 @@ final class ChargePointTests: XCTestCase {
         let l = cpLocations(cpStationsFrom(mapJSON))
         XCTAssertEqual(l.map { $0.address }, ["2121 7th Ave", "2250 7th Ave"])
         XCTAssertEqual(l.first?.deviceIds, [1, 2, 3])
-        XCTAssertEqual(l.first?.name, "SEA41")
+        XCTAssertEqual(l.first?.name, "MG1")
     }
 
     func testLocationNowOwnStationsOnly() {
@@ -63,13 +63,13 @@ final class ChargePointTests: XCTestCase {
     }
 
     private let offered = """
-    {"user_status":{"waitlist":{"state":{"state":"ACCEPT_PENDING","regionId":0,"currentTimeUTC":1792372115,"startTimeUTC":1792372024,"deviceId":16235001,"duration":1200,"token":"T0K3N","portNo":1},"stations":[{"deviceId":13104611,"name":"SEA41 SEA41-7 P2"},{"deviceId":16235001,"name":"SEA41 SEA41-29 P3"}]}}}
+    {"user_status":{"waitlist":{"state":{"state":"ACCEPT_PENDING","regionId":0,"currentTimeUTC":1792372115,"startTimeUTC":1792372024,"deviceId":16235001,"duration":1200,"token":"T0K3N","portNo":1},"stations":[{"deviceId":13104611,"name":"MG MG-7 P2"},{"deviceId":16235001,"name":"MG MG-29 P3"}]}}}
     """
 
     func testOfferAndToken() {
         guard case let .inLine(_, state, _, offer, _) = cpWaitlistFrom(offered, nil) else { return XCTFail("expected inLine") }
         XCTAssertEqual(state, "ACCEPT_PENDING")
-        XCTAssertEqual(offer, CpOffer(deviceId: 16235001, port: 1, charger: "SEA41-29 P3",
+        XCTAssertEqual(offer, CpOffer(deviceId: 16235001, port: 1, charger: "MG-29 P3",
                                       untilMs: (1792372024 + 1200) * 1000, startMs: 1792372024 * 1000))
         XCTAssertEqual(cpOfferToken(offered), "T0K3N")
         let waitingNoToken = """

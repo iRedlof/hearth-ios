@@ -88,11 +88,11 @@ struct CpOwnedNativeHost: View {
             self.directory = directory; suiteName = name
             let store = CpStateStore(directory: directory); self.store = store
             let transport = CpNativeTransport(ledger: ledger, stationNames: caseName == "held-spent"
-                ? [1: "SEA41 SEA41-29 P3", 2: "SEA41 SEA41-7 P2"] : [:])
+                ? [1: "MG MG-29 P3", 2: "MG MG-7 P2"] : [:])
             let armed = ["lost-response-pause", "snooze-pause"].contains(caseName)
             let spent = ["resume-spent", "held-spent"].contains(caseName)
             let run = CpRun(armed: armed, snoozeUsed: spent, startedAt: 7)
-            let location = CpLocation(name: "Amazon Day 1", address: "Native fixture address", deviceIds: [1, 2],
+            let location = CpLocation(name: "Main garage", address: "Native fixture address", deviceIds: [1, 2],
                 bounds: cpBounds(lat: 47.6, lon: -122.3))
             let initial = try store.bootstrap(legacy: CpLegacyState(
                 session: CpSession(token: "inert-native-cookie", userId: 17, email: "native@example.invalid"),
@@ -134,8 +134,8 @@ struct CpOwnedNativeHost: View {
                             phase == "PENDING_PLUG_IN" && offer.deviceId == 1 && offer.port == 1 && projected.deadline != nil)
                     } else { check("Typed Held identity and countdown are retained", false) }
                     check("Assignment projection supplies the visible level and charger",
-                        projected.goTo == "SEA41-29 P3" && cpLevelOf(projected.goTo ?? "") == "P3"
-                            && cpChargerShort(projected.goTo ?? "") == "SEA41-29")
+                        projected.goTo == "MG-29 P3" && cpLevelOf(projected.goTo ?? "") == "P3"
+                            && cpChargerShort(projected.goTo ?? "") == "MG-29")
                     check("Rendering sends no mutation", ledger.mutations == 0)
                 case "manual-join":
                     ledger.effect("intent", fields: ["type": "CpJoinIntent", "action": "join"])
