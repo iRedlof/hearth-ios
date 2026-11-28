@@ -39,40 +39,28 @@ struct CookieCaptureWebView: UIViewRepresentable {
             self.onCapture = onCapture
         }
 
-        /// The URL this coordinator last re-issued, so its own load is not intercepted again.
-        private var reissuedURL: URL?
-
-        /// Keeps the login inside this web view. Without this, iOS hands a cross-host navigation
-        /// to the native ChargePoint app when it is installed (its hosts claim universal links),
-        /// the session cookie is never set here, and sign-in cannot complete. The rule lives in
+        /// Keeps the login inside this web view. Without this, iOS hands the navigation to the
+        /// native ChargePoint app when it is installed (its hosts claim universal links), the
+        /// session cookie is never set here, and sign-in cannot complete. The rule lives in
         /// `webLoginNavigationDecision` (HearthKit), where it is tested.
         func webView(
             _ webView: WKWebView,
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping @MainActor @Sendable (WKNavigationActionPolicy) -> Void
         ) {
-            let request = navigationAction.request
-            let isReissue = request.url != nil && request.url == reissuedURL
-            if isReissue { reissuedURL = nil }
-            let decision = webLoginNavigationDecision(
-                currentHost: webView.url?.host,
-                target: request.url,
-                isMainFrame: navigationAction.targetFrame?.isMainFrame ?? true,
-                method: request.httpMethod,
-                isReissue: isReissue
-            )
-            switch decision {
-            case .allow:
-                decisionHandler(.allow)
-            case .block:
-                decisionHandler(.cancel)
-            case .reloadInPlace:
-                decisionHandler(.cancel)
-                guard let url = request.url else { return }
-                reissuedURL = url
-                webView.load(URLRequest(url: url))
+            switch webLoginNavigationDecision(target: navigationAction.request.url) {
+            case .keepInWebView: decisionHandler(Self.allowWithoutOpeningApps)
+            case .allow: decisionHandler(.allow)
+            case .block: decisionHandler(.cancel)
             }
         }
+
+        /// WebKit's "allow, but do not try to open the link in another app" policy
+        /// (`_WKNavigationActionPolicyAllowWithoutTryingAppLink`, two above `.allow`; it has no
+        /// public name). It leaves the navigation itself untouched, so the login behaves exactly
+        /// as before for people who do not have the ChargePoint app.
+        private static let allowWithoutOpeningApps =
+            WKNavigationActionPolicy(rawValue: WKNavigationActionPolicy.allow.rawValue + 2) ?? .allow
 
         func cookiesDidChange(in cookieStore: WKHTTPCookieStore) {
             cookieStore.getAllCookies { [weak self] cookies in
