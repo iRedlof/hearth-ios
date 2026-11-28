@@ -249,6 +249,8 @@ public struct CpStoreSnapshot: Sendable, Equatable {
     public var operation: CpOwnedOperation? = nil
     public var ownershipFeedback: CpFeedback? = nil
     public var providerActionable: Bool? = nil
+    /// The last attempted action (tap or Auto arm), secret-free, for the Diagnostics block.
+    public var lastAction: CpActionRecord? = nil
 
     public var settingsOrigin: CpSettingsOrigin { CpSettingsOrigin(context: context) }
 

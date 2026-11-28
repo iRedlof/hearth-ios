@@ -121,6 +121,54 @@ public enum CpLog {
         logger.error("CP read failed host=\(host ?? "unknown", privacy: .private) status=\(status ?? 0, privacy: .public) reason=\(reason, privacy: .public) detail=\(detail ?? "-", privacy: .public)")
         #endif
     }
+
+    /// One os.Logger line per attempted ChargePoint action (tap or Auto arm). Host is `.private`;
+    /// action, whether a request was sent, status and the outcome/drop reason are `.public` and are
+    /// never secrets (action is an enum raw value, outcome is the fixed secret-free text below).
+    public static func actionAttempted(action: String, requestSent: Bool, host: String?,
+                                       status: Int?, outcome: String) {
+        #if canImport(os)
+        logger.log("CP action=\(action, privacy: .public) sent=\(requestSent, privacy: .public) host=\(host ?? "none", privacy: .private) status=\(status ?? 0, privacy: .public) outcome=\(outcome, privacy: .public)")
+        #endif
+    }
+}
+
+/// The last ChargePoint action the phone attempted, described without any secret. Shown in the
+/// ChargePoint Diagnostics block and mirrored to one `CpLog.actionAttempted` line. It carries only
+/// the action name, a local timestamp, whether a request reached the network, the host, an HTTP
+/// status and a fixed, secret-free outcome/drop reason — never a token, cookie, id, email or name.
+public struct CpActionRecord: Codable, Sendable, Equatable {
+    public let action: String
+    public let at: Date
+    public let requestSent: Bool
+    public let host: String?
+    public let status: Int?
+    public let outcome: String
+    public init(action: String, at: Date, requestSent: Bool, host: String?, status: Int?, outcome: String) {
+        self.action = action; self.at = at; self.requestSent = requestSent
+        self.host = host; self.status = status; self.outcome = outcome
+    }
+}
+
+/// Fixed, secret-free outcome text for a completed owned action. Deterministic; no I/O, no values.
+public func cpActionOutcomeText(_ outcome: CpOperationOutcome, action: CpOwnedAction) -> String {
+    switch outcome {
+    case .success:
+        switch action {
+        case .accept: return "Accepted"
+        case .leave: return "Left the waitlist"
+        case .snooze: return "Snoozed"
+        case .unsnooze: return "Rejoined"
+        case .join: return "Joined"
+        case .resume: return "Auto resumed"
+        case .stop: return "Stopped"
+        case .still, .done: return "Answered"
+        case .legacy: return "Done"
+        }
+    case .refused: return "ChargePoint refused it"
+    case .uncertain: return "No response"
+    case .cancelledBeforeAdmission: return "Details changed before sending"
+    }
 }
 
 /// User-facing reason for a failed ChargePoint action (e.g. arming Auto-waitlist). Uses the same
@@ -162,13 +210,16 @@ public struct CpDiagnosticsInput: Sendable, Equatable {
     public let expired: Bool
     public let minutesLeft: Int?
     public let lastAttempt: CpDiagnosticsAttempt?
+    /// The last action the phone attempted (tap or Auto arm), secret-free. Nil if none recorded.
+    public let lastAction: CpActionRecord?
     public let appVersion: String
     public let build: String
 
     public init(tokenPresent: Bool, userIDPresent: Bool, expired: Bool, minutesLeft: Int?,
-                lastAttempt: CpDiagnosticsAttempt?, appVersion: String, build: String) {
+                lastAttempt: CpDiagnosticsAttempt?, lastAction: CpActionRecord? = nil,
+                appVersion: String, build: String) {
         self.tokenPresent = tokenPresent; self.userIDPresent = userIDPresent; self.expired = expired
-        self.minutesLeft = minutesLeft; self.lastAttempt = lastAttempt
+        self.minutesLeft = minutesLeft; self.lastAttempt = lastAttempt; self.lastAction = lastAction
         self.appVersion = appVersion; self.build = build
     }
 }
@@ -197,6 +248,17 @@ public func cpDiagnosticsText(_ input: CpDiagnosticsInput) -> String {
         if let detail = attempt.detail { lines.append("Detail: \(detail)") }
     } else {
         lines.append("Last read: none recorded")
+    }
+    if let action = input.lastAction {
+        lines.append("Last action: \(action.action) at \(action.at.formatted(date: .omitted, time: .shortened))")
+        lines.append("Request sent: \(yesNo(action.requestSent))")
+        if action.requestSent {
+            lines.append("Action host: \(action.host ?? "unknown")")
+            lines.append("Action HTTP status: \(action.status.map(String.init) ?? "none")")
+        }
+        lines.append("Outcome: \(action.outcome)")
+    } else {
+        lines.append("Last action: none recorded")
     }
     lines.append("App version: \(input.appVersion) (\(input.build))")
     return lines.joined(separator: "\n")

@@ -13,6 +13,15 @@ public struct CpObservedIdentity: Codable, Sendable, Equatable {
     public let sessionID: Int64?
 
     public var queueKnown: Bool { phase != "UNKNOWN" }
+
+    /// The part of the identity that says WHICH offer or queue entry this is. ChargePoint issues a
+    /// new offer `token` on every status read while the offer itself (charger, port, start,
+    /// deadline) is unchanged, and no mutation sends that token, so it is left out: comparing it
+    /// made every drawn button stale one read later (seen on a real account, 2026-11-27).
+    public var sameTargetKey: CpObservedIdentity {
+        CpObservedIdentity(phase: phase, stationIDs: stationIDs, token: nil, deviceID: deviceID,
+                           port: port, startMs: startMs, deadlineMs: deadlineMs, sessionID: sessionID)
+    }
     public var queued: Bool { queueKnown && phase != "NOT_QUEUED" }
 }
 

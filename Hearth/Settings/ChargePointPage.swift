@@ -511,6 +511,7 @@ struct ChargePointPage: View {
             expired: session.expired,
             minutesLeft: minutesLeft,
             lastAttempt: attempt,
+            lastAction: cp.lastAction,
             appVersion: info?["CFBundleShortVersionString"] as? String ?? "—",
             build: info?["CFBundleVersion"] as? String ?? "—"
         )

@@ -38,6 +38,9 @@ public struct CpStateStore: Sendable {
         var activeRead: CpReadOwner?
         var signInOwner: CpSignInOwner?
         var journal: CpActionJournal?
+        /// The last attempted action, secret-free, surfaced only in Diagnostics. Optional so records
+        /// persisted before this field existed still decode (as nil).
+        var lastAction: CpActionRecord?
 
         init(session: CpSession, location: CpLocation?, run: CpRun, alerts: CpAlertPrefs, udid: String) {
             self.session = session; self.location = location; runWire = cpRunToWire(run)
@@ -58,6 +61,7 @@ public struct CpStateStore: Sendable {
                 value.ownershipFeedback = journal.feedback
                 value.providerActionable = journal.observation == nil ? nil : journal.actionable
             }
+            value.lastAction = lastAction
             return value
         }
         mutating func rotate(account: Bool = false, selection: Bool = false, run: Bool = false,
@@ -387,12 +391,19 @@ public struct CpStateStore: Sendable {
             guard matches(stored, owner: owner, now: now), observedAt >= owner.startedAt, observedAt <= now else { return nil }
             var journal = stored.journal!
             let old = journal.observation?.identity
+            // A rendered button is bound to WHICH offer or queue entry it was drawn from (phase,
+            // stations, charger, port, start, deadline, session) — not to the instant of the read and
+            // not to the offer token, which ChargePoint re-issues on every read. The nonces rotate
+            // only when that target changes, so a refresh between drawing a button and tapping it
+            // does not invalidate the button, while a different offer still refuses a stale tap.
+            // (Android has no such freshness check for a manual tap at all; this is stricter.)
+            let identityChanged = old?.sameTargetKey != observation.identity.sameTargetKey
             if old?.stationIDs != observation.identity.stationIDs || old?.queued != observation.identity.queued {
                 journal.queueRevision = UUID().uuidString
             }
-            if old != observation.identity { journal.assignmentRevision = UUID().uuidString }
+            if identityChanged { journal.assignmentRevision = UUID().uuidString }
             journal.observation = observation
-            journal.observationID = UUID().uuidString
+            if identityChanged || journal.observationID == nil { journal.observationID = UUID().uuidString }
             if let operation = journal.operation, operation.stage == .uncertain,
                let fence = operation.reconciliationAfter, owner.startedAt > fence,
                observation.identity.queueKnown || observation.identity.sessionID != nil {
@@ -401,9 +412,25 @@ public struct CpStateStore: Sendable {
             journal.actionable = journal.operation == nil &&
                 ((observation.identity.queueKnown && selectedQueue(stored, observation: observation)) ||
                     observation.provider.charging?.canStop == true)
+            // When idle (no pending operation), roll the action nonce only if the thing the user is
+            // acting on changed: keeping it stable across an unchanged read is what lets a drawn
+            // button still claim.
             if journal.operation == nil {
-                journal.actionRevision = UUID().uuidString
-                journal.feedback = nil
+                if identityChanged {
+                    journal.actionRevision = UUID().uuidString
+                    journal.feedback = nil; journal.feedbackReads = nil
+                } else if let feedback = journal.feedback {
+                    // A refusal reason is shown for exactly one read — the widget reload that follows
+                    // the tap — and the next read shows the real state again, so it can never stick.
+                    // "Offer changed" / "Session changed" blank the card and disable its keys; a
+                    // fresh idle read is the refresh they ask for, so it replaces them at once.
+                    let reads = (journal.feedbackReads ?? 0) + 1
+                    if feedback == .offerChanged || feedback == .sessionChanged || reads > 1 {
+                        journal.feedback = nil; journal.feedbackReads = nil
+                    } else {
+                        journal.feedbackReads = reads
+                    }
+                }
             }
             stored.journal = journal
             stored.reading = CpStoredReading(provider: observation.provider, observedAt: observedAt)
@@ -444,7 +471,9 @@ public struct CpStateStore: Sendable {
             _ = expireOperation(&stored, now: now)
             guard let operation = stored.journal?.operation, validOperation(stored, owner: owner, now: now),
                   operation.stage == .claimed else { return false }
-            guard operation.target == observation.identity,
+            // Same offer, not same bytes: ChargePoint re-issues the offer token on every read, so
+            // the last-second re-read is compared without it (see `sameTargetKey`).
+            guard operation.target.sameTargetKey == observation.identity.sameTargetKey,
                   operation.action == .stop || selectedQueue(stored, observation: observation),
                   permits(operation.action, observation: observation, now: now) else {
                 stored.journal!.operation = nil; stored.journal!.actionable = false
@@ -452,6 +481,9 @@ public struct CpStateStore: Sendable {
                 try write(stored)
                 return false
             }
+            // Carry the newest token forward, so a request that does send it (still / done) uses the
+            // one ChargePoint issued last.
+            stored.journal!.operation!.target = observation.identity
             stored.journal!.operation!.stage = .preflighted
             stored.journal!.observation = observation
             try write(stored)
@@ -485,6 +517,7 @@ public struct CpStateStore: Sendable {
             }
             stored.journal!.lastAdmission = admission
             stored.journal!.lastResponseStatus = nil
+            stored.journal!.lastResponseHost = nil
             try write(stored)
             // The caller supplies a previously prepared task; this synchronous resume is the dispatch boundary.
             synchronousStart(admission)
@@ -513,6 +546,7 @@ public struct CpStateStore: Sendable {
             }
             guard admission.credentialRevision == stored.journal?.credentialRevision else { return false }
             stored.journal!.lastResponseStatus = metadata.status
+            stored.journal!.lastResponseHost = metadata.host
             var changed = false
             var expiredNow = false
             if let cookie = metadata.cookie, !cookie.isEmpty, cookie != stored.session.token {
@@ -568,7 +602,7 @@ public struct CpStateStore: Sendable {
                     stored.rotate(mode: true)
                 }
                 stored.runWire = cpRunToWire(run)
-                stored.journal!.operation = nil; stored.journal!.feedback = nil
+                stored.journal!.operation = nil; stored.journal!.feedback = nil; stored.journal!.feedbackReads = nil
                 stored.journal!.autoFailureTarget = nil
             case .refused:
                 stored.journal!.operation = nil; stored.journal!.feedback = .unavailable
@@ -579,6 +613,14 @@ public struct CpStateStore: Sendable {
                 parkAutomaticFailure(&stored, operation: operation)
             }
             stored.journal!.actionable = false
+            if operation.owner.cause != .autoStep {
+                // A request reached the network iff this operation was admitted for a mutation.
+                let requestSent = operation.mutationAdmissionID != nil
+                recordAction(&stored, action: operation.action.rawValue, now: now, requestSent: requestSent,
+                             host: requestSent ? stored.journal!.lastResponseHost : nil,
+                             status: requestSent ? stored.journal!.lastResponseStatus : nil,
+                             outcome: cpActionOutcomeText(outcome, action: operation.action))
+            }
             try write(stored)
             if case .success = outcome, operation.owner.cause == .autoStep {
                 if operation.action == .accept { synchronousAlert(.accepted, stored.snapshot) }
@@ -601,11 +643,12 @@ public struct CpStateStore: Sendable {
             var stored = try read()
             guard sameMode(stored.context, origin.context), stored.session.isSignedIn, !stored.session.joinExpired,
                   stored.journal!.operation == nil, stored.journal!.actionable,
-                  stored.snapshot.renderedOrigin == origin, let observation = stored.journal!.observation else { return nil }
+                  stored.snapshot.renderedOrigin == origin, let observation = stored.journal!.observation,
+                  withinSavedLocation(stored, observation: observation) else { return nil }
             var run = cpRunFromWire(stored.runWire)
             guard run.armed else { return nil }
             if let failedTarget = stored.journal!.autoFailureTarget {
-                if failedTarget == observation.identity { return nil }
+                if failedTarget.sameTargetKey == observation.identity.sameTargetKey { return nil }
                 stored.journal!.autoFailureTarget = nil
                 run = cpAfterManual(run, .accept, true)
             }
@@ -639,12 +682,23 @@ public struct CpStateStore: Sendable {
         }
     }
 
+    /// Record an action that could not even be decoded into a claim at the widget boundary, so the
+    /// Diagnostics block still shows that a tap happened and why nothing was sent. Secret-free.
+    public func recordActionDrop(action: String, reason: String, now: Date = .now) throws {
+        try requireFinite(now)
+        try locked {
+            var stored = try read()
+            recordAction(&stored, action: action, now: now, requestSent: false, host: nil, status: nil, outcome: reason)
+            try write(stored)
+        }
+    }
+
     public func recordFeedback(origin: CpRenderedOrigin, feedback: CpFeedback, now: Date = .now) throws {
         try requireFinite(now)
         try locked {
             var stored = try read()
             guard sameScope(stored.context, origin.context) else { return }
-            stored.journal!.feedback = feedback
+            stored.journal!.feedback = feedback; stored.journal!.feedbackReads = nil
             try write(stored)
         }
     }
@@ -666,22 +720,64 @@ public struct CpStateStore: Sendable {
               sameScope(stored.context, origin.context), journal.queueRevision == origin.queueRevision,
               journal.assignmentRevision == origin.assignmentRevision, journal.actionRevision == origin.actionRevision,
               journal.observationID == origin.observationID, origin.observationID != nil, journal.actionable,
-              journal.operation == nil, let observation = journal.observation else { return .rejected(.detailsChanged) }
+              journal.operation == nil, let observation = journal.observation else {
+            recordClaimDrop(&stored, origin: origin, action: action, cause: cause, now: now); return .rejected(.detailsChanged)
+        }
         if cause != .manual {
-            guard sameMode(stored.context, origin.context), cause != .autoStep || cpRunFromWire(stored.runWire).armed else {
-                return .rejected(.detailsChanged)
+            // Only a person's own tap may act on a waitlist entry made elsewhere. Anything Hearth
+            // does by itself stays inside the location saved on this phone.
+            guard sameMode(stored.context, origin.context), cause != .autoStep || cpRunFromWire(stored.runWire).armed,
+                  action == .stop || withinSavedLocation(stored, observation: observation) else {
+                recordClaimDrop(&stored, origin: origin, action: action, cause: cause, now: now); return .rejected(.detailsChanged)
             }
         }
         guard action == .stop || selectedQueue(stored, observation: observation),
-              permits(action, observation: observation, now: now) else { return .rejected(.detailsChanged) }
+              permits(action, observation: observation, now: now) else {
+            recordClaimDrop(&stored, origin: origin, action: action, cause: cause, now: now); return .rejected(.detailsChanged)
+        }
         let owner = CpOperationOwner(operationID: UUID().uuidString, claimRevision: UUID().uuidString,
             context: stored.context, cause: cause)
         stored.journal!.actionRevision = UUID().uuidString
         stored.journal!.actionable = false
-        stored.journal!.feedback = nil
+        stored.journal!.feedback = nil; stored.journal!.feedbackReads = nil
         stored.journal!.operation = CpOwnedOperation(owner: owner, action: action, target: observation.identity,
             startedAt: now, expiresAt: now.addingTimeInterval(120), stage: .claimed)
         return .claimed(owner)
+    }
+
+    /// Record the last attempted action (secret-free) for Diagnostics, and mirror one log line.
+    /// Never records an automatic step; only user taps (manual) and Auto arming (explicitAuto).
+    private func recordAction(_ stored: inout Stored, action: String, now: Date, requestSent: Bool,
+                              host: String?, status: Int?, outcome: String) {
+        stored.lastAction = CpActionRecord(action: action, at: now, requestSent: requestSent,
+                                           host: host, status: status, outcome: outcome)
+        CpLog.actionAttempted(action: action, requestSent: requestSent, host: host, status: status, outcome: outcome)
+    }
+
+    private func recordClaimDrop(_ stored: inout Stored, origin: CpRenderedOrigin, action: CpOwnedAction,
+                                 cause: CpOperationCause, now: Date) {
+        guard cause != .autoStep else { return }
+        recordAction(&stored, action: action.rawValue, now: now, requestSent: false, host: nil, status: nil,
+                     outcome: claimDropReason(stored, origin: origin, action: action, now: now))
+    }
+
+    /// The specific, secret-free reason a local claim would be refused. MUST mirror the guards in
+    /// `claim` so Diagnostics names the predicate that actually dropped the tap. No value is read.
+    private func claimDropReason(_ stored: Stored, origin: CpRenderedOrigin, action: CpOwnedAction, now: Date) -> String {
+        guard stored.session.isSignedIn, !stored.session.joinExpired else { return "Signed out" }
+        guard stored.location != nil else { return "No saved location" }
+        let journal = stored.journal!
+        guard sameScope(stored.context, origin.context) else { return "Selection changed" }
+        guard journal.observationID != nil, journal.observationID == origin.observationID,
+              journal.actionRevision == origin.actionRevision,
+              journal.assignmentRevision == origin.assignmentRevision,
+              journal.queueRevision == origin.queueRevision else { return "Button was out of date" }
+        guard journal.operation == nil else { return "A command is already in progress" }
+        guard journal.actionable else { return "Nothing to act on" }
+        guard let observation = journal.observation else { return "No reading yet" }
+        if action != .stop, !selectedQueue(stored, observation: observation) { return "No live waitlist entry" }
+        if !permits(action, observation: observation, now: now) { return "Offer not ready" }
+        return "Details changed"
     }
 
     private func sameScope(_ current: CpContextStamp, _ expected: CpContextStamp) -> Bool {
@@ -752,15 +848,19 @@ public struct CpStateStore: Sendable {
             return ["CHARGING_FAULT", "DIB_PLUG_OUT"].contains(identity.phase) && identity.token != nil &&
                 identity.deadlineMs.map { Double($0) > now.timeIntervalSince1970 * 1000 } == true
         case .accept, .snooze:
-            guard let deadline = identity.deadlineMs, Double(deadline) > now.timeIntervalSince1970 * 1000,
-                  identity.deviceID != nil, identity.port != nil, identity.token != nil else { return false }
+            // Require only what the acceptV2 / snoozeV2 requests actually use: the session cookie
+            // and the right offer phase. Those requests carry no device id, port, offer token or
+            // deadline (CpOwnedHTTP.cpOwnedRequest), and Android's cpDispatch demands none either.
+            // Demanding them here is what silently dropped a real ACCEPT_PENDING whose reply did not
+            // echo portNo/duration in the state block. The display still hides an elapsed offer.
             if action == .accept { return identity.phase == "ACCEPT_PENDING" }
             return ["ACCEPT_PENDING", "PENDING_PLUG_IN", "DIB_PENDING_PLUG_IN"].contains(identity.phase) &&
                 (observation.provider.snoozesLeft ?? 0) > 0
         }
     }
 
-    private func selectedQueue(_ stored: Stored, observation: CpObservation) -> Bool {
+    /// The stricter rule for automatic steps: the queue must be the saved location's own.
+    private func withinSavedLocation(_ stored: Stored, observation: CpObservation) -> Bool {
         guard let location = stored.location else { return false }
         let identity = observation.identity
         if identity.phase == "NOT_QUEUED" { return identity.stationIDs.isEmpty }
@@ -768,6 +868,24 @@ public struct CpStateStore: Sendable {
         guard !identity.stationIDs.isEmpty, Set(identity.stationIDs).isSubset(of: selected) else { return false }
         if let device = identity.deviceID { return selected.contains(device) && identity.stationIDs.contains(device) }
         return true
+    }
+
+    private func selectedQueue(_ stored: Stored, observation: CpObservation) -> Bool {
+        guard stored.location != nil else { return false }
+        let identity = observation.identity
+        // Join targets the saved location's own stations, so an idle card is "selected" only when the
+        // read names no foreign queue to join into.
+        if identity.phase == "NOT_QUEUED" { return identity.stationIDs.isEmpty }
+        // OWNERSHIP MODEL CHANGE (match Android): a ChargePoint account holds exactly one live
+        // waitlist entry at a time, so the current `user_status` IS the single thing to act on —
+        // whoever created it (this iPhone, the Android app, or ChargePoint's own app). Android gates
+        // Accept/Leave/Snooze/Rejoin only on signed-in + a saved location and never on the saved
+        // station set (ChargePointRepository.cpDispatch), so an entry joined elsewhere whose stations
+        // are not in this phone's saved location stays fully actionable. The old subset/membership
+        // test was what stripped the keys for such entries and silently refused every tap. We still
+        // require the entry to name a real charger (a station or an offered device) so the
+        // account-wide snooze countdown DTO (PASS with no stations and no device) stays non-actionable.
+        return !identity.stationIDs.isEmpty || identity.deviceID != nil
     }
 
     private func credential(_ stored: Stored, authority: CpRequestAuthority, purpose: CpRequestPurpose,
@@ -796,7 +914,9 @@ public struct CpStateStore: Sendable {
                 guard operation.stage == .claimed, readPurpose(purpose) else { return nil }
                 switch purpose {
                 case .status, .inline: break
-                case .allowance(let token): guard token == operation.target.token else { return nil }
+                // The allowance read uses the token of the status read made a moment ago, which is
+                // newer than the claimed one whenever ChargePoint has re-issued it.
+                case .allowance: break
                 case .charging(let id): guard id == operation.target.sessionID else { return nil }
                 default: return nil
                 }
@@ -910,6 +1030,7 @@ public struct CpStateStore: Sendable {
         }
         if let reading = stored.reading { try requireFinite(reading.observedAt) }
         if let failure = stored.failure { try requireFinite(failure.attemptedAt) }
+        if let lastAction = stored.lastAction { try requireFinite(lastAction.at) }
         if let owner = stored.activeRead {
             try requireFinite(owner.startedAt); try requireFinite(owner.expiresAt)
             guard UUID(uuidString: owner.readID) != nil,

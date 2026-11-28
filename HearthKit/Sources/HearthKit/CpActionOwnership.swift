@@ -61,7 +61,7 @@ public struct CpOperationOwner: Codable, Sendable, Equatable {
 public struct CpOwnedOperation: Codable, Sendable, Equatable {
     public let owner: CpOperationOwner
     public let action: CpOwnedAction
-    public let target: CpObservedIdentity
+    public var target: CpObservedIdentity
     public let startedAt: Date
     public let expiresAt: Date
     public var stage: CpOperationStage
@@ -139,7 +139,11 @@ public struct CpDispatchAdmission: Codable, Sendable, Equatable {
 public struct CpResponseMetadata: Sendable {
     public let status: Int
     public let cookie: String?
-    public init(status: Int, cookie: String? = nil) { self.status = status; self.cookie = cookie }
+    /// Host that answered, kept for the action Diagnostics line. Never a secret.
+    public let host: String?
+    public init(status: Int, cookie: String? = nil, host: String? = nil) {
+        self.status = status; self.cookie = cookie; self.host = host
+    }
 }
 
 struct CpActionJournal: Codable {
@@ -157,6 +161,11 @@ struct CpActionJournal: Codable {
     var signInOrigin: CpSettingsOrigin?
     var lastAdmission: CpDispatchAdmission?
     var lastResponseStatus: Int?
+    /// Host of the last provider response, mirrored into the action Diagnostics line. Never a secret.
+    var lastResponseHost: String?
+    /// How many idle reads the current `feedback` has already been shown for. Optional so records
+    /// written before this field existed still decode.
+    var feedbackReads: Int?
     var autoFailureTarget: CpObservedIdentity?
 }
 

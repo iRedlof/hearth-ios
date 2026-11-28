@@ -32,6 +32,8 @@ struct SettingsCpState {
     var unavailable = false
     /// The last recorded read failure (reason/host/status/time), for the Diagnostics block. Never a secret.
     var lastFailure: CpStateFailure? = nil
+    /// The last attempted action (tap or Auto arm), for the Diagnostics block. Never a secret.
+    var lastAction: CpActionRecord? = nil
 
     var accountName: String {
         let local = session.email.split(separator: "@").first.map(String.init) ?? ""
@@ -139,7 +141,8 @@ final class LiveSettingsRuntime: SettingsRuntime {
     private func cpState(_ current: CpStoreSnapshot) throws -> SettingsCpState {
         SettingsCpState(session: current.session, location: current.location, auto: current.run.armed,
             alerts: current.alerts, origin: current.settingsOrigin, renderedOrigin: current.renderedOrigin,
-            autoControl: try current.displaySnapshot().autoControl, lastFailure: current.failure)
+            autoControl: try current.displaySnapshot().autoControl, lastFailure: current.failure,
+            lastAction: current.lastAction)
     }
 
     func performCpEdit(_ edit: SettingsCpEdit, expected: CpSettingsOrigin?) async throws -> SettingsCpState {
