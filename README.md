@@ -14,6 +14,7 @@ Kotlin / Jetpack Glance). This is a from-scratch reimplementation, not a mechani
 | `Shared/` | SwiftUI views shared by the app + widget (`CarBeaconView`, the Tesla asset). |
 | `docs/PORT-SPEC.md` | The exact Android→Swift porting spec (model, template, client, every test case). |
 | `docs/PLAN.md` | Scope, status, and what's next. |
+| `HearthRenderTests/`, `scripts/render/` | The DEBUG-only **render harness**: a picture of every screen and widget over a demo house. See `docs/RENDER-HARNESS.md`. |
 
 ## Build
 
