@@ -71,6 +71,12 @@ struct ChargePointPage: View {
             cp = runtime.loadCp()
             nameDraft = cp.location?.label ?? ""
 
+            #if DEBUG
+            // Render harness: open the Faster Offers sheet at launch so the walker can capture it.
+            // Inert without the launch argument.
+            if ProcessInfo.processInfo.arguments.contains("-cpShowFasterOffers") { showFasterOffers = true }
+            #endif
+
             // Auto-show sheet based on initialRoute
             if let route = initialRoute {
                 switch route {

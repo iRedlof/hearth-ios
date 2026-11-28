@@ -94,6 +94,15 @@ struct WidgetPage: View {
         .task { await loadNames() }
         .task(id: config) { await loadSnapshot() }
         .onDisappear { thermostat.close() }
+        #if DEBUG
+        // Render harness: open a sub-sheet at launch so the walker can capture it. Inert without
+        // the launch argument.
+        .onAppear {
+            let arguments = ProcessInfo.processInfo.arguments
+            if arguments.contains("-widgetShowRename") { showRename = true }
+            else if arguments.contains("-widgetShowRemove") { showRemove = true }
+        }
+        #endif
         .sheet(isPresented: $showRename) {
             renameSheet
         }

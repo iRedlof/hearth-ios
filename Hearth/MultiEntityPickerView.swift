@@ -19,7 +19,12 @@ struct MultiEntityPickerView: View {
     @State private var phase: Phase = .loading
     @State private var limitBlocked = false
     @State private var saveError: String?
+    #if DEBUG
+    /// Render harness: `-demoPickerSearch <text>` opens the picker with a search already typed.
+    @State private var search = DemoHouse.pickerSearchSeed
+    #else
     @State private var search = ""
+    #endif
 
     private enum Phase: Equatable { case loading, loaded, failed(String) }
 
