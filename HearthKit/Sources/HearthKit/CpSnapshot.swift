@@ -57,3 +57,10 @@ public struct CpSnapshot: Sendable, Equatable, Codable {
         keys: [CpKey(command: "accept", label: "Accept"), CpKey(command: "snooze", label: "Snooze")],
         deadline: Date().addingTimeInterval(165), goTo: "SEA41-29 P3")
 }
+
+public extension CpSnapshot {
+    /// Not in line and Auto is off: the widget offers "Join" and "Join + Auto" side by side.
+    /// Android asks this in a sheet on every Join; an iPhone widget cannot show a sheet, so the
+    /// choice is two buttons (owner decision, 2026-11-27).
+    var offersJoinWithAuto: Bool { actionLabel == "Join" && autoControl == .join }
+}

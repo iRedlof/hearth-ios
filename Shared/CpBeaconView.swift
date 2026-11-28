@@ -126,12 +126,28 @@ public struct CpBeaconView: View {
             detail
             Spacer(minLength: 2)
             if snap.keys.isEmpty {
-                if snap.showOpen { HStack(spacing: 6) { actionButton; openKey } } else { actionButton }
+                if snap.offersJoinWithAuto { HStack(spacing: 6) { actionButton; joinAutoKey } }
+                else if snap.showOpen { HStack(spacing: 6) { actionButton; openKey } } else { actionButton }
             } else { keyRow }
         }
         .padding(.horizontal, 13).padding(.top, height < 222 ? 8 : 14).padding(.bottom, 6)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(Color(argb: BeaconSurfaceColors.graphiteARGB))
+    }
+
+    /// "Join + Auto": join the waitlist and let Hearth accept and snooze. The same control the Auto
+    /// pill runs when you are not in line, given the same weight as plain "Join".
+    private var joinAutoKey: some View {
+        Button(intent: CpControlIntent("join", origin: CpSessionStore.encodedActionOrigin(snap.origin))) {
+            Text("Join + Auto")
+                .font(HearthFont.groupLabel.font.weight(.semibold)).foregroundStyle(Color(white: 0.12))
+                .lineLimit(1).minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity).frame(height: 36)
+                .background(fill, in: RoundedRectangle(cornerRadius: 11))
+        }
+        .buttonStyle(.plain)
+        .disabled(snap.working || snap.stale || snap.origin == nil)
+        .accessibilityLabel("Join and start Auto")
     }
 
     /// A narrow "Open" key beside the primary action, deep-linking to ChargePoint (Android idle parity).
