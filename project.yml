@@ -47,6 +47,11 @@ targets:
             CFBundleURLName: com.rohit.hearth
             CFBundleURLSchemes:
               - hearth
+        # ChargePoint auto-run asks iOS for a background wake at its next action time.
+        BGTaskSchedulerPermittedIdentifiers:
+          - com.rohit.hearth.chargepoint.refresh
+        UIBackgroundModes:
+          - fetch
     entitlements:
       path: Hearth/Hearth.entitlements
       properties:

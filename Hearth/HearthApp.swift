@@ -9,6 +9,7 @@ struct HearthApp: App {
     #endif
     init() {
         HearthFontRegistration.registerIfNeeded()
+        CpBackgroundRefresh.register()
         #if DEBUG
         if CpSessionStore.fixtureActive {
             probeSelection = .inactive
@@ -189,7 +190,10 @@ struct ContentView: View {
             thermostatModel?.close(); thermostatModel = nil; thermostatAdmission.close()
         }
         .onChange(of: scenePhase) { _, newPhase in
-            guard !inertTabs, newPhase == .active else { return }
+            guard !inertTabs else { return }
+            // Leaving the app: ask iOS to bring ChargePoint back at auto-run's next action time.
+            if newPhase == .background { CpBackgroundRefresh.schedule() }
+            guard newPhase == .active else { return }
             HouseScheduler.refreshScheduleIfNeeded()
         }
         #if DEBUG
