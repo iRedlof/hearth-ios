@@ -133,14 +133,12 @@ struct WidgetPage: View {
     /// The same live picture the Card style page draws: the person's own widget, in this widget's
     /// own Card style (else All cards'). A picture only, so its keys do not act from here.
     private var previewMat: some View {
-        HStack {
-            Spacer(minLength: 0)
-            CardStylePreviewCard(kind: kind, data: liveData, thermostat: liveThermostat,
-                                 style: CardStyleStore.effectiveStyle(for: kind))
-                .redacted(reason: previewSource == .loading ? .placeholder : [])
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 24)
+        CardStylePreviewCard(kind: kind, data: liveData, thermostat: liveThermostat,
+                             style: CardStyleStore.effectiveStyle(for: kind))
+            .redacted(reason: previewSource == .loading ? .placeholder : [])
+            // Centred at its real size; the card scales itself down on a narrower page.
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 24)
         .background(HearthColor.widgetPreviewBg(scheme))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .padding(.horizontal, HearthMetrics.pagePadding)
