@@ -631,7 +631,7 @@ public struct CpStateStore: Sendable {
             var run = cpRunFromWire(stored.runWire)
             guard run.armed else { return nil }
             if let failedTarget = stored.journal!.autoFailureTarget {
-                if failedTarget.sameTargetKey == observation.identity.sameTargetKey { return nil }
+                if failedTarget == observation.identity { return nil }
                 stored.journal!.autoFailureTarget = nil
                 run = cpAfterManual(run, .accept, true)
             }
