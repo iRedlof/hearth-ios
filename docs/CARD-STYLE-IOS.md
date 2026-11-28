@@ -33,8 +33,11 @@ The summary under the "Card style" rows reads like Android's: `Status colours`, 
 
 ### How a card draws a style
 
-**Beacon cards (Alarm, Thermostat, Car, ChargePoint): the style paints the BODY. The rail always
-keeps the widget's state colour and its own ink** (ChargePoint keeps its orange rail).
+**Every card is a Beacon card: a rail and a body. The style paints the BODY. The rail always
+keeps the widget's state colour and its own ink** (ChargePoint keeps its orange rail). That is
+Alarm, Thermostat, Car and ChargePoint, and, since the two-panel redesign (2026-11-28), Lights,
+Quick actions, Favourites, Activity and Batteries. No card is a flat, whole-card style any more,
+so Android's `cardLook` has no iOS counterpart.
 
 | Background | Body | Body inks |
 |---|---|---|
@@ -48,19 +51,45 @@ body (light or dark), with Android's values. The Alarm card's Garage row takes t
 inks and text size exactly as the front-door row does (closed is the locked colour, open the
 unlocked one).
 
-**The other cards (Lights, Quick actions, Favourites, Activity, Batteries)** follow
-Android's `cardLook`: Status is the card exactly as it was; a colour or black replaces the whole
-card's background with white inks (dark inks on Snow). On a chosen background a card that needs
-you shows it as an amber headline and a strip on the leading edge.
+**The two-panel widgets (Lights, Quick actions, Favourites, Activity, Batteries)** draw their
+tiles, chips and rows with the same body tokens: a tile that is on or an action that can run is a
+flat chip, anything off or unavailable a faint one; the "on" glyph and a low battery take the heat
+setpoint's amber, a nearly empty battery the alert red. Their rail takes one of three existing
+tones (`DoorsTone`): warm when something is on or wants attention, calm when all is fine, neutral
+when not set up or unreachable (Activity is always neutral). See "Two-panel widgets" below.
 
-**Text size** multiplies every text in the card (icons keep their size, as on Android). Collection
-cards (Activity, Batteries) feed the scale into their row planning, so rows still fit. The Alarm
-card's two door rows (front door + garage) lower their own text only as far as needed to fit the
-medium widget (`alarmDoorRowsLayout`).
+**Text size** multiplies every text in the card (the rail's and tiles' glyphs keep their size, as
+on Android). The two-panel widgets do not plan rows in points: each offers `ViewThatFits` its
+layouts from fullest to barest, so a larger text size shows fewer tiles or rows rather than
+overflowing. The Alarm card's two door rows (front door + garage) lower their own text only as far
+as needed to fit the medium widget (`alarmDoorRowsLayout`).
 
-**Small print off** hides what Android hides: the "Checked …" stamp (Beacon cards, Lights,
-Favourites, Batteries), ChargePoint's context lines under the rail's answer, and Activity's
-"by …". Android also hides Quick's last-run line; the iOS Quick card does not show one.
+**Small print off** hides what Android hides: the "Checked …" stamp (every card) and
+ChargePoint's context lines under the rail's answer. Android also hides Activity's "by …" and
+Quick's last-run line; the iOS cards show neither.
+
+### Two-panel widgets
+
+Lights, Quick actions, Favourites, Activity and Batteries share one anatomy and one size (medium):
+
+| | Rail (the answer) | Body |
+|---|---|---|
+| Lights | "3 on" / "All off" over "of 3 lights" | up to four tiles that toggle |
+| Quick actions | "4 actions" over "Tap to run" | up to four chips that run a script |
+| Favourites | "2 on" / "All off" over "of 4" | up to four tiles that toggle or run |
+| Activity | the latest event: what, then what happened and when | the three events before it |
+| Batteries | "All good" over "4 tracked", or "2 low" over what is low | the three lowest |
+
+What is left out is counted: "+N more". Not set up is "Set up" over "Tap to connect" on the rail
+and "Connect Home Assistant" with Connect in the body. Unreachable is a neutral rail ("3 not
+reporting", "Can't run" over "Home is unreachable", or the last-known answer), a "Can't reach Home
+Assistant" line, and the last-known items: lights, favourites and actions as Unavailable and not
+tappable, batteries and events with the values last read.
+
+Everything a rail says, its tone, what a body shows and how many items fit is decided in
+`HearthKit/Sources/HearthKit/Panels/` and tested there; `Shared/Panels/` only draws it. Both
+halves are pinned to the widget's height, so content gives way instead of overflowing: fewer
+tiles or rows first, the rail's glyph and answer smaller before a line of detail is dropped.
 
 ### The page
 
@@ -78,8 +107,9 @@ saves at once and reloads the widgets.
 
 - **Own style is per widget kind, not per placed widget.** Android keys it by `appWidgetId`;
   WidgetKit's static widgets have no per-placement identity.
-- **One size per widget.** The small sizes (Alarm, Thermostat, Car) and the small-only Glance
-  widget were removed (owner decision 2026-11-27), so there is nothing unstyled left.
+- **One size per widget, and it is medium.** The small sizes (Alarm, Thermostat, Car) and the
+  small-only Glance widget were removed (owner decision 2026-11-27); Lights, Favourites and
+  Activity went from large to medium with the two-panel redesign. There is nothing unstyled left.
 
 ## Where it lives
 
@@ -89,6 +119,7 @@ saves at once and reloads the widgets.
 | Storage (App Group; keys `cardStyleGlobal`, `cardStyleOverrides`) | `Shared/CardStyleStore.swift` |
 | The style reaching a view (`\.cardStyle` environment) | `Shared/CardStyleEnvironment.swift` |
 | Drawing a styled background | `Shared/CardSurfaceView.swift` |
+| The two-panel widgets: decisions / drawing | `HearthKit/Sources/HearthKit/Panels/` / `Shared/Panels/` |
 | Every widget reading its style | `HearthWidgets/CardStyledContent.swift`, used by each widget in `HearthWidgetBundle.swift` |
 | The page | `Hearth/Widgets/CardStylePage.swift`, `CardStyleControls.swift`, `CardStylePreview.swift` |
 
@@ -111,7 +142,12 @@ Options may be separated by `;` or `,` (a comma needs no shell quoting). Example
 -parityState alarm-disarmed -parityCardStyle status
 -parityState car-parked -parityCardStyle colour:plum
 -parityState thermostat-auto -parityCardStyle colour:snow,text=larger,small=off
+-parityState lights-failed -parityCardStyle colour:snow
 ```
+
+The two-panel fixtures are `lights-`, `quick-`, `favourites-`, `activity-` and `battery-` followed
+by a state: `ready` (`battery-good`), a second state (`lights-off`, `favourites-off`,
+`quick-unavailable`, `activity-empty`, `battery-low`), `overflow`, `long_names`, `setup`, `failed`.
 
 Without the argument, or with a value that does not parse, fixtures draw in the default style.
 With `-parityWidgetKit` the same style reaches the fixture drawn inside the real widget.
