@@ -257,9 +257,9 @@ struct ParityStateScreen: View {
         ZStack(alignment: .topLeading) {
             Color(red: 1, green: 0, blue: 1).ignoresSafeArea()   // magenta crop marker — appears nowhere in the card
             (ParityCatalog.view(id) ?? AnyView(Text(id).foregroundStyle(.white)))
-                .frame(width: width, height: height)
+                // As WidgetKit draws it: all four corners rounded, the rail reaching the top edge.
+                .widgetContainer(size: CGSize(width: width, height: height))
                 .allowsHitTesting(false)
-                .clipped()
                 #if DEBUG
                 .cardStyle(ParityCatalog.launchCardStyle() ?? .default)
                 #endif

@@ -327,8 +327,7 @@ enum WidgetThumbnail {
 
 private extension View {
     func widgetThumbnail() -> some View {
-        frame(width: WidgetThumbnail.natural.width, height: WidgetThumbnail.natural.height)
-            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        widgetContainer(size: WidgetThumbnail.natural)
             .scaleEffect(WidgetThumbnail.scale)
             .frame(width: WidgetThumbnail.natural.width * WidgetThumbnail.scale,
                    height: WidgetThumbnail.natural.height * WidgetThumbnail.scale)

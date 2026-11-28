@@ -120,9 +120,9 @@ struct WidgetGalleryView: View {
                 .font(.body).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            InertWidgetPreview(content: widget(for: kind))
+            // The container is set inside the hosted view: it does not cross into a hosting controller.
+            InertWidgetPreview(content: widget(for: kind).widgetContainer(size: size))
                 .frame(width: size.width, height: size.height)
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .scaleEffect(scale)
                 .frame(width: size.width * scale, height: size.height * scale)
                 .allowsHitTesting(false)

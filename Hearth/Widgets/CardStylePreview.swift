@@ -75,7 +75,6 @@ struct CardStylePreviewCard: View {
         static let width: CGFloat = 329
         static let mediumHeight: CGFloat = 155
         static let largeHeight: CGFloat = 345
-        static let corner: CGFloat = 22
     }
 
     /// The size the widget is drawn at: its one Home Screen size.
@@ -92,8 +91,7 @@ struct CardStylePreviewCard: View {
             let scale = geometry.size.width / size.width
             widget
                 .cardStyle(style)
-                .frame(width: size.width, height: size.height)
-                .clipShape(RoundedRectangle(cornerRadius: Size.corner, style: .continuous))
+                .widgetContainer(size: size)
                 .scaleEffect(scale, anchor: .topLeading)
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
         }

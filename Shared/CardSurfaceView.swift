@@ -52,7 +52,8 @@ struct CardSurfaceView<Outline: InsettableShape>: View {
 }
 
 extension CardSurfaceView where Outline == ContainerRelativeShape {
-    /// The whole card: follows the widget's own corners (a plain rectangle outside WidgetKit).
+    /// The whole card: follows the widget's own corners (WidgetKit's on the Home Screen, the host's
+    /// `widgetContainer` in the app).
     init(_ surface: CardSurface) {
         self.init(surface: surface, shape: ContainerRelativeShape())
     }
