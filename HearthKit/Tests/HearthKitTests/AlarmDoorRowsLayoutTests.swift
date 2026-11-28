@@ -67,6 +67,19 @@ struct AlarmDoorRowsLayoutTests {
         #expect(layout.nameSize == Metrics.nameSize * textScale)
     }
 
+    @Test("Every iPhone's medium widget fits both rows, at Normal and Larger",
+          arguments: [320.0, 375, 390, 414, 430], [1.0, 1.12])
+    func everyHomeScreenSize(screenWidth: Double, textScale: Double) {
+        let card = homeScreenWidgetSize(screenWidth: screenWidth).medium.height
+        let available = Self.available(card: card, textScale: textScale)
+        let layout = alarmDoorRowsLayout(availableHeight: available, textScale: textScale)
+        #expect(layout.contentHeight + 2 * Metrics.margin <= available + 0.001)
+        #expect(layout.buttonHeight + 2 * Metrics.buttonInset <= layout.rowHeight + 0.001)
+        // At the smallest size the text keeps its floor and gives up the row's inner padding.
+        #expect(layout.textHeight <= layout.rowHeight)
+        #expect(layout.textScale > Metrics.minimumTextScale || card < 155)
+    }
+
     @Test("Smaller text is honoured, never enlarged to fill the row")
     func smallerText() {
         let layout = alarmDoorRowsLayout(availableHeight: Self.available(card: 155, textScale: 0.9), textScale: 0.9)
