@@ -142,6 +142,8 @@ struct WidgetPage: View {
             HStack {
                 Spacer()
                 widget(for: kind.previewKind)
+                    // As on the home screen: in this widget's own Card style, else All cards'.
+                    .cardStyle(CardStyleStore.effectiveStyle(for: kind))
                     .frame(width: previewWidth, height: previewHeight)
                     .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                     .redacted(reason: previewSource == .loading ? .placeholder : [])
@@ -345,7 +347,7 @@ struct WidgetPage: View {
                     icon: "paintbrush.fill",
                     hue: .neutral,
                     title: "Card style",
-                    subtitle: cardStyleSubtitle
+                    subtitle: cardStyleEntrySubtitle(own: CardStyleStore.override(for: kind))
                 )
             }
             .buttonStyle(.plain)
@@ -802,29 +804,6 @@ struct WidgetPage: View {
         guard let data = try? JSONSerialization.data(withJSONObject: ids),
               let s = String(data: data, encoding: .utf8) else { return "[]" }
         return s
-    }
-
-    /// Returns the subtitle for the Card style row: "Same as all widgets · <style>" or "Its own · <style>".
-    private var cardStyleSubtitle: String {
-        let globalStyle = CardStyleStore.global()
-        let override = CardStyleStore.override(for: kind)
-        let effectiveStyle = override ?? globalStyle
-
-        let styleName: String
-        switch effectiveStyle.background {
-        case .byState:
-            styleName = "By state"
-        case .colour(let color):
-            styleName = color.rawValue.capitalized
-        case .black:
-            styleName = "Black"
-        }
-
-        if override != nil {
-            return "Its own · \(styleName)"
-        } else {
-            return "Same as all widgets · \(styleName)"
-        }
     }
 }
 

@@ -355,7 +355,8 @@ struct ContentView: View {
                 .id(sheet.id)
             case .cardStylePage(let kind, _):
                 NavigationStack {
-                    CardStylePage(kind: kind)
+                    CardStylePage(kind: kind, config: config,
+                                  cpSignedIn: (try? CpSessionStore.context().session.isSignedIn) == true)
                         .toolbar {
                             ToolbarItem(placement: .cancellationAction) {
                                 Button("Done") {

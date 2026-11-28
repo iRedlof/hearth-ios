@@ -2,11 +2,14 @@ import SwiftUI
 import HearthKit
 
 /// The "Look" section of the iOS Home dashboard.
-/// Single row for Card style customization.
+/// Single row for Card style, with the All-cards style in a few words underneath
+/// (Android `HomeScreen.kt:91-93`).
 struct LookSection: View {
+    private let summary: String
     private let onTap: (HomeRoute) -> Void
 
-    init(onTap: @escaping (HomeRoute) -> Void) {
+    init(summary: String, onTap: @escaping (HomeRoute) -> Void) {
+        self.summary = summary
         self.onTap = onTap
     }
 
@@ -19,7 +22,7 @@ struct LookSection: View {
                     icon: "paintpalette.fill",
                     hue: .orange,
                     title: "Card style",
-                    subtitle: "Customize widget appearance"
+                    subtitle: summary
                 ) {
                     HomeChevron()
                 }
@@ -32,14 +35,14 @@ struct LookSection: View {
 // MARK: - Previews
 
 #Preview("Look — Light") {
-    LookSection(onTap: { _ in })
+    LookSection(summary: CardStyle.default.summary, onTap: { _ in })
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(HearthColor.page(.light))
         .preferredColorScheme(.light)
 }
 
 #Preview("Look — Dark") {
-    LookSection(onTap: { _ in })
+    LookSection(summary: CardStyle.default.summary, onTap: { _ in })
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(HearthColor.page(.dark))
         .preferredColorScheme(.dark)
