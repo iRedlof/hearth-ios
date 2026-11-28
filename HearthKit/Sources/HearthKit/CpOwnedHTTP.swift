@@ -45,7 +45,9 @@ public struct CpOwnedHTTP: Sendable {
                 guard let credential = try store.requestCredential(authority: authority, purpose: purpose, now: now()) else {
                     throw CpFeedback.detailsChanged
                 }
-                let prepared = try transport.prepare(try cpOwnedRequest(credential, purpose: purpose))
+                let builtRequest = try cpOwnedRequest(credential, purpose: purpose)
+                let host = builtRequest.url?.host
+                let prepared = try transport.prepare(builtRequest)
                 guard cancellation.install(prepared) else { prepared.cancel(); throw CancellationError() }
                 let admission: CpDispatchAdmission?
                 do {
@@ -64,7 +66,7 @@ public struct CpOwnedHTTP: Sendable {
                 }
                 guard (200..<300).contains(response.statusCode) else {
                     throw HaError(response.statusCode == 403 ? CP_REFUSED : "ChargePoint replied \(response.statusCode)",
-                        code: response.statusCode)
+                        code: response.statusCode, host: host)
                 }
                 try Task.checkCancellation()
                 guard let body = String(data: data, encoding: .utf8) else { throw CpObservationError.malformed }

@@ -66,6 +66,18 @@ public func cpConnectionStatus(signedIn: Bool, hasAccount: Bool) -> CpConnection
     return .notSetUp
 }
 
+/// Single source of truth for ChargePoint sign-in status. The ChargePoint page, the Home
+/// Connections row and the Home tile all derive their status from this one function applied to the
+/// same stored session, so they cannot disagree. An expired session (ChargePoint signed the user
+/// out) is `needsSignIn`, never `connected`.
+/// - Parameter session: The persisted ChargePoint session.
+/// - Returns: `connected` when signed in; `needsSignIn` when an account exists but is signed out
+///   (including expired); `notSetUp` when no account has ever been configured.
+public func cpConnectionStatus(for session: CpSession) -> CpConnectionStatus {
+    cpConnectionStatus(signedIn: session.isSignedIn,
+                       hasAccount: session.userId != 0 || !session.email.isEmpty)
+}
+
 public extension CpConnectionStatus {
     /// The status tone for UI presentation.
     var tone: StatusTone {

@@ -396,7 +396,8 @@ final class CpStateStoreTests: XCTestCase {
         XCTAssertEqual(display.checkedAt, cpClockString(CpStoreFixture.now))
         XCTAssertEqual(display.bigAnswer, "#3")
         XCTAssertTrue(display.stale)
-        XCTAssertEqual(display.sub, "Couldn't check · Refresh to retry")
+        // The stored failure's own reason is now shown instead of the generic text.
+        XCTAssertEqual(display.sub, "Fixture offline · Refresh to retry")
         XCTAssertFalse(display.autoOn)
         XCTAssertEqual(display.autoControl, .resume)
     }

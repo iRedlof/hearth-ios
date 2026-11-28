@@ -31,7 +31,14 @@ public struct CpOwnedRuntime: Sendable {
                 return try await refresh(runAuto: false)
             }
         } catch {
-            _ = try store.failRead(owner: owner, message: friendlyError(error), now: now())
+            // Keep what failed and log it once (no secrets), so the owner and we can see the reason.
+            let kind = cpClassifyReadFailure(error)
+            let host = cpFailureHost(error)
+            let status = cpFailureStatus(error)
+            let reason = cpFailurePresentation(kind).reason
+            CpLog.readFailed(host: host, status: status, reason: reason)
+            _ = try store.failRead(owner: owner, message: reason, now: now(),
+                                   kind: kind, host: host, status: status)
         }
         return try store.snapshot(now: now()).displaySnapshot(now: now())
     }

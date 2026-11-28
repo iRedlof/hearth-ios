@@ -3,7 +3,12 @@ import Foundation
 public struct HaError: Error, Sendable, Equatable {
     public let message: String
     public let code: Int
-    public init(_ message: String, code: Int = 0) { self.message = message; self.code = code }
+    /// Optional host that produced the error, for diagnostics. Never a secret. Defaults to nil so
+    /// existing Home Assistant call sites and equality comparisons are unaffected.
+    public let host: String?
+    public init(_ message: String, code: Int = 0, host: String? = nil) {
+        self.message = message; self.code = code; self.host = host
+    }
 }
 
 /// Short-lived access tokens cached in-memory by server and refresh token, renewed 60s before expiry.
