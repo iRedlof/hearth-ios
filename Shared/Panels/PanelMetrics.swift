@@ -54,6 +54,7 @@ enum PanelMetrics {
     static let chipVerticalPadding: CGFloat = 5
     static let chipRoomyNameLines = 2
     static let nameShrink: CGFloat = 0.85
+    static let chipNameShrink: CGFloat = 0.8
 
     // Rows
     static let rowSpacing: CGFloat = 2

@@ -8,6 +8,16 @@ enum TileParityInputs {
     private static let now = Date(timeIntervalSince1970: 1_793_379_600)
     private static let base = HaConfig(baseUrl: "https://example.com", token: "inert", entityId: "")
 
+    /// Entity ids spelled from the fixture names ("script.movie_time"), so an unreachable read,
+    /// which only has the id to name an entity by, still shows the same names as the ready one.
+    private static func fixtureIDs(domain: String, names: [String], count: Int) -> [String] {
+        (0..<count).map { index in
+            let slug = names[index % names.count].lowercased().replacingOccurrences(of: " ", with: "_")
+            let round = index / names.count
+            return "\(domain).\(slug)" + (round == 0 ? "" : "_\(round + 1)")
+        }
+    }
+
     private static func raw(_ id: String, name: String, state: String) -> String {
         let object: [String: Any] = ["entity_id": id, "state": state, "attributes": ["friendly_name": name]]
         return String(data: try! JSONSerialization.data(withJSONObject: object), encoding: .utf8)!
@@ -52,15 +62,22 @@ enum TileParityInputs {
         }
     }
 
+    /// Quick actions fixtures: four actions (calm), every other one unavailable, six ("+2 more"),
+    /// long names, not set up, and unreachable with every action kept as Unavailable.
+    static let quickStates = ["ready", "unavailable", "overflow", "long_names", "setup", "failed"]
+    private static let quickNames = ["Movie time", "Good night", "All lights off", "Clean floor"]
+    private static let longQuickName = "Upstairs primary bedroom lighting routine"
+    private static let overflowQuickCount = 6
+
     static func quick(_ state: String) -> QuickSnapshot {
-        if state == "loading" { return .loading }
+        precondition(quickStates.contains(state))
         var config = base
-        let count = state == "overflow" || state == "overflow_error" ? 6 : 4
-        let ids = (1...count).map { "script.fixture_\($0)" }
-        config.scriptIdsJson = state == "empty" ? "[]" : String(data: try! JSONEncoder().encode(ids), encoding: .utf8)!
+        let ids = fixtureIDs(domain: "script", names: quickNames,
+                             count: state == "overflow" ? overflowQuickCount : quickNames.count)
+        config.scriptIdsJson = String(data: try! JSONEncoder().encode(ids), encoding: .utf8)!
         let replies = Dictionary(uniqueKeysWithValues: ids.enumerated().map { index, id in
-            (id, state == "failed" || state == "overflow_error" && index == 0 ? Result<String, HaError>.failure(HaError("Can't reach Home Assistant")) :
-                .success(raw(id, name: state == "long_names" ? "Upstairs primary bedroom lighting routine" : ["Movie time", "Good night", "All lights off", "Clean floor"][index % 4],
+            (id, state == "failed" ? Result<String, HaError>.failure(HaError(unreachable)) :
+                .success(raw(id, name: state == "long_names" ? longQuickName : quickNames[index % quickNames.count],
                              state: state == "unavailable" && index % 2 == 1 ? "unavailable" : "off")))
         })
         return mapQuickSnapshot(state == "setup" ? nil : config, replies: replies, now: now)

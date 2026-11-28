@@ -179,8 +179,8 @@ struct QuickProvider: TimelineProvider {
 struct QuickWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "com.rohit.hearth.quick", provider: QuickProvider()) { entry in
-            CardStyledContent(kind: .quick, statusARGB: BeaconSurfaceColors.graphiteARGB) {
-                ParityWidgetContent(prefix: "quick") { QuickView(entry.snap) }
+            CardStyledContent(beacon: .quick) {
+                ParityWidgetContent(prefix: "quick") { QuickPanelView(entry.snap) }
             }
         }
         .configurationDisplayName("Quick")

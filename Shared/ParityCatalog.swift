@@ -121,9 +121,9 @@ struct ParityWidgetSelection: Sendable {
                 payload: CarParityInputs.productionPayload("mixed_open",
                     destination: .ticket(UUID(uuidString: "11111111-1111-1111-1111-111111111111")!)))))
         ]
-        return alarm() + thermostat() + car() + chargePoint() + lights() + tiles() + collections() + readable + nativeReadable + productionCar + disclosureCar
+        return alarm() + thermostat() + car() + chargePoint() + lights() + quick() + tiles() + collections() + readable + nativeReadable + productionCar + disclosureCar
         #else
-        alarm() + thermostat() + car() + chargePoint() + lights() + tiles() + collections()
+        alarm() + thermostat() + car() + chargePoint() + lights() + quick() + tiles() + collections()
         #endif
     }
 
@@ -132,11 +132,15 @@ struct ParityWidgetSelection: Sendable {
         TileParityInputs.lightStates.map { ("lights-" + $0, AnyView(LightsPanelView(TileParityInputs.lights($0)))) }
     }
 
+    // MARK: Quick actions
+    private static func quick() -> [(String, AnyView)] {
+        TileParityInputs.quickStates.map { ("quick-" + $0, AnyView(QuickPanelView(TileParityInputs.quick($0)))) }
+    }
+
     private static func tiles() -> [(String, AnyView)] {
-        TileParityInputs.states.flatMap { state in [
-            ("favourites-" + state, AnyView(FavouritesView(TileParityInputs.favourites(state)))),
-            ("quick-" + state, AnyView(QuickView(TileParityInputs.quick(state))))
-        ] }
+        TileParityInputs.states.map {
+            ("favourites-" + $0, AnyView(FavouritesView(TileParityInputs.favourites($0))))
+        }
     }
     private static func collections() -> [(String, AnyView)] {
         CollectionParityInputs.activityStates.map {

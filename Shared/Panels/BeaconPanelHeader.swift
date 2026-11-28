@@ -24,8 +24,8 @@ struct BeaconPanelHeader: View {
 
     private func row<Title: View>(title: Title, showsStamp: Bool) -> some View {
         HStack(alignment: .top, spacing: PanelMetrics.headerSpacing) {
-            title
-            Spacer(minLength: 2)
+            // The title owns the spare width (a Spacer beside it would take half of it).
+            title.frame(maxWidth: .infinity, alignment: .leading)
             BeaconFreshness(checkedAt: checked ?? "", kind: kind, ink: ink, showsStamp: showsStamp)
         }
     }
