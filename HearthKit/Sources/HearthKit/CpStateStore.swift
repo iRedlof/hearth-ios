@@ -398,7 +398,7 @@ public struct CpStateStore: Sendable {
             // button rendered from an earlier read still acts and only a genuinely different offer
             // refuses a stale tap (ChargePointControl.CpCommandEpoch advances on dispatch, never on
             // a read). The matching freshness gate is `claim` below.
-            let identityChanged = old != observation.identity
+            let identityChanged = old?.sameTargetKey != observation.identity.sameTargetKey
             if old?.stationIDs != observation.identity.stationIDs || old?.queued != observation.identity.queued {
                 journal.queueRevision = UUID().uuidString
             }
@@ -631,7 +631,7 @@ public struct CpStateStore: Sendable {
             var run = cpRunFromWire(stored.runWire)
             guard run.armed else { return nil }
             if let failedTarget = stored.journal!.autoFailureTarget {
-                if failedTarget == observation.identity { return nil }
+                if failedTarget.sameTargetKey == observation.identity.sameTargetKey { return nil }
                 stored.journal!.autoFailureTarget = nil
                 run = cpAfterManual(run, .accept, true)
             }

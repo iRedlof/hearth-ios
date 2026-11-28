@@ -53,10 +53,30 @@ final class CpActionGateTests: XCTestCase {
         }
     }
 
+    /// Seen on a real account (2026-11-27): ChargePoint returns a NEW offer token on every status
+    /// read while the offer itself — charger, port, start and deadline — is unchanged. The token is
+    /// not sent by Accept, Snooze or Leave, so a re-issued token must not make a drawn button stale.
+    func testButtonStaysValidWhenOnlyTheOfferTokenIsReissued() throws {
+        let value = try store()
+        let drawn = try XCTUnwrap(observed(value, try offer(token: "token-from-read-1")).renderedOrigin)
+        let afterRead = try XCTUnwrap(observed(value, try offer(token: "token-from-read-2"),
+                                               at: now.addingTimeInterval(1)).renderedOrigin)
+        XCTAssertEqual(drawn, afterRead, "A re-issued token is the same offer")
+        for action in [CpOwnedAction.leave, .accept] {
+            let fresh = try store()
+            let origin = try XCTUnwrap(observed(fresh, try offer(token: "a")).renderedOrigin)
+            _ = try observed(fresh, try offer(token: "b"), at: now.addingTimeInterval(1))
+            _ = try observed(fresh, try offer(token: "c"), at: now.addingTimeInterval(2))
+            if case .rejected = try fresh.claim(origin: origin, action: action, now: now.addingTimeInterval(3)) {
+                XCTFail("\(action) drawn before two token-only refreshes must still be accepted")
+            }
+        }
+    }
+
     // MARK: - 2. Changed offer / phase refuses the stale button, with a surviving reason
 
     func testButtonFromObservationIsRefusedAfterDifferentOfferWithSurvivingReason() throws {
-        for changed in [try offer(token: "offer-2"), try offer("PENDING_PLUG_IN")] {
+        for changed in [try offer(device: 13104611, port: 2), try offer(start: 2_000), try offer("PENDING_PLUG_IN")] {
             let value = try store()
             let drawn = try XCTUnwrap(observed(value, offer()).renderedOrigin)
             _ = try observed(value, changed, at: now.addingTimeInterval(2))   // the offer/phase moved on
@@ -121,7 +141,11 @@ final class CpActionGateTests: XCTestCase {
         let afterRead = try observed(value, evidence, at: now.addingTimeInterval(3)) // a plain refresh
         XCTAssertEqual(afterRead.ownershipFeedback, .unavailable, "The reason must survive one further read")
         // And it clears once the state the user is looking at actually changes.
-        let changed = try observed(value, try offer(token: "offer-2"), at: now.addingTimeInterval(4))
+        // A re-issued token alone is still the same offer, so the reason stays…
+        let reissued = try observed(value, try offer(token: "offer-2"), at: now.addingTimeInterval(4))
+        XCTAssertEqual(reissued.ownershipFeedback, .unavailable)
+        // …and it clears once the offer itself changes (a different charger).
+        let changed = try observed(value, try offer(device: 13104611, port: 2), at: now.addingTimeInterval(5))
         XCTAssertNil(changed.ownershipFeedback)
     }
 
