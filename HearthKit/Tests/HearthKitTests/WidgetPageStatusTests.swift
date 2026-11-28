@@ -132,3 +132,26 @@ struct CpTileLineTests {
         #expect(cpTileStateLine(bigAnswer: "77", unit: "plugs free", stale: true) == "Stale data")
     }
 }
+
+@Suite("ChargePoint widget join choices")
+struct CpJoinChoiceTests {
+    private func snapshot(action: String, auto: CpAutoControl) -> CpSnapshot {
+        var value = CpSnapshot.sample
+        value.actionLabel = action; value.autoControl = auto
+        return value
+    }
+
+    @Test("Not in line with Auto off offers both ways to join")
+    func offersBoth() {
+        #expect(snapshot(action: "Join", auto: .join).offersJoinWithAuto)
+    }
+
+    @Test("Auto already on, signed out, or nothing to join offers no second button")
+    func single() {
+        #expect(!snapshot(action: "Join", auto: .stop).offersJoinWithAuto)
+        #expect(!snapshot(action: "Join", auto: .disabled).offersJoinWithAuto)
+        #expect(!snapshot(action: "Join", auto: .signin).offersJoinWithAuto)
+        #expect(!snapshot(action: "Open", auto: .join).offersJoinWithAuto)
+        #expect(!snapshot(action: "Sign in", auto: .join).offersJoinWithAuto)
+    }
+}
