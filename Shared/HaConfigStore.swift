@@ -19,8 +19,11 @@ public enum HaConfigStore {
         guard let store else { throw HaError("Shared storage is unavailable") }
         return try store.expireClimateOperation(now: now)
     }
+    /// The Alarm card shows the alarm's and the garage's commands; an interrupted one of either
+    /// kind is expired before the card is drawn.
     static func alarmContext(now: Date = .now) throws -> HaStoreSnapshot {
         guard let store else { throw HaError("Shared storage is unavailable") }
+        _ = try store.expireDoorOperation(now: now)
         return try store.expireAlarmOperation(now: now)
     }
     static func doorsContext(now: Date = .now) throws -> HaStoreSnapshot {

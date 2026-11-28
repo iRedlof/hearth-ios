@@ -3,7 +3,8 @@ import Foundation
 import WidgetKit
 import HearthKit
 
-/// Every direct door control uses the account and selection captured by its rendered card.
+/// The Alarm card's garage button (Open / Close / Stop). Every direct door control uses the
+/// account and door-command origin captured by its rendered card.
 struct DoorActionIntent: AppIntent {
     static var title: LocalizedStringResource { "Door action" }
     static var isDiscoverable: Bool { false }
@@ -30,6 +31,8 @@ struct DoorActionIntent: AppIntent {
 enum DoorActionRuntime {
     private static func notify() async {
         WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.doors")
+        // The garage row lives on the Alarm card.
+        WidgetCenter.shared.reloadTimelines(ofKind: "com.rohit.hearth.alarm")
         await MainActor.run { RefreshSignal.shared.bump() }
     }
 

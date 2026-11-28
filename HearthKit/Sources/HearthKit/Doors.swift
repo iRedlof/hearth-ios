@@ -18,7 +18,7 @@ public struct Door: Sendable, Equatable {
     }
 }
 
-public enum DoorAction: String, Sendable, Equatable {
+public enum DoorAction: String, Codable, Sendable, Equatable {
     case open, close, stop, lock
     public var label: String { switch self { case .open: "Open"; case .close: "Close"; case .stop: "Stop"; case .lock: "Lock" } }
     public var pending: String { switch self { case .open: "Opening…"; case .close: "Closing…"; case .stop: "Stopping…"; case .lock: "Locking…" } }

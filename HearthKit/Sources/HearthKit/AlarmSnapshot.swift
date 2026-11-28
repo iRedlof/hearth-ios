@@ -31,6 +31,12 @@ public struct AlarmSnapshot: Codable, Sendable, Equatable {
     public var commandFeedback: String?
     public var commandError: String?
     public var operation: AlarmOperation?
+    /// The garage row under the front door; nil when no garage is configured.
+    public var garage: AlarmGarageRow?
+
+    /// Front door and garage share the middle of the card as two compact rows. With no garage
+    /// (or during setup) the single front-door row keeps its roomier layout.
+    public var compactDoorRows: Bool { garage != nil && !setup }
 
     public init(name: String, checkedAt: String, stateWord: String, detail: String, tone: BeaconTone,
                 glyph: AlarmGlyph, doorName: String, doorState: String, doorSince: String?,

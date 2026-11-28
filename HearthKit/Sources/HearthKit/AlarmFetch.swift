@@ -4,12 +4,13 @@ public struct AlarmFetchResult: Sendable {
     public let entityID: String
     public let lockID: String
     public let lockName: String
+    public let garageID: String
     public let readings: [String: HaStateReading]
     public let errors: [String: String]
     public let setup: Bool
-    public init(entityID: String = "", lockID: String = "", lockName: String = "",
+    public init(entityID: String = "", lockID: String = "", lockName: String = "", garageID: String = "",
                 readings: [String: HaStateReading] = [:], errors: [String: String] = [:], setup: Bool = false) {
-        self.entityID = entityID; self.lockID = lockID; self.lockName = lockName
+        self.entityID = entityID; self.lockID = lockID; self.lockName = lockName; self.garageID = garageID
         self.readings = readings; self.errors = errors; self.setup = setup
     }
     public func snapshot(now: Date = .now, zone: TimeZone = .current,
@@ -41,28 +42,46 @@ public struct AlarmFetchResult: Sendable {
             doorName: doorName, doorSelected: selected, doorError: error(lockID, reading: door),
             doorCheckedAt: door?.checkedAt)
         snapshot.entityID = entityID; snapshot.lockID = lockID
+        if !setup, !garageID.isEmpty {
+            let garage = reading(garageID)
+            snapshot.garage = alarmGarageRow(entityID: garageID, reading: garage,
+                error: error(garageID, reading: garage), now: now, zone: zone, locale: locale)
+        }
         return snapshot
     }
 }
 
-/// Panel and selected lock are independent successful readings. A failed lock never borrows
-/// the panel's freshness; a successful unknown response replaces older security status.
+/// Panel, selected lock and selected garage are independent successful readings from one fetch.
+/// A failed lock or garage never borrows the panel's freshness; a successful unknown response
+/// replaces older security status.
 public func fetchAlarmReadings(_ config: HaConfig?, previous: [String: HaStateReading] = [:],
                                now: Date = .now,
                                request: (@Sendable (String) async throws -> String)? = nil) async -> AlarmFetchResult {
     guard let config, config.isComplete else { return AlarmFetchResult(setup: true) }
-    let ids = [config.entityId] + (config.hasLock ? [config.lockId] : [])
+    let garageID = garageSelectedID(config) ?? ""
+    let ids = [config.entityId] + (config.hasLock ? [config.lockId] : []) + (garageID.isEmpty ? [] : [garageID])
     let result = await fetchHaStateReadings(config, ids: ids, previous: previous, now: now) { id in
         let json: String
         if let request { json = try await request(id) }
         else { json = try await HaClient(config).stateJson(id) }
-        guard let state = AlarmState.fromJson(json), state.entityID == id else {
-            throw HaError("Couldn't read \(id.hasPrefix("lock.") ? "door" : "alarm") data")
-        }
+        try validateAlarmReply(json, id: id, garageID: garageID)
         return json
     }
     return AlarmFetchResult(entityID: config.entityId, lockID: config.hasLock ? config.lockId : "",
-        lockName: config.lockName, readings: result.readings, errors: result.errors)
+        lockName: config.lockName, garageID: garageID, readings: result.readings, errors: result.errors)
+}
+
+/// The garage must parse as this garage/gate cover; the panel and lock as their own entity state.
+private func validateAlarmReply(_ json: String, id: String, garageID: String) throws {
+    if id == garageID {
+        guard let door = doorFromState(json), door.id == id, door.kind == .garage else {
+            throw HaError(garageUnreadableMessage)
+        }
+        return
+    }
+    guard let state = AlarmState.fromJson(json), state.entityID == id else {
+        throw HaError("Couldn't read \(id.hasPrefix("lock.") ? "door" : "alarm") data")
+    }
 }
 
 public func fetchAlarmSnapshot(_ config: HaConfig, now: Date = .now) async -> AlarmSnapshot {
